@@ -55,6 +55,10 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var openAICompatibleBaseURL: String
     @Published private(set) var openAICompatibleModelName: String
     @Published private(set) var openAICompatibleAPIMode: OpenAICompatibleAPIMode
+    @Published private(set) var endpointProvider: OpenAICompatibleProviderPreset
+    @Published private(set) var groqModelName: String
+    @Published private(set) var isLargeEndpointContextEnabled: Bool
+    @Published private(set) var endpointTokensPerMinuteBudget: Int
     /// Non-secret change token that lets lifecycle observers react to Keychain updates without
     /// publishing the credential itself.
     @Published private(set) var endpointCredentialRevision: UInt64 = 0
@@ -82,6 +86,7 @@ final class SuggestionSettingsModel: ObservableObject {
     /// When on (and typo suppression is on), pressing Space after a misspelled word applies the best
     /// local correction immediately. Kept opt-in because this changes text without confirmation.
     @Published private(set) var automaticallyFixTypos: Bool
+    @Published private(set) var isSentenceCheckEnabled: Bool
     /// Whether the Performance pane is recording per-request latency. Defaults to false so the
     /// default user never pays any extra storage or write cost — recording only kicks in once the
     /// user opts in from Settings.
@@ -153,6 +158,7 @@ final class SuggestionSettingsModel: ObservableObject {
     /// routes every load and save through it.
     private let store: SuggestionSettingsStore
     private let endpointCredentialStore: OpenAICompatibleCredentialStoring
+    private let groqCredentialStore: OpenAICompatibleCredentialStoring
 
     /// Retained so `resetToDefaults` can re-resolve the same first-launch values the app shipped with
     /// (a few defaults — word-count preset, profile name, debounce/poll cadence — come from here).
@@ -185,19 +191,22 @@ final class SuggestionSettingsModel: ObservableObject {
         self.init(
             configuration: configuration,
             userDefaults: userDefaults,
-            endpointCredentialStore: InMemoryOpenAICompatibleCredentialStore()
+            endpointCredentialStore: InMemoryOpenAICompatibleCredentialStore(),
+            groqCredentialStore: InMemoryOpenAICompatibleCredentialStore()
         )
     }
 
     init(
         configuration: SuggestionConfiguration,
         userDefaults: UserDefaults = .standard,
-        endpointCredentialStore: OpenAICompatibleCredentialStoring
+        endpointCredentialStore: OpenAICompatibleCredentialStoring,
+        groqCredentialStore: OpenAICompatibleCredentialStoring
     ) {
         let store = SuggestionSettingsStore(userDefaults: userDefaults)
         let data = store.load(configuration: configuration)
         self.store = store
         self.endpointCredentialStore = endpointCredentialStore
+        self.groqCredentialStore = groqCredentialStore
         self.configuration = configuration
 
         isGloballyEnabled = data.isGloballyEnabled
@@ -213,6 +222,10 @@ final class SuggestionSettingsModel: ObservableObject {
         openAICompatibleBaseURL = data.openAICompatibleBaseURL
         openAICompatibleModelName = data.openAICompatibleModelName
         openAICompatibleAPIMode = data.openAICompatibleAPIMode
+        endpointProvider = data.endpointProvider
+        groqModelName = data.groqModelName
+        isLargeEndpointContextEnabled = data.isLargeEndpointContextEnabled
+        endpointTokensPerMinuteBudget = data.endpointTokensPerMinuteBudget
         selectedWordCountPreset = data.selectedWordCountPreset
         isUsingCustomWordCountRange = data.isUsingCustomWordCountRange
         customWordCountLowWords = data.customWordCountLowWords
@@ -224,6 +237,7 @@ final class SuggestionSettingsModel: ObservableObject {
         offerTypoCorrections = data.offerTypoCorrections
         enabledSpellingDictionaryCodes = data.enabledSpellingDictionaryCodes
         automaticallyFixTypos = data.automaticallyFixTypos
+        isSentenceCheckEnabled = data.isSentenceCheckEnabled
         isPerformanceTrackingEnabled = data.isPerformanceTrackingEnabled
         isLowPowerModeAutoDisableEnabled = data.isLowPowerModeAutoDisableEnabled
         isMenuBarIconVisible = data.isMenuBarIconVisible
@@ -290,6 +304,10 @@ final class SuggestionSettingsModel: ObservableObject {
         openAICompatibleBaseURL = data.openAICompatibleBaseURL
         openAICompatibleModelName = data.openAICompatibleModelName
         openAICompatibleAPIMode = data.openAICompatibleAPIMode
+        endpointProvider = data.endpointProvider
+        groqModelName = data.groqModelName
+        isLargeEndpointContextEnabled = data.isLargeEndpointContextEnabled
+        endpointTokensPerMinuteBudget = data.endpointTokensPerMinuteBudget
         selectedWordCountPreset = data.selectedWordCountPreset
         isUsingCustomWordCountRange = data.isUsingCustomWordCountRange
         customWordCountLowWords = data.customWordCountLowWords
@@ -301,6 +319,7 @@ final class SuggestionSettingsModel: ObservableObject {
         offerTypoCorrections = data.offerTypoCorrections
         enabledSpellingDictionaryCodes = data.enabledSpellingDictionaryCodes
         automaticallyFixTypos = data.automaticallyFixTypos
+        isSentenceCheckEnabled = data.isSentenceCheckEnabled
         isPerformanceTrackingEnabled = data.isPerformanceTrackingEnabled
         isLowPowerModeAutoDisableEnabled = data.isLowPowerModeAutoDisableEnabled
         isMenuBarIconVisible = data.isMenuBarIconVisible
@@ -342,6 +361,7 @@ final class SuggestionSettingsModel: ObservableObject {
         pluggedInEndpointModelName = data.pluggedInEndpointModelName
         do {
             try endpointCredentialStore.deleteAPIKey()
+            try groqCredentialStore.deleteAPIKey()
             endpointCredentialRevision &+= 1
         } catch {
             CotabbyLogger.app.error("Failed to clear endpoint API key during settings reset: \(error.localizedDescription)")
@@ -369,6 +389,10 @@ final class SuggestionSettingsModel: ObservableObject {
                 openAICompatibleBaseURL: openAICompatibleBaseURL,
                 openAICompatibleModelName: openAICompatibleModelName,
                 openAICompatibleAPIMode: openAICompatibleAPIMode,
+                endpointProvider: endpointProvider,
+                groqModelName: groqModelName,
+                isLargeEndpointContextEnabled: isLargeEndpointContextEnabled,
+                endpointTokensPerMinuteBudget: endpointTokensPerMinuteBudget,
                 isPowerBasedModelSwitchingEnabled: isPowerBasedModelSwitchingEnabled,
                 batteryEngine: batteryEngine,
                 batteryModelFilename: batteryModelFilename,
@@ -403,7 +427,8 @@ final class SuggestionSettingsModel: ObservableObject {
                 suppressCompletionsOnTypo: suppressCompletionsOnTypo,
                 offerTypoCorrections: offerTypoCorrections,
                 enabledSpellingDictionaryCodes: enabledSpellingDictionaryCodes,
-                automaticallyFixTypos: automaticallyFixTypos
+                automaticallyFixTypos: automaticallyFixTypos,
+                isSentenceCheckEnabled: isSentenceCheckEnabled
             ),
             presentation: SuggestionPresentationSettings(
                 showIndicator: showIndicator,
@@ -477,7 +502,11 @@ final class SuggestionSettingsModel: ObservableObject {
             suppressCompletionsOnTypo: settings.correction.suppressCompletionsOnTypo,
             offerTypoCorrections: settings.correction.offerTypoCorrections,
             enabledSpellingDictionaryCodes: settings.correction.enabledSpellingDictionaryCodes,
-            automaticallyFixTypos: settings.correction.automaticallyFixTypos
+            automaticallyFixTypos: settings.correction.automaticallyFixTypos,
+            endpointProvider: settings.engine.endpointProvider,
+            isLargeEndpointContextEnabled: settings.engine.isLargeEndpointContextEnabled,
+            endpointTokensPerMinuteBudget: settings.engine.endpointTokensPerMinuteBudget,
+            isSentenceCheckEnabled: settings.correction.isSentenceCheckEnabled
         )
     }
 
@@ -508,22 +537,69 @@ final class SuggestionSettingsModel: ObservableObject {
         store.saveOpenAICompatibleAPIMode(mode)
     }
 
+    func setEndpointProvider(_ provider: OpenAICompatibleProviderPreset) {
+        guard endpointProvider != provider else { return }
+        endpointProvider = provider
+        store.saveEndpointProvider(provider)
+    }
+
+    func setGroqModelName(_ modelName: String) {
+        guard groqModelName != modelName else { return }
+        groqModelName = modelName
+        store.saveGroqModelName(modelName)
+    }
+
+    /// The model the endpoint engine will call right now. Each provider keeps its own selection so
+    /// switching between Groq and a local server never clobbers the other's choice.
+    var activeEndpointModelName: String {
+        switch endpointProvider {
+        case .custom: return openAICompatibleModelName
+        case .groq: return groqModelName
+        }
+    }
+
+    func setActiveEndpointModelName(_ modelName: String) {
+        switch endpointProvider {
+        case .custom: setOpenAICompatibleModelName(modelName)
+        case .groq: setGroqModelName(modelName)
+        }
+    }
+
+    /// Groq pins its URL and chat route; the custom preset keeps the user-typed server settings.
     var openAICompatibleConfiguration: OpenAICompatibleEndpointConfiguration {
         get throws {
-            try OpenAICompatibleEndpointConfiguration(
-                baseURLString: openAICompatibleBaseURL,
-                modelName: openAICompatibleModelName,
-                apiMode: openAICompatibleAPIMode
-            )
+            switch endpointProvider {
+            case .custom:
+                return try OpenAICompatibleEndpointConfiguration(
+                    baseURLString: openAICompatibleBaseURL,
+                    modelName: openAICompatibleModelName,
+                    apiMode: openAICompatibleAPIMode,
+                    provider: .custom
+                )
+            case .groq:
+                return try OpenAICompatibleEndpointConfiguration(
+                    baseURLString: OpenAICompatibleProviderPreset.groqBaseURLString,
+                    modelName: groqModelName,
+                    apiMode: .chatCompletions,
+                    provider: .groq
+                )
+            }
+        }
+    }
+
+    private var activeCredentialStore: OpenAICompatibleCredentialStoring {
+        switch endpointProvider {
+        case .custom: return endpointCredentialStore
+        case .groq: return groqCredentialStore
         }
     }
 
     func openAICompatibleAPIKey() throws -> String? {
-        try endpointCredentialStore.readAPIKey()
+        try activeCredentialStore.readAPIKey()
     }
 
     func saveOpenAICompatibleAPIKey(_ apiKey: String?) throws {
-        try endpointCredentialStore.saveAPIKey(apiKey)
+        try activeCredentialStore.saveAPIKey(apiKey)
         endpointCredentialRevision &+= 1
     }
 
@@ -756,6 +832,25 @@ final class SuggestionSettingsModel: ObservableObject {
 
         automaticallyFixTypos = enabled
         store.saveAutomaticallyFixTypos(enabled)
+    }
+
+    func setSentenceCheckEnabled(_ enabled: Bool) {
+        guard isSentenceCheckEnabled != enabled else { return }
+        isSentenceCheckEnabled = enabled
+        store.saveSentenceCheckEnabled(enabled)
+    }
+
+    func setLargeEndpointContextEnabled(_ enabled: Bool) {
+        guard isLargeEndpointContextEnabled != enabled else { return }
+        isLargeEndpointContextEnabled = enabled
+        store.saveLargeEndpointContextEnabled(enabled)
+    }
+
+    func setEndpointTokensPerMinuteBudget(_ budget: Int) {
+        let clamped = max(1_000, budget)
+        guard endpointTokensPerMinuteBudget != clamped else { return }
+        endpointTokensPerMinuteBudget = clamped
+        store.saveEndpointTokensPerMinuteBudget(clamped)
     }
 
     func setPerformanceTrackingEnabled(_ enabled: Bool) {
@@ -1552,9 +1647,15 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
             $customWordCountHighWords
         )
         // The outer `CombineLatest4` is full, so these settings share its grouped publisher slot.
+        let cloudAssist = Publishers.CombineLatest4(
+            $endpointProvider,
+            $isLargeEndpointContextEnabled,
+            $endpointTokensPerMinuteBudget,
+            $isSentenceCheckEnabled
+        )
         return Publishers.CombineLatest4(
             primary,
-            $acceptanceGranularity,
+            Publishers.CombineLatest($acceptanceGranularity, cloudAssist),
             Publishers.CombineLatest4(
                 $extendedContext,
                 $suggestInIntegratedTerminals,
@@ -1563,7 +1664,9 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
             ),
             customRange
         )
-            .map { primaryTuple, granularity, extendedContextTuple, customRangeTuple in
+            .map { primaryTuple, granularityAndCloudAssist, extendedContextTuple, customRangeTuple in
+                let (granularity, cloudAssist) = granularityAndCloudAssist
+                let (endpointProvider, largeEndpointContext, tokensPerMinuteBudget, sentenceCheck) = cloudAssist
                 let (combinedSettings, presentationToggles, profile, timing) = primaryTuple
                 let (globalState, disabledAppRules, engine, wordCountPreset) = combinedSettings
                 let (globallyEnabled, pauseState) = globalState
@@ -1603,7 +1706,11 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                     suppressCompletionsOnTypo: suppressOnTypo,
                     offerTypoCorrections: offerCorrections,
                     enabledSpellingDictionaryCodes: enabledSpellingDictionaryCodes,
-                    automaticallyFixTypos: automaticallyFixTypos
+                    automaticallyFixTypos: automaticallyFixTypos,
+                    endpointProvider: endpointProvider,
+                    isLargeEndpointContextEnabled: largeEndpointContext,
+                    endpointTokensPerMinuteBudget: tokensPerMinuteBudget,
+                    isSentenceCheckEnabled: sentenceCheck
                 )
             }
             .removeDuplicates()

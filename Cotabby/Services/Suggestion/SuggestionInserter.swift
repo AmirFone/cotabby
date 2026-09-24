@@ -119,8 +119,7 @@ final class SuggestionInserter {
         suppressionController.markSynthetic(keyUpEvent)
         keyDownEvent.keyboardSetUnicodeString(stringLength: utf16CodeUnits.count, unicodeString: utf16CodeUnits)
         keyUpEvent.keyboardSetUnicodeString(stringLength: utf16CodeUnits.count, unicodeString: utf16CodeUnits)
-        keyDownEvent.post(tap: .cghidEventTap)
-        keyUpEvent.post(tap: .cghidEventTap)
+        SyntheticEventPoster.post([keyDownEvent, keyUpEvent])
         lastErrorMessage = nil
         CotabbyLogger.suggestion.debug("Inserted \(normalized.count) characters via synthetic keystroke")
         return true
@@ -139,6 +138,13 @@ final class SuggestionInserter {
         guard !plan.isNoop else {
             lastErrorMessage = nil
             return true
+        }
+        // Never overlap deleting edits: the caller planned against text that an in-flight edit is still
+        // changing, so its backspace count would land on the wrong characters.
+        guard SyntheticEventPoster.secondsUntilSettled == 0 else {
+            lastErrorMessage = "Another edit is still being applied."
+            CotabbyLogger.suggestion.debug("Replace refused: a previous synthetic edit is still settling")
+            return false
         }
 
         var events: [CGEvent] = []
@@ -175,9 +181,7 @@ final class SuggestionInserter {
             suppressionController.markSynthetic(event)
         }
         suppressionController.registerSyntheticInsertion(expectedKeyDownCount: plan.totalKeyDownCount)
-        for event in events {
-            event.post(tap: .cghidEventTap)
-        }
+        SyntheticEventPoster.post(events)
 
         lastErrorMessage = nil
         CotabbyLogger.suggestion.debug(
@@ -352,3 +356,65 @@ enum SyntheticReplacePlanner {
 
 extension SuggestionInserter: SuggestionInserting {}
 extension SuggestionInserter: EmojiTextInserting {}
+
+/// Posts synthetic key events in order on one serial queue, pausing briefly after each key.
+///
+/// Hosts drop keys posted in an unpaced burst. Measured in TextEdit with a fresh document: back-to-back
+/// keys were lost entirely, 1 ms apart some were still dropped at random (`dont ` → `don`), and 3 ms
+/// apart every key landed. 4 ms leaves margin: a word fix (about 5 keys) takes 20 ms, the longest
+/// allowed sentence rewrite (120 keys) about half a second, all on a background queue so the main
+/// thread stays free. Routing every synthetic key through the same queue keeps a replace and a
+/// following insert in order.
+nonisolated enum SyntheticEventPoster {
+    static let gapAfterKeyUpMicroseconds: UInt32 = 4_000
+
+    private static let queue = DispatchQueue(label: "com.cotabby.synthetic-events", qos: .userInteractive)
+    private static let lock = NSLock()
+    /// Guarded by `lock`: when the last queued key will have been posted.
+    nonisolated(unsafe) private static var drainedAt = DispatchTime.now()
+
+    private struct Batch: @unchecked Sendable {
+        let events: [CGEvent]
+    }
+
+    /// How long after the last key the host is given to process it before its text is trusted again.
+    static let settleSeconds: TimeInterval = 0.1
+
+    /// Seconds until Cotabby's own keys have been posted and the host has had time to apply them.
+    /// Reading the field before then sees a half-applied edit; starting another deleting edit then
+    /// would count backspaces against the wrong text.
+    static var secondsUntilSettled: TimeInterval {
+        let remaining = lock.withLock {
+            Double(drainedAt.uptimeNanoseconds) / 1_000_000_000 + settleSeconds
+                - Double(DispatchTime.now().uptimeNanoseconds) / 1_000_000_000
+        }
+        return max(0, remaining)
+    }
+
+    /// Seconds until every queued key has been posted. Anything that would disturb key delivery
+    /// (tearing down an event tap the keys pass through) must wait at least this long.
+    static var secondsUntilDrained: TimeInterval {
+        lock.withLock {
+            let now = DispatchTime.now().uptimeNanoseconds
+            return drainedAt.uptimeNanoseconds > now ? Double(drainedAt.uptimeNanoseconds - now) / 1_000_000_000 : 0
+        }
+    }
+
+    /// `events` alternate key-down / key-up; the pause follows each key-up.
+    static func post(_ events: [CGEvent]) {
+        let batch = Batch(events: events)
+        let duration = UInt64(events.count / 2) * UInt64(gapAfterKeyUpMicroseconds) * 1_000
+        lock.withLock {
+            let start = max(drainedAt.uptimeNanoseconds, DispatchTime.now().uptimeNanoseconds)
+            drainedAt = DispatchTime(uptimeNanoseconds: start + duration)
+        }
+        queue.async {
+            for (index, event) in batch.events.enumerated() {
+                event.post(tap: .cghidEventTap)
+                if index % 2 == 1, index < batch.events.count - 1 {
+                    usleep(gapAfterKeyUpMicroseconds)
+                }
+            }
+        }
+    }
+}

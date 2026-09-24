@@ -256,6 +256,188 @@ final class OpenAICompatibleAPIClientTests: XCTestCase {
         XCTAssertEqual(output, " next")
     }
 
+    func test_groqGptOssGeneration_usesSystemTurnLowReasoningAndTokenHeadroom() async throws {
+        let client = makeClient()
+        EndpointStubURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://api.groq.com/openai/v1/chat/completions")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer gsk-test")
+            let json = try Self.jsonBody(request)
+            let messages = try XCTUnwrap(json["messages"] as? [[String: Any]])
+            XCTAssertEqual(messages.map { $0["role"] as? String }, ["system", "user"])
+            XCTAssertEqual(messages.last?["content"] as? String, "Continue me")
+            XCTAssertEqual(json["reasoning_effort"] as? String, "low")
+            XCTAssertEqual(json["include_reasoning"] as? Bool, false)
+            XCTAssertEqual(json["max_tokens"] as? Int, 8 + 64)
+            return Self.response(
+                request: request,
+                contentType: "text/event-stream",
+                body: "data: {\"choices\":[{\"delta\":{\"reasoning\":\"think\"}}]}\n\n" +
+                    "data: {\"choices\":[{\"delta\":{\"content\":\" next\"}}]}\n\n" +
+                    "data: [DONE]\n\n"
+            )
+        }
+
+        let output = try await client.generate(
+            configuration: groqConfiguration(model: "openai/gpt-oss-20b"),
+            apiKey: "gsk-test",
+            prompt: "Continue me",
+            options: .init(maxPredictionTokens: 8, temperature: 0.1, topP: 0.7),
+            onPartialRawText: nil
+        )
+
+        XCTAssertEqual(output, " next")
+    }
+
+    func test_groqNonReasoningModel_sendsNoneEffortWithoutHeadroom() async throws {
+        let client = makeClient()
+        EndpointStubURLProtocol.handler = { request in
+            let json = try Self.jsonBody(request)
+            XCTAssertEqual(json["reasoning_effort"] as? String, "none")
+            XCTAssertEqual(json["max_tokens"] as? Int, 8)
+            return Self.response(request: request, contentType: "text/event-stream", body: "data: [DONE]\n\n")
+        }
+
+        _ = try await client.generate(
+            configuration: groqConfiguration(model: "qwen/qwen3.6-27b"),
+            apiKey: "gsk-test",
+            prompt: "Continue me",
+            options: .init(maxPredictionTokens: 8, temperature: 0.1, topP: 0.7),
+            onPartialRawText: nil
+        )
+    }
+
+    func test_generation_mapsGroq429ToRateLimitedWithRetryAfter() async {
+        let client = makeClient()
+        EndpointStubURLProtocol.handler = { request in
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 429,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json", "retry-after": "2"]
+            )!
+            return (response, Data(#"{"error":{"message":"Rate limit reached"}}"#.utf8))
+        }
+
+        do {
+            _ = try await client.generate(
+                configuration: groqConfiguration(model: "openai/gpt-oss-20b"),
+                apiKey: "gsk-test",
+                prompt: "text",
+                options: .init(maxPredictionTokens: 8, temperature: 0.1, topP: 0.7),
+                onPartialRawText: nil
+            )
+            XCTFail("Expected rate limiting")
+        } catch let error as OpenAICompatibleClientError {
+            XCTAssertEqual(error, .rateLimited(retryAfterSeconds: 2, message: "Rate limit reached"))
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func test_generation_publishesRateLimitSnapshotFromHeaders() async throws {
+        let client = makeClient()
+        var snapshots: [OpenAICompatibleRateLimitSnapshot] = []
+        client.onRateLimitSnapshot = { snapshots.append($0) }
+        EndpointStubURLProtocol.handler = { request in
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: [
+                    "Content-Type": "text/event-stream",
+                    "x-ratelimit-limit-tokens": "250000",
+                    "x-ratelimit-remaining-tokens": "249877",
+                    "x-ratelimit-reset-tokens": "29ms"
+                ]
+            )!
+            return (response, Data("data: [DONE]\n\n".utf8))
+        }
+
+        _ = try await client.generate(
+            configuration: groqConfiguration(model: "openai/gpt-oss-20b"),
+            apiKey: "gsk-test",
+            prompt: "text",
+            options: .init(maxPredictionTokens: 8, temperature: 0.1, topP: 0.7),
+            onPartialRawText: nil
+        )
+
+        let snapshot = try XCTUnwrap(snapshots.first)
+        XCTAssertEqual(snapshot.tokenLimit, 250_000)
+        XCTAssertEqual(snapshot.remainingTokens, 249_877)
+        XCTAssertEqual(try XCTUnwrap(snapshot.secondsUntilTokensReset), 0.029, accuracy: 0.000_1)
+    }
+
+    func test_fetchModels_groqHidesSpeechGuardAndAgenticModels() async throws {
+        let client = makeClient()
+        EndpointStubURLProtocol.handler = { request in
+            Self.response(
+                request: request,
+                body: #"{"data":[{"id":"whisper-large-v3"},{"id":"openai/gpt-oss-20b"},"# +
+                    #"{"id":"meta-llama/llama-prompt-guard-2-22m"},{"id":"groq/compound"},"# +
+                    #"{"id":"openai/gpt-oss-safeguard-20b"},{"id":"qwen/qwen3.6-27b"},{"id":"openai/gpt-oss-120b"}]}"#
+            )
+        }
+
+        let models = try await client.fetchModels(
+            configuration: groqConfiguration(model: "openai/gpt-oss-20b"),
+            apiKey: "gsk-test"
+        )
+
+        XCTAssertEqual(models.map(\.id), ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.6-27b"])
+    }
+
+    func test_checkSentence_sendsStrictSchemaAndDecodesTheFix() async throws {
+        let client = makeClient()
+        EndpointStubURLProtocol.handler = { request in
+            let json = try Self.jsonBody(request)
+            let format = try XCTUnwrap(json["response_format"] as? [String: Any])
+            XCTAssertEqual(format["type"] as? String, "json_schema")
+            XCTAssertNil(json["stream"])
+            XCTAssertEqual(json["temperature"] as? Double, 0)
+            let messages = try XCTUnwrap(json["messages"] as? [[String: Any]])
+            XCTAssertTrue((messages[0]["content"] as? String)?.contains("Cotabby") == true, "known terms reach the system turn")
+            let content = #"{\"corrected\":\"I received their email.\",\"edits\":[{\"from\":\"there\",\"to\":\"their\",\"confidence\":0.97}]}"#
+            return Self.response(request: request, body: #"{"choices":[{"message":{"content":"\#(content)"}}]}"#)
+        }
+
+        let result = try await client.checkSentence(
+            configuration: groqConfiguration(model: "openai/gpt-oss-20b"),
+            apiKey: "gsk-test",
+            sentence: "I recieved there email.",
+            precedingContext: "",
+            knownTerms: "Cotabby"
+        )
+
+        XCTAssertEqual(result?.corrected, "I received their email.")
+        XCTAssertEqual(result?.edits.first?.confidence, 0.97)
+    }
+
+    func test_checkSentence_returnsNilWhenNothingChanged() async throws {
+        let client = makeClient()
+        EndpointStubURLProtocol.handler = { request in
+            let content = #"{\"corrected\":\"All good here.\",\"edits\":[]}"#
+            return Self.response(request: request, body: #"{"choices":[{"message":{"content":"\#(content)"}}]}"#)
+        }
+
+        let result = try await client.checkSentence(
+            configuration: groqConfiguration(model: "openai/gpt-oss-20b"),
+            apiKey: nil,
+            sentence: "All good here.",
+            precedingContext: "",
+            knownTerms: nil
+        )
+
+        XCTAssertNil(result)
+    }
+
+    func test_rateLimitDurationParser_handlesProviderFormats() {
+        XCTAssertEqual(OpenAICompatibleRateLimitSnapshot.durationSeconds(from: "29ms") ?? -1, 0.029, accuracy: 0.000_1)
+        XCTAssertEqual(OpenAICompatibleRateLimitSnapshot.durationSeconds(from: "7.66s") ?? -1, 7.66, accuracy: 0.000_1)
+        XCTAssertEqual(OpenAICompatibleRateLimitSnapshot.durationSeconds(from: "1m2.5s") ?? -1, 62.5, accuracy: 0.000_1)
+        XCTAssertEqual(OpenAICompatibleRateLimitSnapshot.durationSeconds(from: "2") ?? -1, 2, accuracy: 0.000_1)
+        XCTAssertNil(OpenAICompatibleRateLimitSnapshot.durationSeconds(from: "soon"))
+    }
+
     func test_generationMapsNonSuccessStatus() async {
         let client = makeClient()
         EndpointStubURLProtocol.handler = { request in
@@ -272,7 +454,7 @@ final class OpenAICompatibleAPIClientTests: XCTestCase {
             )
             XCTFail("Expected the HTTP error")
         } catch let error as OpenAICompatibleClientError {
-            XCTAssertEqual(error, .server(statusCode: 401))
+            XCTAssertEqual(error, .server(statusCode: 401, message: "unauthorized"))
         } catch {
             XCTFail("Unexpected error: \(error)")
         }
@@ -325,6 +507,15 @@ final class OpenAICompatibleAPIClientTests: XCTestCase {
             baseURLString: baseURL,
             modelName: "gemma4:12b-mlx",
             apiMode: mode
+        )
+    }
+
+    private func groqConfiguration(model: String) throws -> OpenAICompatibleEndpointConfiguration {
+        try OpenAICompatibleEndpointConfiguration(
+            baseURLString: OpenAICompatibleProviderPreset.groqBaseURLString,
+            modelName: model,
+            apiMode: .chatCompletions,
+            provider: .groq
         )
     }
 

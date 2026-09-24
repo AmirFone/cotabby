@@ -140,12 +140,15 @@ final class SuggestionSettingsStoreTests: XCTestCase {
 
     // MARK: - Save / load round-trips
 
-    func test_load_automaticTypoFixingDefaultsOff() async {
+    func test_load_confidentTypoFixingAndSentenceCheckDefaultOn() async {
         let defaults = makeIsolatedDefaults()
 
         let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
 
-        XCTAssertFalse(data.automaticallyFixTypos)
+        XCTAssertTrue(data.automaticallyFixTypos)
+        XCTAssertTrue(data.isSentenceCheckEnabled)
+        XCTAssertTrue(data.isLargeEndpointContextEnabled)
+        XCTAssertEqual(data.endpointTokensPerMinuteBudget, 250_000)
     }
 
     func test_load_menuBarIconDefaultsVisible() async {
@@ -447,6 +450,31 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         XCTAssertEqual(reloaded.openAICompatibleBaseURL, "https://example.com/v1")
         XCTAssertEqual(reloaded.openAICompatibleModelName, "custom")
         XCTAssertEqual(reloaded.openAICompatibleAPIMode, .completions)
+    }
+
+    func test_endpointProvider_defaultsToGroqWithGptOss20bAndRoundTrips() async {
+        let defaults = makeIsolatedDefaults()
+        let store = SuggestionSettingsStore(userDefaults: defaults)
+
+        let initial = store.load(configuration: .standard)
+        XCTAssertEqual(initial.endpointProvider, .groq)
+        XCTAssertEqual(initial.groqModelName, "openai/gpt-oss-20b")
+
+        store.saveEndpointProvider(.custom)
+        store.saveGroqModelName("openai/gpt-oss-120b")
+        let reloaded = store.load(configuration: .standard)
+
+        XCTAssertEqual(reloaded.endpointProvider, .custom)
+        XCTAssertEqual(reloaded.groqModelName, "openai/gpt-oss-120b")
+    }
+
+    func test_endpointProvider_blankGroqModelFallsBackToDefault() async {
+        let defaults = makeIsolatedDefaults()
+        defaults.set("   ", forKey: "cotabbyGroqModelName")
+
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        XCTAssertEqual(data.groqModelName, "openai/gpt-oss-20b")
     }
 
     func test_load_legacyModelOnlyProfilePreservedWithOpenSourceEngine() async {

@@ -62,7 +62,27 @@ final class SuggestionCoordinator: ObservableObject {
     /// consumption happens through `InputMonitor.emojiCaptureKeyDecider`.
     var emojiInputObserver: ((CapturedInputEvent) -> Bool)?
 
+    /// The pick-list for ambiguous misspellings and ghost-text alternates. Set by the composition root
+    /// after the inline-command controllers exist; nil in tests that do not exercise the list.
+    var candidateOfferPresenter: (any CandidateOfferPresenting)?
+    /// The writer's history of accepted fixes, which boosts those fixes the next time the same typo
+    /// appears. Nil disables the boost.
+    var personalCorrectionMemory: PersonalCorrectionMemory?
+    /// Local word-pair counts that let corrections use the previous word. Nil disables context.
+    var bigramContextModel: BigramContextModel?
+    /// Optional Jev decisions for spelling choices the local evidence cannot settle.
+    var wordIntentRefiner: WordIntentRefiner?
+    /// Proofreads finished sentences on cloud endpoints. Nil in tests and when unavailable.
+    var sentenceFixPresenter: (any SentenceFixPresenting)?
+
+    /// True while a Cotabby panel owns Tab, so late-arriving ghost text must not appear under it.
+    var isInlinePanelOwningKeys: Bool {
+        candidateOfferPresenter?.isShowingChoices == true || sentenceFixPresenter?.isShowingFix == true
+    }
+
     static let totalTabAcceptedWordCountDefaultsKey = "cotabbyTotalAcceptedWordCount"
+    /// Long enough for the host to publish the typed space to Accessibility.
+    static let typeThroughSentenceCheckDelaySeconds: TimeInterval = 0.12
 
     // Combine subscriptions are the coordinator's remaining direct mutable bookkeeping.
     // Async work and active-session storage now live in dedicated collaborators below.

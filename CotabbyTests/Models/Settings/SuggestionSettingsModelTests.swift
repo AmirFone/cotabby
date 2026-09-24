@@ -300,13 +300,44 @@ final class SuggestionSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.pluggedInModelFilename, "large.gguf")
     }
 
+    func test_endpointProvider_keepsSeparateModelsKeysAndConfiguration() throws {
+        let customKeys = InMemoryOpenAICompatibleCredentialStore(apiKey: "local-token")
+        let groqKeys = InMemoryOpenAICompatibleCredentialStore(apiKey: "gsk-test")
+        let model = SuggestionSettingsModel(
+            configuration: .standard,
+            userDefaults: defaults,
+            endpointCredentialStore: customKeys,
+            groqCredentialStore: groqKeys
+        )
+
+        model.setEndpointProvider(.groq)
+        let groq = try model.openAICompatibleConfiguration
+        XCTAssertEqual(groq.baseURL.absoluteString, "https://api.groq.com/openai/v1")
+        XCTAssertEqual(groq.modelName, "openai/gpt-oss-20b")
+        XCTAssertEqual(groq.apiMode, .chatCompletions)
+        XCTAssertEqual(groq.provider, .groq)
+        XCTAssertEqual(try model.openAICompatibleAPIKey(), "gsk-test")
+
+        model.setActiveEndpointModelName("openai/gpt-oss-120b")
+        model.setEndpointProvider(.custom)
+        model.setActiveEndpointModelName("gemma4:12b")
+        XCTAssertEqual(try model.openAICompatibleAPIKey(), "local-token")
+        XCTAssertEqual(try model.openAICompatibleConfiguration.provider, .custom)
+
+        model.setEndpointProvider(.groq)
+        XCTAssertEqual(model.activeEndpointModelName, "openai/gpt-oss-120b")
+        XCTAssertEqual(model.openAICompatibleModelName, "gemma4:12b")
+    }
+
     func test_endpointPowerProfileAndCredentialReset() throws {
         let credentials = InMemoryOpenAICompatibleCredentialStore(apiKey: "secret")
         let model = SuggestionSettingsModel(
             configuration: .standard,
             userDefaults: defaults,
-            endpointCredentialStore: credentials
+            endpointCredentialStore: credentials,
+            groqCredentialStore: InMemoryOpenAICompatibleCredentialStore()
         )
+        model.setEndpointProvider(.custom)
 
         model.setBatteryProfile(.openAICompatible(modelName: "gemma4:12b-mlx"))
         XCTAssertEqual(model.batteryProfile, .openAICompatible(modelName: "gemma4:12b-mlx"))

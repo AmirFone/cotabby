@@ -20,7 +20,8 @@ extension EngineAndModelPaneView {
             ) {
                 SettingsRowLabel(
                     title: "Pause in Low Power Mode",
-                    description: "Pause suggestions while Low Power Mode is on to reduce battery use.",
+                    description: "Pause on-device ghost text while Low Power Mode is on to save battery. "
+                        + "Spelling fixes and cloud engines keep working.",
                     systemImage: "bolt.slash.circle"
                 )
             }
@@ -111,7 +112,7 @@ extension EngineAndModelPaneView {
             return .llama(filename: runtimeModel.selectedModelFilename ?? "")
         }
         if case .openAICompatible(let modelName) = profile, modelName.isEmpty {
-            return .openAICompatible(modelName: suggestionSettings.openAICompatibleModelName)
+            return .openAICompatible(modelName: suggestionSettings.activeEndpointModelName)
         }
 
         return profile
@@ -119,7 +120,7 @@ extension EngineAndModelPaneView {
 
     var endpointPowerModels: [String] {
         var names = openAICompatibleConnectionModel.models.map(\.id)
-        let configured = suggestionSettings.openAICompatibleModelName
+        let configured = suggestionSettings.activeEndpointModelName
         if !configured.isEmpty, !names.contains(configured) {
             names.append(configured)
         }

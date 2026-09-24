@@ -79,6 +79,11 @@ struct SuggestionRequest: Equatable, Sendable {
     /// `RequestID.generate()` in `SuggestionRequestFactory`. Defaulted in the init so test fixtures
     /// that build requests directly do not need to change.
     let requestID: String
+    /// Text after the caret, bounded. Only cloud chat prompts send it; local renderers ignore it.
+    let suffixText: String?
+    /// How many alternative continuations to ask for alongside the primary one. Zero for every
+    /// engine except cloud endpoints, where one request can carry them at negligible cost.
+    let alternateCount: Int
 
     init(
         context: FocusedInputContext,
@@ -102,7 +107,9 @@ struct SuggestionRequest: Equatable, Sendable {
         visualContextSummary: String?,
         surfaceContext: SurfaceContext? = nil,
         isMultiLineEnabled: Bool,
-        requestID: String = "req_unknown"
+        requestID: String = "req_unknown",
+        suffixText: String? = nil,
+        alternateCount: Int = 0
     ) {
         self.context = context
         self.prefixText = prefixText
@@ -126,5 +133,7 @@ struct SuggestionRequest: Equatable, Sendable {
         self.surfaceContext = surfaceContext
         self.isMultiLineEnabled = isMultiLineEnabled
         self.requestID = requestID
+        self.suffixText = suffixText
+        self.alternateCount = alternateCount
     }
 }

@@ -21,6 +21,13 @@ struct SuggestionEngineSettings: Equatable {
     var openAICompatibleBaseURL: String
     var openAICompatibleModelName: String
     var openAICompatibleAPIMode: OpenAICompatibleAPIMode
+    var endpointProvider: OpenAICompatibleProviderPreset
+    var groqModelName: String
+    /// Sends a much larger window of surrounding text to cloud endpoints (Groq). Local engines
+    /// keep their KV-cache-sized windows regardless.
+    var isLargeEndpointContextEnabled: Bool
+    /// Client-side tokens-per-minute ceiling for cloud endpoints, matched to the account tier.
+    var endpointTokensPerMinuteBudget: Int
     var isPowerBasedModelSwitchingEnabled: Bool
     var batteryEngine: SuggestionEngineKind
     var batteryModelFilename: String
@@ -62,6 +69,8 @@ struct SuggestionCorrectionSettings: Equatable {
     var offerTypoCorrections: Bool
     var enabledSpellingDictionaryCodes: [String]
     var automaticallyFixTypos: Bool
+    /// After a finished sentence, ask the cloud endpoint for spelling and grammar fixes.
+    var isSentenceCheckEnabled: Bool
 }
 
 /// Overlay, indicator, menu-bar, and transition presentation.
@@ -167,6 +176,31 @@ extension SuggestionSettingsData {
     var openAICompatibleAPIMode: OpenAICompatibleAPIMode {
         get { engine.openAICompatibleAPIMode }
         set { engine.openAICompatibleAPIMode = newValue }
+    }
+
+    var endpointProvider: OpenAICompatibleProviderPreset {
+        get { engine.endpointProvider }
+        set { engine.endpointProvider = newValue }
+    }
+
+    var groqModelName: String {
+        get { engine.groqModelName }
+        set { engine.groqModelName = newValue }
+    }
+
+    var isLargeEndpointContextEnabled: Bool {
+        get { engine.isLargeEndpointContextEnabled }
+        set { engine.isLargeEndpointContextEnabled = newValue }
+    }
+
+    var endpointTokensPerMinuteBudget: Int {
+        get { engine.endpointTokensPerMinuteBudget }
+        set { engine.endpointTokensPerMinuteBudget = newValue }
+    }
+
+    var isSentenceCheckEnabled: Bool {
+        get { correction.isSentenceCheckEnabled }
+        set { correction.isSentenceCheckEnabled = newValue }
     }
 
     var isPowerBasedModelSwitchingEnabled: Bool {

@@ -44,29 +44,69 @@ enum CurrentWordExtractor {
         return Result(word: word, characterCount: word.count)
     }
 
+    /// Punctuation that can follow a word without being part of it. Apostrophes are excluded because
+    /// they belong to contractions and possessives (`dogs'`).
+    static let trailingPunctuation: Set<Character> = [",", ";", ":", ".", "!", "?", ")", "]", "\"", "”"]
+
     /// Like `extract(from:)`, but tolerates exactly one trailing space so a *just-finished* word
-    /// (the user typed the word and then pressed space) is still surfaced as the trailing word.
-    /// Returns the word plus how many trailing spaces were skipped (0 or 1).
+    /// (the user typed the word and then pressed space) is still surfaced as the trailing word, and
+    /// sets aside punctuation typed right after it (`teh,` → word `teh`, punctuation `,`), so a typo
+    /// before a comma or period is still caught. Returns the word, how many trailing spaces were
+    /// skipped (0 or 1), and the punctuation between them.
     ///
     /// This is what lets an offered correction survive the user pressing space: the word is still
     /// recognized, the green fix stays acceptable, and the accept path knows to preserve the space.
     /// Two or more trailing spaces (the user has moved on), a non-space trailing whitespace, or no
     /// plausible word before the space all return nil. Only a single literal space is tolerated.
-    static func extractTrailingWord(from precedingText: String) -> (result: Result, trailingSpaceCount: Int)? {
-        guard precedingText.last == " " else {
-            // No trailing space: fall back to the strict current-word extraction.
-            return extract(from: precedingText).map { ($0, 0) }
-        }
+    /// The word at or just before the caret, with what separates it from the caret.
+    struct TrailingWord: Equatable, Sendable {
+        let result: Result
+        let trailingSpaceCount: Int
+        let trailingPunctuation: String
+    }
 
-        let withoutSpace = String(precedingText.dropLast())
-        // A second trailing whitespace means the caret is no longer adjacent to a finished word.
-        if withoutSpace.last?.isWhitespace == true {
-            return nil
+    static func extractTrailingWord(from precedingText: String) -> TrailingWord? {
+        var text = Substring(precedingText)
+        var spaces = 0
+        if text.last == " " {
+            text = text.dropLast()
+            spaces = 1
+            // A second trailing whitespace means the caret is no longer adjacent to a finished word.
+            if text.last?.isWhitespace == true { return nil }
         }
-        guard let result = extract(from: withoutSpace) else {
-            return nil
+        var punctuation = ""
+        while let last = text.last, trailingPunctuation.contains(last), punctuation.count < 3 {
+            punctuation.insert(last, at: punctuation.startIndex)
+            text = text.dropLast()
         }
-        return (result, 1)
+        guard let result = extract(from: String(text)) else { return nil }
+        return TrailingWord(result: result, trailingSpaceCount: spaces, trailingPunctuation: punctuation)
+    }
+
+    /// Everything before the trailing word (and its punctuation and space), or nil when there is none.
+    static func textBeforeTrailingWord(in precedingText: String) -> String? {
+        guard let trailing = extractTrailingWord(from: precedingText) else { return nil }
+        let tail = trailing.result.word.count + trailing.trailingPunctuation.count + trailing.trailingSpaceCount
+        return String(precedingText.dropLast(tail))
+    }
+
+    /// The lowercased word right before the trailing word (and its optional trailing space), used as
+    /// the left context for bigram ranking. Nil at the start of the text or across sentence
+    /// punctuation, where the previous word says nothing about the next one.
+    static func wordBeforeTrailingWord(in precedingText: String) -> String? {
+        var text = Substring(precedingText)
+        if text.last == " " { text = text.dropLast() }
+        while let last = text.last, !last.isWhitespace { text = text.dropLast() }
+        while let last = text.last, last.isWhitespace { text = text.dropLast() }
+        guard let last = text.last, last.isLetter || last == "'" else { return nil }
+        var start = text.endIndex
+        while start > text.startIndex {
+            let prior = text.index(before: start)
+            if text[prior].isWhitespace { break }
+            start = prior
+        }
+        let word = text[start...].trimmingCharacters(in: .punctuationCharacters).lowercased()
+        return word.isEmpty || !word.allSatisfy({ $0.isLetter || $0 == "'" }) ? nil : word
     }
 
     /// Filter out tokens that are not natural-language words so we never slap a "typo" flag onto the
@@ -78,7 +118,8 @@ enum CurrentWordExtractor {
     /// false. That keeps the "current word being typed" model intact (we only act while the caret is
     /// adjacent to the word's letters) without special-casing punctuation here.
     private static func isPlausibleNaturalWord(_ word: String) -> Bool {
-        guard word.count >= 2 else { return false }
+        // Single letters are too noisy to act on, except the pronoun, which capitalization fixes.
+        guard word.count >= 2 || word == "i" else { return false }
 
         let codeLikeCharacters: Set<Character> = [
             "@", "/", "\\", "_", ":", ".", "#", "<", ">",
@@ -132,10 +173,10 @@ enum TypoCorrectionReplacementPlanner {
             return nil
         }
 
-        let preservedSpaces = String(repeating: " ", count: live.trailingSpaceCount)
+        let preserved = live.trailingPunctuation + String(repeating: " ", count: live.trailingSpaceCount)
         return TypoCorrectionReplacement(
-            deletingUTF16Count: (expectedTypo as NSString).length + live.trailingSpaceCount,
-            replacementText: normalizedCorrection + preservedSpaces
+            deletingUTF16Count: (expectedTypo as NSString).length + (preserved as NSString).length,
+            replacementText: normalizedCorrection + preserved
         )
     }
 }

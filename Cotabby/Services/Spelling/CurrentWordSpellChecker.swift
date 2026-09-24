@@ -19,6 +19,12 @@ final class CurrentWordSpellChecker {
     /// Document tag identifies our "spell session" inside `NSSpellChecker.shared`. A unique tag
     /// avoids cross-contamination with whatever spellcheck state other apps have armed.
     private let documentTag: Int
+    /// `NSSpellChecker` costs up to ~15 ms per call and the typo gate asks about the same word on
+    /// every keystroke and every re-evaluation, so answers are memoized per language. Bounded and
+    /// cleared wholesale; a word the writer teaches the system mid-session is picked up after that.
+    private var typoCache: [String: Bool] = [:]
+    private var guessCache: [String: [String]] = [:]
+    private static let cacheLimit = 4_096
 
     init() {
         documentTag = NSSpellChecker.uniqueSpellDocumentTag()
@@ -34,12 +40,26 @@ final class CurrentWordSpellChecker {
     /// returned range to start at offset 0 and cover the whole word; otherwise we would misfire on
     /// tokens like `I'm` where only part of the token is flagged, and on tokens that carry trailing
     /// punctuation (`nmae,`) where the flagged range stops short of the punctuation.
-    func isTypo(_ word: String) -> Bool {
+    ///
+    /// `language` pins the check to one language. With `nil`, macOS accepts a word that is valid in
+    /// *any* of the user's enabled spelling languages, and a Mac with many enabled languages then
+    /// waves through `teh` (valid elsewhere), `wich`, and `adress`. Callers pass the language they
+    /// detected from the surrounding text whenever they have one.
+    func isTypo(_ word: String, language: String? = nil) -> Bool {
         guard !word.isEmpty else { return false }
+        let key = (language ?? "*") + "|" + word
+        if let cached = typoCache[key] { return cached }
+        let result = uncachedIsTypo(word, language: language)
+        if typoCache.count >= Self.cacheLimit { typoCache.removeAll(keepingCapacity: true) }
+        typoCache[key] = result
+        return result
+    }
+
+    private func uncachedIsTypo(_ word: String, language: String?) -> Bool {
         let misspelledRange = NSSpellChecker.shared.checkSpelling(
             of: word,
             startingAt: 0,
-            language: nil,
+            language: language,
             wrap: false,
             inSpellDocumentWithTag: documentTag,
             wordCount: nil
@@ -52,14 +72,18 @@ final class CurrentWordSpellChecker {
 
     /// `NSSpellChecker`'s own ranked corrections for the word (best first), or an empty array when it
     /// has nothing to offer.
-    func nativeCorrections(for word: String) -> [String] {
+    func nativeCorrections(for word: String, language: String? = nil) -> [String] {
+        let key = (language ?? "*") + "|" + word
+        if let cached = guessCache[key] { return cached }
         let fullRange = NSRange(location: 0, length: (word as NSString).length)
         let guesses = NSSpellChecker.shared.guesses(
             forWordRange: fullRange,
             in: word,
-            language: nil,
+            language: language,
             inSpellDocumentWithTag: documentTag
         )
+        if guessCache.count >= Self.cacheLimit { guessCache.removeAll(keepingCapacity: true) }
+        guessCache[key] = guesses ?? []
         return guesses ?? []
     }
 

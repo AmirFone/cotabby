@@ -39,7 +39,10 @@ final class SettingsIndexTests: XCTestCase {
             ("typo", .automaticallyFixTypos),
             ("model status", .modelStatus),
             ("battery", .batteryModel),
-            ("plugged", .pluggedInModel)
+            ("plugged", .pluggedInModel),
+            ("groq", .endpointProvider),
+            ("grammar", .sentenceCheck),
+            ("rate limit", .endpointRateBudget)
         ]
         for expectation in expectations {
             XCTAssertTrue(

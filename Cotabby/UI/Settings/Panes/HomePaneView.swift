@@ -330,9 +330,9 @@ struct HomePaneView: View {
             if openAICompatibleConnectionModel.state.failureDetail != nil {
                 return "Connection failed"
             }
-            return suggestionSettings.openAICompatibleModelName.isEmpty
+            return suggestionSettings.activeEndpointModelName.isEmpty
                 ? "No model selected"
-                : suggestionSettings.openAICompatibleModelName
+                : suggestionSettings.activeEndpointModelName
         }
     }
 

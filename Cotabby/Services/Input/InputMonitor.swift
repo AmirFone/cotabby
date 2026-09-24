@@ -192,6 +192,11 @@ final class InputMonitor {
     /// one short hop lets the synthetic event finish delivery first. This is the invariant PR #385
     /// ("Fix last tab issue") protected before the two-tap ownership rewrite dropped it.
     private static let acceptTapTeardownDelaySeconds: TimeInterval = 0.05
+    /// The tap stays installed until the keyboard has been quiet this long. Keys still queued inside
+    /// an event tap when it is invalidated are lost, and suggestions appear and vanish on nearly every
+    /// keystroke, so tearing the tap down mid-burst dropped real letters (`,world` → `,`).
+    private static let acceptTapIdleTeardownSeconds: TimeInterval = 1.0
+    private var lastKeyDownUptime: TimeInterval = 0
 
     /// Suggestion-overlay reason for the active tap. The coordinator calls this when a suggestion
     /// becomes visible or hidden, so Cotabby only enters the synchronous event path while there is
@@ -227,13 +232,29 @@ final class InputMonitor {
             // drain before the tap is removed (see `acceptTapTeardownDelaySeconds`). Re-check both
             // reasons at fire time so a suggestion or an emoji capture that re-armed the tap during the
             // delay keeps it installed.
-            DispatchQueue.main.asyncAfter(deadline: .now() + Self.acceptTapTeardownDelaySeconds) { [weak self] in
-                guard let self else { return }
-                let stillWanted = self.permissionProvider()
-                    && (self.suggestionInterceptionActive || self.captureInterceptionActive)
-                guard !stillWanted else { return }
-                self.destroyAcceptTap()
+            scheduleAcceptTapTeardown()
+        }
+    }
+
+    /// Removes the tap once Cotabby's own paced keystrokes have all passed through it: keys still
+    /// queued inside a tap when it is invalidated are lost, which dropped backspaces from fixes.
+    private func scheduleAcceptTapTeardown() {
+        let sinceLastKey = ProcessInfo.processInfo.systemUptime - lastKeyDownUptime
+        let delay = max(
+            Self.acceptTapTeardownDelaySeconds + SyntheticEventPoster.secondsUntilDrained,
+            Self.acceptTapIdleTeardownSeconds - sinceLastKey
+        )
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self else { return }
+            let stillWanted = self.permissionProvider()
+                && (self.suggestionInterceptionActive || self.captureInterceptionActive)
+            guard !stillWanted else { return }
+            let keyboardQuiet = ProcessInfo.processInfo.systemUptime - self.lastKeyDownUptime >= Self.acceptTapIdleTeardownSeconds
+            guard SyntheticEventPoster.secondsUntilDrained == 0, keyboardQuiet else {
+                self.scheduleAcceptTapTeardown()
+                return
             }
+            self.destroyAcceptTap()
         }
     }
 
@@ -471,6 +492,7 @@ final class InputMonitor {
             return Unmanaged.passUnretained(event)
 
         case .keyDown:
+            lastKeyDownUptime = ProcessInfo.processInfo.systemUptime
             // Identity first: every event the inserter posts carries the synthetic marker, which
             // survives any counter race. The countdown alone proved leaky under rapid accept
             // bursts (async tap delivery interleaves chunks), and one leaked synthetic keydown

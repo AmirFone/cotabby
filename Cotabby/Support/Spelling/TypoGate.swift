@@ -17,6 +17,13 @@ nonisolated enum TypoGateDecision: Equatable {
     /// The user finished a misspelled word with Space and enabled automatic fixing. Apply the edit
     /// immediately instead of creating an accept-key session.
     case applyCorrection(word: String, correctedWord: String)
+    /// One clear best fix (shown as the green ghost) with runner-ups the writer can open with Down.
+    case offerRankedCorrection(word: String, candidates: [SpellingCandidate])
+    /// Several fixes are about equally likely: open the pick-list immediately.
+    case offerChoices(word: String, candidates: [SpellingCandidate])
+    /// A correctly spelled word that is probably the wrong word here (`went their`). Offered, never
+    /// applied automatically.
+    case offerRealWordFix(word: String, candidates: [SpellingCandidate])
 }
 
 enum TypoGate {
@@ -26,6 +33,16 @@ enum TypoGate {
         let suppressCompletionsOnTypo: Bool
         let offerTypoCorrections: Bool
         let automaticallyFixTypos: Bool
+        /// Auto-apply needs a top score at least this high...
+        var autoApplyMinimumScore = 1.12
+        /// ...and at least this far ahead of the runner-up, so "wich" (which/with) never auto-fixes.
+        var autoApplyMinimumMargin = 0.22
+        /// Below this gap between the top two, the writer picks from a list instead of a green ghost.
+        var choiceListMaximumMargin = 0.15
+        /// A top score under this is too unsure to present as a single suggestion.
+        var singleOfferMinimumScore = 0.5
+        /// Mid-word lists wait for enough letters to mean something.
+        var midWordMinimumLength = 3
     }
 
     /// Resolves the gate decision for the trailing word of `precedingText`.
@@ -34,6 +51,55 @@ enum TypoGate {
     /// `CurrentWordSpellChecker`; in tests they are stubs. Automatic fixing takes precedence only
     /// after a literal trailing Space. Before that boundary the gate may offer a correction, but never
     /// mutates an unfinished word merely because the user paused.
+    /// Confidence-tiered resolution.
+    ///
+    /// `isWordInProgress` answers "could this still become a correct word?" for a word the caret is
+    /// inside; when it does, the gate proceeds so the model can finish the word from context.
+    /// `candidates` returns ranked fixes (see `SpellingCandidateRanker`), best first.
+    static func resolve(
+        precedingText: String,
+        settings: Settings,
+        isTypo: (String) -> Bool,
+        isWordInProgress: (String) -> Bool,
+        candidates: (_ word: String, _ isMidWord: Bool) -> [SpellingCandidate],
+        realWordCandidates: (_ word: String) -> [SpellingCandidate] = { _ in [] }
+    ) -> TypoGateDecision {
+        guard settings.suppressCompletionsOnTypo,
+              let current = CurrentWordExtractor.extractTrailingWord(from: precedingText) else {
+            return .proceed
+        }
+        let word = current.result.word
+        // Punctuation right after the word (`teh,`) finishes it just like a space does.
+        let isMidWord = current.trailingSpaceCount == 0 && current.trailingPunctuation.isEmpty
+        guard isTypo(word) else {
+            // Real-word slips can only be judged once the word is finished.
+            guard !isMidWord, settings.offerTypoCorrections else { return .proceed }
+            let alternatives = realWordCandidates(word)
+            return alternatives.isEmpty ? .proceed : .offerRealWordFix(word: word, candidates: alternatives)
+        }
+        if isMidWord, word.count < settings.midWordMinimumLength || isWordInProgress(word) {
+            return .proceed
+        }
+
+        let ranked = candidates(word, isMidWord)
+        guard let top = ranked.first else { return .suppress }
+        guard settings.offerTypoCorrections || settings.automaticallyFixTypos else { return .suppress }
+
+        let margin = ranked.count > 1 ? top.score - ranked[1].score : top.score
+        if settings.automaticallyFixTypos, !isMidWord, current.trailingSpaceCount == 1,
+           top.score >= settings.autoApplyMinimumScore, margin >= settings.autoApplyMinimumMargin {
+            return .applyCorrection(word: word, correctedWord: top.term)
+        }
+        guard settings.offerTypoCorrections else { return .suppress }
+        if ranked.count > 1, margin < settings.choiceListMaximumMargin || top.score < settings.singleOfferMinimumScore {
+            return .offerChoices(word: word, candidates: ranked)
+        }
+        if ranked.count > 1 {
+            return .offerRankedCorrection(word: word, candidates: ranked)
+        }
+        return .offerCorrection(word: word, correctedWord: top.term)
+    }
+
     static func resolve(
         precedingText: String,
         settings: Settings,

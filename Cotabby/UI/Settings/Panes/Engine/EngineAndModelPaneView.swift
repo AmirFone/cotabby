@@ -62,7 +62,7 @@ struct EngineAndModelPaneView: View {
             suggestionSettings.initializePowerProfiles(
                 currentEngine: suggestionSettings.selectedEngine,
                 currentModelFilename: runtimeModel.selectedModelFilename,
-                currentEndpointModelName: suggestionSettings.openAICompatibleModelName
+                currentEndpointModelName: suggestionSettings.activeEndpointModelName
             )
 
             lmStudioModelsURL = BundledRuntimeLocator.lmStudioModelsDirectoryIfAvailable()

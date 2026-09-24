@@ -22,6 +22,7 @@ final class CotabbyAppEnvironment {
     let permissionGuidanceController: PermissionGuidanceController
     let suggestionSettings: SuggestionSettingsModel
     let openAICompatibleConnectionModel: OpenAICompatibleConnectionModel
+    let endpointRateGovernor: EndpointRateGovernor
     let foundationModelAvailabilityService: FoundationModelAvailabilityService
     let powerSourceMonitor: PowerSourceMonitor
     /// Process-lifetime Low Power Mode observer shared with suggestion orchestration.
@@ -56,12 +57,18 @@ final class CotabbyAppEnvironment {
         let runtimeManager = LlamaRuntimeManager()
         let runtimeModel = RuntimeBootstrapModel(runtimeManager: runtimeManager)
         let modelDownloadManager = ModelDownloadManager()
-        let endpointCredentialStore = KeychainOpenAICompatibleCredentialStore()
         let suggestionSettings = SuggestionSettingsModel(
             configuration: configuration,
-            endpointCredentialStore: endpointCredentialStore
+            endpointCredentialStore: KeychainOpenAICompatibleCredentialStore(),
+            groqCredentialStore: KeychainOpenAICompatibleCredentialStore(account: "groq-api-key")
         )
         let openAICompatibleClient = OpenAICompatibleAPIClient()
+        let endpointRateGovernor = EndpointRateGovernor(
+            tokensPerMinute: suggestionSettings.endpointTokensPerMinuteBudget
+        )
+        openAICompatibleClient.onRateLimitSnapshot = { [weak endpointRateGovernor] snapshot in
+            endpointRateGovernor?.ingest(snapshot)
+        }
         let openAICompatibleConnectionModel = OpenAICompatibleConnectionModel(
             client: openAICompatibleClient
         )
@@ -212,10 +219,11 @@ final class CotabbyAppEnvironment {
                 },
                 apiKeyProvider: { [weak suggestionSettings] in
                     try suggestionSettings?.openAICompatibleAPIKey()
-                }
+                },
+                rateGovernor: endpointRateGovernor
             ),
             endpointModelNameProvider: { [weak suggestionSettings] in
-                suggestionSettings?.openAICompatibleModelName.nonEmpty
+                suggestionSettings?.activeEndpointModelName.nonEmpty
             }
         )
 
@@ -223,6 +231,7 @@ final class CotabbyAppEnvironment {
         // "Clear History" control can reach it, and before the picker which reads and writes it.
         let emojiUsageStore = EmojiUsageStore()
 
+        let jevKeyModel = JevKeyModel()
         let settingsCoordinator = SettingsCoordinator(
             appUpdateManager: appUpdateManager,
             permissionManager: permissionManager,
@@ -236,6 +245,7 @@ final class CotabbyAppEnvironment {
             performanceMetricsStore: performanceMetricsStore,
             qualityMetricsStore: qualityMetricsStore,
             systemMetricsStore: systemMetricsStore,
+            jevKeyModel: jevKeyModel,
             onShowWelcome: { [weak welcomeCoordinator] in
                 welcomeCoordinator?.showWelcome()
             },
@@ -253,8 +263,10 @@ final class CotabbyAppEnvironment {
         // designed NSSpellChecker fallback ranking corrections until it lands. The only cost of
         // staying cold is that the first correction or two after launch rank via the system
         // checker instead of corpus frequency.
+        // Preloaded in the background at launch: the first typo of a session should get the full
+        // dictionary ranking (and its automatic fix) rather than the weaker system-guess fallback.
         let symSpellCorrector = SymSpellCorrector(
-            preloadLanguage: nil
+            preloadLanguage: suggestionSettings.snapshot.enabledSpellingDictionaryCodes.isEmpty ? nil : .english
         )
         let suggestionCoordinator = SuggestionCoordinator(
             permissionManager: permissionManager,
@@ -311,9 +323,81 @@ final class CotabbyAppEnvironment {
         // One coordinator fans every keystroke out to both inline-command controllers and owns the
         // input monitor's single capture decider and interception flag, which the `:` and `/` features
         // share. It is given first look at every keystroke the suggestion coordinator receives.
+        // The candidate list rides the same single capture slot as the emoji picker and macros. It is
+        // fed by the suggestion coordinator (typo gate, alternates) rather than by its own trigger.
+        let personalCorrectionMemory = PersonalCorrectionMemory()
+        let candidateListController = CandidateListController(
+            panel: CandidateListPanelController(),
+            focusModel: focusModel,
+            inserter: suggestionInserter,
+            isWordAcceptKey: { inputMonitor.isWordAcceptKey($0) },
+            acceptKeyLabel: {
+                suggestionSettings.emojiPickerAcceptKeyLabel(
+                    forBundleIdentifier: focusModel.snapshot.bundleIdentifier
+                ) ?? "Return"
+            },
+            correctionMemory: personalCorrectionMemory,
+            qualityMetricsStore: qualityMetricsStore
+        )
+        candidateListController.onCommitted = { [weak suggestionCoordinator] in
+            suggestionCoordinator?.schedulePredictionAfterHostPublishDelay()
+        }
+        suggestionCoordinator.candidateOfferPresenter = candidateListController
+        suggestionCoordinator.personalCorrectionMemory = personalCorrectionMemory
+        suggestionCoordinator.bigramContextModel = BigramContextModel()
+        let wordIntentRefiner = WordIntentRefiner(apiKeyProvider: { jevKeyModel.readAPIKey() })
+        wordIntentRefiner.onRefined = { [weak suggestionCoordinator] in
+            suggestionCoordinator?.schedulePrediction()
+        }
+        jevKeyModel.onKeyChanged = { [weak wordIntentRefiner] in
+            wordIntentRefiner?.reloadAPIKey()
+        }
+        suggestionCoordinator.wordIntentRefiner = wordIntentRefiner
+
+        let sentenceCheckController = SentenceCheckController(
+            panel: CandidateListPanelController(),
+            focusModel: focusModel,
+            inserter: suggestionInserter,
+            client: openAICompatibleClient,
+            configurationProvider: { try suggestionSettings.openAICompatibleConfiguration },
+            apiKeyProvider: { try suggestionSettings.openAICompatibleAPIKey() },
+            rateGovernor: endpointRateGovernor,
+            isEnabled: {
+                let snapshot = suggestionSettings.snapshot
+                return snapshot.isSentenceCheckEnabled && snapshot.usesCloudEndpoint && snapshot.isGloballyEnabled
+            },
+            knownTerms: {
+                let notes = suggestionSettings.extendedContext.trimmingCharacters(in: .whitespacesAndNewlines)
+                return notes.isEmpty ? nil : notes
+            },
+            acceptKeyLabel: {
+                suggestionSettings.emojiPickerAcceptKeyLabel(
+                    forBundleIdentifier: focusModel.snapshot.bundleIdentifier
+                ) ?? "Tab"
+            },
+            isWordAcceptKey: { inputMonitor.isWordAcceptKey($0) },
+            qualityMetricsStore: qualityMetricsStore,
+            localProofread: { [weak suggestionCoordinator] finished in
+                suggestionCoordinator?.proofreadLocally(finished)
+            },
+            isLocalEnabled: {
+                let snapshot = suggestionSettings.snapshot
+                return snapshot.isGloballyEnabled && (snapshot.offerTypoCorrections || snapshot.automaticallyFixTypos)
+            },
+            appliesLocalFixes: { suggestionSettings.snapshot.automaticallyFixTypos }
+        )
+        sentenceCheckController.onWillShowFix = { [weak suggestionCoordinator] in
+            suggestionCoordinator?.standDownForInlinePanel()
+        }
+        sentenceCheckController.onCommitted = { [weak suggestionCoordinator] in
+            suggestionCoordinator?.schedulePredictionAfterHostPublishDelay()
+        }
+        suggestionCoordinator.sentenceFixPresenter = sentenceCheckController
+
         let inlineCommandCoordinator = InlineCommandCoordinator(
             emoji: emojiPickerController,
             macro: macroController,
+            participants: [candidateListController, sentenceCheckController],
             inputMonitor: inputMonitor
         )
         suggestionCoordinator.emojiInputObserver = { [weak inlineCommandCoordinator] event in
@@ -330,6 +414,7 @@ final class CotabbyAppEnvironment {
         self.permissionGuidanceController = permissionGuidanceController
         self.suggestionSettings = suggestionSettings
         self.openAICompatibleConnectionModel = openAICompatibleConnectionModel
+        self.endpointRateGovernor = endpointRateGovernor
         self.foundationModelAvailabilityService = foundationModelAvailabilityService
         self.powerSourceMonitor = powerSourceMonitor
         self.lowPowerModeMonitor = lowPowerModeMonitor
@@ -449,7 +534,7 @@ final class CotabbyAppEnvironment {
             }
         case .openAICompatible(let modelName):
             guard !modelName.isEmpty else { return }
-            suggestionSettings.setOpenAICompatibleModelName(modelName)
+            suggestionSettings.setActiveEndpointModelName(modelName)
             suggestionSettings.selectEngine(.openAICompatible)
         }
     }
@@ -459,9 +544,20 @@ final class CotabbyAppEnvironment {
     /// so changing either must keep the catalog and connected status alive. Settings still owns
     /// explicit Connect/Return refreshes and avoids network traffic per keystroke.
     private func observeOpenAICompatibleSelection() {
-        suggestionSettings.$selectedEngine
+        suggestionSettings.$endpointTokensPerMinuteBudget
             .removeDuplicates()
-            .sink { [weak self] engine in
+            .sink { [weak self] budget in
+                self?.endpointRateGovernor.setTokensPerMinute(budget)
+            }
+            .store(in: &cancellables)
+
+        // `@Published` emits before the property changes, so the sink must use the emitted values
+        // rather than reading `selectedEngine` back off the settings model.
+        Publishers.CombineLatest(
+            suggestionSettings.$selectedEngine.removeDuplicates(),
+            suggestionSettings.$endpointProvider.removeDuplicates()
+        )
+            .sink { [weak self] engine, _ in
                 guard engine == .openAICompatible, let self else { return }
                 Task { [weak self] in
                     guard let self else { return }

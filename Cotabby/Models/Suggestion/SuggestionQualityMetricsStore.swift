@@ -22,6 +22,40 @@ final class SuggestionQualityMetricsStore: ObservableObject {
         /// (the seam guard verdicts). String-keyed so new reasons never need a schema migration.
         var suppressedByReason: [String: Int] = [:]
         var firstRecordedAt: Date?
+        /// Spelling fixes shown as a green ghost or a pick-list (once per misspelled word).
+        var correctionsOffered = 0
+        /// Fixes the writer accepted with Tab, Return, or a click.
+        var correctionsAccepted = 0
+        /// The subset of accepted fixes chosen from the pick-list.
+        var correctionsChosenFromList = 0
+        /// Confident fixes Cotabby applied on its own at a Space.
+        var correctionsAutoApplied = 0
+        var alternatesOpened = 0
+        /// Alternates chosen instead of the primary continuation.
+        var alternatesPicked = 0
+        var sentenceFixesOffered = 0
+        var sentenceFixesAccepted = 0
+
+        init() {}
+
+        /// Counters saved before a field existed decode with that field at zero instead of failing and
+        /// wiping every lifetime count.
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            generated = try container.decodeIfPresent(Int.self, forKey: .generated) ?? 0
+            shown = try container.decodeIfPresent(Int.self, forKey: .shown) ?? 0
+            acceptedSuggestions = try container.decodeIfPresent(Int.self, forKey: .acceptedSuggestions) ?? 0
+            suppressedByReason = try container.decodeIfPresent([String: Int].self, forKey: .suppressedByReason) ?? [:]
+            firstRecordedAt = try container.decodeIfPresent(Date.self, forKey: .firstRecordedAt)
+            correctionsOffered = try container.decodeIfPresent(Int.self, forKey: .correctionsOffered) ?? 0
+            correctionsAccepted = try container.decodeIfPresent(Int.self, forKey: .correctionsAccepted) ?? 0
+            correctionsChosenFromList = try container.decodeIfPresent(Int.self, forKey: .correctionsChosenFromList) ?? 0
+            correctionsAutoApplied = try container.decodeIfPresent(Int.self, forKey: .correctionsAutoApplied) ?? 0
+            alternatesOpened = try container.decodeIfPresent(Int.self, forKey: .alternatesOpened) ?? 0
+            alternatesPicked = try container.decodeIfPresent(Int.self, forKey: .alternatesPicked) ?? 0
+            sentenceFixesOffered = try container.decodeIfPresent(Int.self, forKey: .sentenceFixesOffered) ?? 0
+            sentenceFixesAccepted = try container.decodeIfPresent(Int.self, forKey: .sentenceFixesAccepted) ?? 0
+        }
 
         var suppressedTotal: Int { suppressedByReason.values.reduce(0, +) }
 
@@ -65,6 +99,37 @@ final class SuggestionQualityMetricsStore: ObservableObject {
 
     func recordSuppressed(reason: String) {
         mutate { $0.suppressedByReason[reason, default: 0] += 1 }
+    }
+
+    func recordCorrectionOffered() {
+        mutate { $0.correctionsOffered += 1 }
+    }
+
+    func recordCorrectionAccepted(fromList: Bool) {
+        mutate {
+            $0.correctionsAccepted += 1
+            if fromList { $0.correctionsChosenFromList += 1 }
+        }
+    }
+
+    func recordCorrectionAutoApplied() {
+        mutate { $0.correctionsAutoApplied += 1 }
+    }
+
+    func recordAlternatesOpened() {
+        mutate { $0.alternatesOpened += 1 }
+    }
+
+    func recordAlternatePicked() {
+        mutate { $0.alternatesPicked += 1 }
+    }
+
+    func recordSentenceFixOffered() {
+        mutate { $0.sentenceFixesOffered += 1 }
+    }
+
+    func recordSentenceFixAccepted() {
+        mutate { $0.sentenceFixesAccepted += 1 }
     }
 
     func reset() {

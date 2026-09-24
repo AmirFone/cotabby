@@ -29,6 +29,9 @@ enum CompletionSuppressionReason: String, Sendable, Equatable {
     /// Attributed by the engine (the runtime reports it on `LlamaGenerationOutput`), not by the
     /// normalizer, which never sees the withheld text.
     case lowConfidence
+    /// The text was not prose a writer could want here: a run of digits and symbols after words, or
+    /// the model narrating its own prompt ("user is typing in TextEdit"). See `SuggestionPlausibilityGate`.
+    case implausible
 }
 
 /// Outcome of normalizing one raw completion: the ghost text, plus the attributable reason when that
@@ -139,6 +142,15 @@ enum SuggestionTextNormalizer {
         if let lastScalar = request.context.precedingText.unicodeScalars.last,
            CharacterSet.whitespaces.contains(lastScalar) {
             normalized = String(normalized.drop(while: { $0.isWhitespace }))
+        }
+
+        if !normalized.isEmpty,
+           !SuggestionPlausibilityGate.isPlausible(
+               normalized,
+               precedingText: request.context.precedingText,
+               instructions: request.prompt.replacingOccurrences(of: request.prefixText, with: " ")
+           ) {
+            return SuggestionNormalizationResult(text: "", suppression: .implausible)
         }
 
         // Final safety gate: never surface control characters, replacement glyphs, or
@@ -294,5 +306,57 @@ enum SuggestionTextNormalizer {
             }
             working = String(leading.dropFirst(label.count))
         }
+    }
+}
+
+/// Rejects continuations that are clearly not what a writer meant, which small on-device models
+/// produce most often when there is little text to continue from. Deliberately narrow: it fires on
+/// symbol/digit noise the surrounding text gives no reason for, and on the model talking about the
+/// prompt instead of continuing the text (copying the instructions, or naming the language).
+enum SuggestionPlausibilityGate {
+    /// Phrases that only appear when a model narrates the task instead of writing the text.
+    static let narrationMarkers = [
+        "is typing in", "being typed in", "text before the caret", "the caret", "the writer is",
+        "the user is", "the user usually", "continuation:", "autocomplete"
+    ]
+    /// Copying this many consecutive words from the instructions is narration, not writing.
+    static let copiedInstructionWords = 4
+
+    static func isPlausible(_ suggestion: String, precedingText: String, instructions: String = "") -> Bool {
+        let lowered = suggestion.lowercased()
+        let recent = String(precedingText.suffix(200)).lowercased()
+        if narrationMarkers.contains(where: { lowered.contains($0) && !recent.contains($0) }) {
+            return false
+        }
+        // The prompt names the writing language; a model that brings it up unprompted is narrating.
+        if lowered.contains("english"), !recent.contains("english") {
+            return false
+        }
+        if copiesInstructions(lowered, instructions: instructions.lowercased(), recent: recent) {
+            return false
+        }
+        let visible = suggestion.filter { !$0.isWhitespace }
+        guard visible.count >= 6 else { return true }
+        let letters = visible.filter(\.isLetter).count
+        let context = precedingText.suffix(60)
+        let contextHasDigitsOrSymbols = context.contains { $0.isNumber || "=+*/\\{}[]<>$#@|".contains($0) }
+        // "about 42 %" or code-like fields legitimately continue with numbers and symbols.
+        return contextHasDigitsOrSymbols || Double(letters) / Double(visible.count) >= 0.5
+    }
+
+    private static func copiesInstructions(_ suggestion: String, instructions: String, recent: String) -> Bool {
+        let words = tokens(suggestion)
+        guard words.count >= copiedInstructionWords, !instructions.isEmpty else { return false }
+        let instructionText = " " + tokens(instructions).joined(separator: " ") + " "
+        let recentText = " " + tokens(recent).joined(separator: " ") + " "
+        for start in 0...(words.count - copiedInstructionWords) {
+            let phrase = " " + words[start..<(start + copiedInstructionWords)].joined(separator: " ") + " "
+            if instructionText.contains(phrase), !recentText.contains(phrase) { return true }
+        }
+        return false
+    }
+
+    private static func tokens(_ text: String) -> [String] {
+        text.split { !$0.isLetter && !$0.isNumber && $0 != "'" }.map(String.init)
     }
 }

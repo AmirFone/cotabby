@@ -8,7 +8,7 @@ final class SuggestionEngineModelsTests: XCTestCase {
     func test_suggestionEngineKind_displayLabelsArePinnedProductCopy() {
         XCTAssertEqual(SuggestionEngineKind.appleIntelligence.displayLabel, "Apple Intelligence")
         XCTAssertEqual(SuggestionEngineKind.llamaOpenSource.displayLabel, "Open Source")
-        XCTAssertEqual(SuggestionEngineKind.openAICompatible.displayLabel, "Local Endpoint")
+        XCTAssertEqual(SuggestionEngineKind.openAICompatible.displayLabel, "Groq / Endpoint")
     }
 
     func test_suggestionEngineKind_systemImageNamesArePinnedSharedGlyphs() {

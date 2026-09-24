@@ -355,4 +355,67 @@ final class SuggestionRequestFactoryTests: XCTestCase {
         XCTAssertNil(result.request.surfaceContext, "app metadata biases base models toward code; editors stay bare")
         XCTAssertFalse(result.request.prompt.contains("Project.swift"))
     }
+
+    // MARK: - cloud endpoint window
+
+    func test_buildRequest_groqEndpointSendsLargeWindowSuffixAndAlternates() {
+        // #given a Groq-backed endpoint and a long multi-paragraph field
+        let paragraph = String(repeating: "word ", count: 600)
+        let context = CotabbyTestFixtures.focusedInputContext(
+            precedingText: "Hey Sarah,\n\n" + paragraph + "and ",
+            trailingText: " so I can prep."
+        )
+        let settings = CotabbyTestFixtures.settingsSnapshot(
+            selectedEngine: .openAICompatible,
+            endpointProvider: .groq
+        )
+
+        // #when the request is built
+        let request = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: settings,
+            configuration: .standard
+        ).request
+
+        // #then line breaks survive, the suffix rides along, and alternates are requested
+        XCTAssertTrue(request.prefixText.hasPrefix("Hey Sarah,\n\n"))
+        XCTAssertEqual(request.suffixText, " so I can prep.")
+        XCTAssertEqual(request.alternateCount, SuggestionRequestFactory.cloudAlternateCount)
+        XCTAssertGreaterThan(request.prefixText.count, SuggestionConfiguration.standard.maxPrefixCharacters)
+    }
+
+    func test_buildRequest_customEndpointKeepsLocalWindowWithoutSuffixOrAlternates() {
+        let context = CotabbyTestFixtures.focusedInputContext(
+            precedingText: String(repeating: "word ", count: 600),
+            trailingText: " tail"
+        )
+        let settings = CotabbyTestFixtures.settingsSnapshot(
+            selectedEngine: .openAICompatible,
+            endpointProvider: .custom
+        )
+
+        let request = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: settings,
+            configuration: .standard
+        ).request
+
+        XCTAssertNil(request.suffixText)
+        XCTAssertEqual(request.alternateCount, 0)
+        XCTAssertLessThanOrEqual(request.prefixText.count, SuggestionConfiguration.standard.maxPrefixCharacters)
+    }
+
+    func test_truncatedPromptPrefix_cloudWindowCapsWordsFromTheCaret() {
+        let text = (1...2_000).map { "w\($0)" }.joined(separator: " ")
+
+        let prefix = SuggestionRequestFactory.truncatedPromptPrefix(
+            from: text,
+            configuration: .standard,
+            engine: .openAICompatible,
+            cloudWindow: .standard
+        )
+
+        XCTAssertTrue(prefix.hasSuffix("w2000"))
+        XCTAssertLessThanOrEqual(prefix.split(separator: " ").count, CloudEndpointContextWindow.standard.maxPrefixWords)
+    }
 }

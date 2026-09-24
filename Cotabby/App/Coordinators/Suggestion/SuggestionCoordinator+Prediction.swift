@@ -30,7 +30,8 @@ extension SuggestionCoordinator {
             lastGenerationLatencyMilliseconds:
                 lastLatencyByEngine[settingsSnapshot.selectedEngine],
             fallback: settingsSnapshot.debounceMilliseconds,
-            engine: settingsSnapshot.selectedEngine
+            engine: settingsSnapshot.selectedEngine,
+            isCloudEndpoint: settingsSnapshot.usesCloudEndpoint
         )
         // The debounce clock starts at the keystroke, not here. The host-publish poll has already
         // consumed real wall time waiting for the host to publish the keystroke to AX, and that
@@ -58,9 +59,21 @@ extension SuggestionCoordinator {
         )
     }
 
+    /// Cotabby's own paced keystrokes may still be landing: the field is mid-edit, and planning from it
+    /// would stack a second edit on a half-applied one. Returns false when newer work superseded this.
+    private func waitForSyntheticInputToSettle(workID: UInt64) async -> Bool {
+        let pending = SyntheticEventPoster.secondsUntilSettled
+        guard pending > 0 else { return true }
+        try? await Task.sleep(nanoseconds: UInt64((pending + 0.01) * 1_000_000_000))
+        return workController.isCurrent(workID)
+    }
+
     /// Refreshes focus after debounce, materializes a stable context, and starts generation.
     func generateFromCurrentFocus(workID: UInt64) async {
         guard workController.isCurrent(workID) else {
+            return
+        }
+        guard await waitForSyntheticInputToSettle(workID: workID) else {
             return
         }
 
@@ -93,12 +106,33 @@ extension SuggestionCoordinator {
             return
         }
 
+        if settingsSnapshot.usesCloudEndpoint, !settingsSnapshot.isFastModeEnabled,
+           permissionManager.screenRecordingGranted {
+            visualContextCoordinator.refreshWhileTyping(for: rawContext)
+        }
         // Typo gate: before building a normal continuation, check the current word with
         // NSSpellChecker. A misspelled word either suppresses the continuation (so completions never
         // pile onto a broken word), presents a green correction, or automatically fixes a completed
         // word after Space. Native correction is instant and needs no model generation, so it is
         // handled synchronously and returns before any request runs.
         if handleTypoGate(rawContext: rawContext, workID: workID) {
+            return
+        }
+        // After the gate, so a sentence rewrite never races an edit the gate just made to the last word.
+        sentenceFixPresenter?.noteTypedText(
+            rawContext.precedingText,
+            caretRect: rawContext.caretRect,
+            focusChangeSequence: rawContext.focusChangeSequence
+        )
+        if let pauseReason = SuggestionAvailabilityEvaluator.generationPauseReason(
+            isLowPowerModeActive: lowPowerModeProvider.isLowPowerModeEnabled,
+            isLowPowerModeAutoDisableEnabled: settingsSnapshot.isLowPowerModeAutoDisableEnabled,
+            usesOnDeviceModel: !settingsSnapshot.usesCloudEndpoint
+        ) {
+            clearSuggestion()
+            hideOverlay(reason: pauseReason)
+            state = .idle
+            logStage("low-power-paused", workID: workID, message: pauseReason)
             return
         }
 
@@ -325,7 +359,8 @@ extension SuggestionCoordinator {
         let truncatedPrefix = SuggestionRequestFactory.truncatedPromptPrefix(
             from: rawContext.precedingText,
             configuration: configuration,
-            engine: settingsSnapshot.selectedEngine
+            engine: settingsSnapshot.selectedEngine,
+            cloudWindow: SuggestionRequestFactory.cloudContextWindow(for: settingsSnapshot)
         )
         let value = clipboardRelevanceFilter.filter(
             clipboard: clipboardContextProvider.currentContext(),
@@ -453,24 +488,23 @@ extension SuggestionCoordinator {
     /// offering, or applying a correction; `false` proceeds with a normal continuation. Kept separate
     /// so `generateFromCurrentFocus` stays within the project's cyclomatic-complexity budget.
     private func handleTypoGate(rawContext: FocusedInputSnapshot, workID: UInt64) -> Bool {
-        switch TypoGate.resolve(
+        let inputs = TypoGateInputs(
+            dependencies: spellingEngineDependencies,
             precedingText: rawContext.precedingText,
-            settings: TypoGate.Settings(
-                suppressCompletionsOnTypo: settingsSnapshot.suppressCompletionsOnTypo,
-                offerTypoCorrections: settingsSnapshot.offerTypoCorrections,
-                automaticallyFixTypos: settingsSnapshot.automaticallyFixTypos
-            ),
-            isTypo: { spellChecker.isTypo($0) },
-            bestCorrection: {
-                bestCorrection(
-                    for: $0,
-                    precedingText: rawContext.precedingText
-                )
-            }
-        ) {
+            textAfter: rawContext.trailingText
+        )
+        let decision = inputs.decide(settings: TypoGate.Settings(
+            suppressCompletionsOnTypo: settingsSnapshot.suppressCompletionsOnTypo,
+            offerTypoCorrections: settingsSnapshot.offerTypoCorrections,
+            automaticallyFixTypos: settingsSnapshot.automaticallyFixTypos
+        ))
+
+        switch decision {
         case .proceed:
+            candidateOfferPresenter?.dismissChoices()
             return false
         case .suppress:
+            candidateOfferPresenter?.dismissChoices()
             clearSuggestion()
             hideOverlay(reason: "Overlay hidden because the current word looks misspelled.")
             state = .idle
@@ -481,14 +515,29 @@ extension SuggestionCoordinator {
             )
             return true
         case let .offerCorrection(word, correctedWord):
-            presentCorrection(
-                typoWord: word,
-                correctedWord: correctedWord,
+            presentSpellingBar(
+                typo: word,
+                candidates: [SpellingCandidate(term: correctedWord, score: 1)],
+                inputs: inputs,
                 rawContext: rawContext,
                 workID: workID
             )
             return true
+        case let .offerRankedCorrection(word, candidates), let .offerChoices(word, candidates):
+            presentSpellingBar(typo: word, candidates: candidates, inputs: inputs, rawContext: rawContext, workID: workID)
+            return true
+        case let .offerRealWordFix(word, candidates):
+            presentSpellingBar(
+                typo: word,
+                candidates: candidates,
+                inputs: inputs,
+                rawContext: rawContext,
+                workID: workID,
+                keepKey: inputs.realWordKeepKey(for: word)
+            )
+            return true
         case let .applyCorrection(word, correctedWord):
+            candidateOfferPresenter?.dismissChoices()
             applyAutomaticCorrection(
                 typoWord: word,
                 correctedWord: correctedWord,
@@ -499,24 +548,70 @@ extension SuggestionCoordinator {
         }
     }
 
-    /// Routes the typo to one enabled language-specific SymSpell index. The dictionaries remain
-    /// separate because frequency counts from different corpora are not comparable. Ambiguous
-    /// multilingual context, a cold index, or a missing SymSpell candidate all fall back to the
-    /// user's automatic-language macOS spell checker.
-    private func bestCorrection(for word: String, precedingText: String) -> String? {
-        let enabledLanguages = SpellingDictionaryCatalog.languages(
-            for: settingsSnapshot.enabledSpellingDictionaryCodes
+    var spellingEngineDependencies: SpellingEngineDependencies {
+        SpellingEngineDependencies(
+            spellChecker: spellChecker,
+            symSpellCorrector: symSpellCorrector,
+            languageResolver: spellingLanguageResolver,
+            enabledLanguages: { [settingsSnapshot] in
+                SpellingDictionaryCatalog.languages(for: settingsSnapshot.enabledSpellingDictionaryCodes)
+            },
+            memory: personalCorrectionMemory,
+            bigrams: bigramContextModel,
+            refiner: wordIntentRefiner
         )
-        guard let language = spellingLanguageResolver.resolve(
-            precedingText: precedingText,
-            currentWord: word,
-            enabledLanguages: enabledLanguages
-        ) else {
-            return spellChecker.bestCorrection(for: word)
-        }
+    }
 
-        return symSpellCorrector.bestCorrection(for: word, language: language)
-            ?? spellChecker.bestCorrection(for: word)
+    /// The instant on-device proofread of a finished sentence (see `LocalSentenceProofreader`).
+    func proofreadLocally(_ finished: FinishedSentence) -> LocalProofreadResult {
+        LocalSentenceProofreader.proofread(
+            finished.sentence,
+            checks: TypoGateInputs.sentenceChecks(
+                dependencies: spellingEngineDependencies,
+                settings: TypoGate.Settings(
+                    suppressCompletionsOnTypo: true,
+                    offerTypoCorrections: settingsSnapshot.offerTypoCorrections,
+                    automaticallyFixTypos: settingsSnapshot.automaticallyFixTypos
+                )
+            )
+        )
+    }
+
+    /// Shows the iPhone-style bar (`"typed"` | best | runner-up) and, when the local evidence was
+    /// not decisive, asks Jev to reorder it from the sentence's meaning.
+    private func presentSpellingBar(
+        typo: String,
+        candidates: [SpellingCandidate],
+        inputs: TypoGateInputs,
+        rawContext: FocusedInputSnapshot,
+        workID: UInt64,
+        keepKey: String? = nil
+    ) {
+        cancelPredictionWork()
+        clearSuggestion()
+        hideOverlay(reason: "Overlay hidden while the spelling bar is open.")
+        state = .idle
+        let fixes = candidates.filter { $0.term != typo }.prefix(2)
+        var offer = CandidateOffer(
+            source: .spelling(typo: typo),
+            candidates: [typo] + fixes.map(\.term),
+            scores: [0] + fixes.map { min(max($0.score, 0), 1) },
+            caretRect: rawContext.caretRect,
+            focusChangeSequence: rawContext.focusChangeSequence
+        )
+        offer.preferredIndex = fixes.isEmpty ? 0 : 1
+        offer.keepKey = keepKey
+        offer.isContextRefined = inputs.usedJevVerdict
+        candidateOfferPresenter?.presentChoices(offer)
+        if !inputs.usedJevVerdict {
+            inputs.requestJevVerdict(typo: typo, candidates: candidates, includesTypedWord: keepKey != nil)
+        }
+        logStage(
+            "typo-bar-ready",
+            workID: workID,
+            message: "Offered \(fixes.count) spelling fixes\(inputs.usedJevVerdict ? " ordered by Jev" : "").",
+            normalizedOutput: fixes.map(\.term).joined(separator: " | ")
+        )
     }
 
     /// Collapses native typo detection and correction availability into the seam guard's single
@@ -546,8 +641,14 @@ extension SuggestionCoordinator {
     ) {
         let liveContext = interactionState.materializeContext(from: rawContext)
         latestGenerationNumber = liveContext.generation
+        // Re-read right before editing: the host (or macOS's own autocorrect) may have changed the word
+        // since the debounced snapshot, and backspacing over a different word would garble the text.
+        focusModel.refreshNow()
+        let livePrecedingText = focusModel.snapshot.context.map { current in
+            current.focusChangeSequence == rawContext.focusChangeSequence ? current.precedingText : ""
+        } ?? rawContext.precedingText
         guard let replacement = TypoCorrectionReplacementPlanner.plan(
-            precedingText: rawContext.precedingText,
+            precedingText: livePrecedingText,
             expectedTypo: typoWord,
             correctedWord: correctedWord,
             requiresTrailingSpace: true
@@ -588,6 +689,13 @@ extension SuggestionCoordinator {
         clearSuggestion(clearDiagnostics: false)
         hideOverlay(reason: "Overlay hidden because Cotabby automatically fixed a typo.")
         state = .idle
+        personalCorrectionMemory?.recordAccepted(typo: typoWord, replacement: correctedWord)
+        qualityMetricsStore.recordCorrectionAutoApplied()
+        candidateOfferPresenter?.flashAutoCorrection(
+            typo: typoWord,
+            correction: correctedWord,
+            caretRect: liveContext.caretRect
+        )
         logStage(
             "typo-auto-corrected",
             workID: workID,
@@ -672,7 +780,8 @@ extension SuggestionCoordinator {
     /// Promotes a generated result to `ready` only when it is still fresh for the current field.
     func apply(result: SuggestionResult, workID: UInt64) async {
 
-        guard workController.isCurrent(workID) else {
+        // A suggestion that lands while a Cotabby panel owns Tab would give Tab two meanings.
+        guard workController.isCurrent(workID), !isInlinePanelOwningKeys else {
 
             return
         }
@@ -832,6 +941,15 @@ extension SuggestionCoordinator {
             context: liveContext,
             isRightToLeft: TextDirectionDetector.isRightToLeft(liveContext.precedingText)
         )
+        if !result.alternates.isEmpty {
+            candidateOfferPresenter?.armChoices(CandidateOffer(
+                source: .continuation,
+                candidates: [result.text] + result.alternates,
+                scores: [],
+                caretRect: liveContext.caretRect,
+                focusChangeSequence: liveContext.focusChangeSequence
+            ))
+        }
         logStage(
             "ready",
             workID: workID,
@@ -1027,8 +1145,6 @@ extension SuggestionCoordinator {
         SuggestionAvailabilityEvaluator.disabledReason(
             globallyEnabled: settingsSnapshot.isGloballyEnabled,
             temporarilyPaused: settingsSnapshot.isTemporarilyPaused,
-            isLowPowerModeActive: lowPowerModeProvider.isLowPowerModeEnabled,
-            isLowPowerModeAutoDisableEnabled: settingsSnapshot.isLowPowerModeAutoDisableEnabled,
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
             disabledDomains: PerDomainDisableSettings.disabledDomains(),
             suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,

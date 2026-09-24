@@ -16,7 +16,8 @@ struct FocusSnapshotResolver {
     private static let deepWalkThrottleInterval: TimeInterval = 0.1
     /// Maximum UTF-16 units kept on each side of the caret in focus snapshots.
     ///
-    /// The prompt builder uses a much smaller suffix of `precedingText`, and autocomplete only needs
+    /// Local prompt builders use a much smaller suffix of `precedingText` (cloud endpoints read up to
+    /// 7,500 characters, which is why this window is 8k), and autocomplete only needs
     /// a short trailing window for normalization. Keeping the focus snapshot bounded prevents a
     /// large editor buffer from flowing through equality checks, Combine publishes, and stale-result
     /// signatures on every AX refresh.
@@ -24,7 +25,7 @@ struct FocusSnapshotResolver {
     /// Internal (not private) so the caret layout repair can detect "the captured prefix filled the
     /// window and may not start at the document start" — laying out a mid-document prefix would
     /// produce meaningless wrap/Y geometry, so that case must be rejected.
-    static let focusedTextContextWindowUTF16 = 4096
+    static let focusedTextContextWindowUTF16 = 8192
 
     /// Carries deep-walk throttle state across the value-typed resolver's non-mutating polls.
     private let deepWalkThrottle = DeepGeometryWalkThrottle()

@@ -10,8 +10,6 @@ enum SuggestionAvailabilityEvaluator {
     static func disabledReason(
         globallyEnabled: Bool = true,
         temporarilyPaused: Bool = false,
-        isLowPowerModeActive: Bool = false,
-        isLowPowerModeAutoDisableEnabled: Bool = false,
         disabledAppBundleIdentifiers: Set<String> = [],
         disabledDomains: Set<String> = [],
         suggestInIntegratedTerminals: Bool = false,
@@ -25,10 +23,6 @@ enum SuggestionAvailabilityEvaluator {
 
         guard !temporarilyPaused else {
             return "Cotabby is temporarily paused."
-        }
-
-        if isLowPowerModeActive && isLowPowerModeAutoDisableEnabled {
-            return "Cotabby is paused because Low Power Mode is on."
         }
 
         if let reason = locationDisabledReason(
@@ -59,8 +53,6 @@ enum SuggestionAvailabilityEvaluator {
     static func shouldSchedulePrediction(
         globallyEnabled: Bool = true,
         temporarilyPaused: Bool = false,
-        isLowPowerModeActive: Bool = false,
-        isLowPowerModeAutoDisableEnabled: Bool = false,
         disabledAppBundleIdentifiers: Set<String> = [],
         disabledDomains: Set<String> = [],
         suggestInIntegratedTerminals: Bool = false,
@@ -70,8 +62,6 @@ enum SuggestionAvailabilityEvaluator {
         disabledReason(
             globallyEnabled: globallyEnabled,
             temporarilyPaused: temporarilyPaused,
-            isLowPowerModeActive: isLowPowerModeActive,
-            isLowPowerModeAutoDisableEnabled: isLowPowerModeAutoDisableEnabled,
             disabledAppBundleIdentifiers: disabledAppBundleIdentifiers,
             disabledDomains: disabledDomains,
             suggestInIntegratedTerminals: suggestInIntegratedTerminals,
@@ -113,11 +103,14 @@ enum SuggestionAvailabilityEvaluator {
             return false
         }
 
+        // Screenshots and OCR are real work, so Low Power Mode stops them like it stops local models.
+        guard !(isLowPowerModeActive && isLowPowerModeAutoDisableEnabled) else {
+            return false
+        }
+
         return disabledReason(
             globallyEnabled: globallyEnabled,
             temporarilyPaused: temporarilyPaused,
-            isLowPowerModeActive: isLowPowerModeActive,
-            isLowPowerModeAutoDisableEnabled: isLowPowerModeAutoDisableEnabled,
             disabledAppBundleIdentifiers: disabledAppBundleIdentifiers,
             disabledDomains: disabledDomains,
             suggestInIntegratedTerminals: suggestInIntegratedTerminals,
@@ -125,6 +118,18 @@ enum SuggestionAvailabilityEvaluator {
             focusSnapshot: focusSnapshot,
             checkCapability: false
         ) == nil
+    }
+
+    /// Low Power Mode pauses only the part that costs battery: generating ghost text with an on-device
+    /// model. Spelling fixes (a fraction of a millisecond per keystroke) and cloud engines keep
+    /// working, so a dyslexic writer on battery never loses corrections.
+    static func generationPauseReason(
+        isLowPowerModeActive: Bool,
+        isLowPowerModeAutoDisableEnabled: Bool,
+        usesOnDeviceModel: Bool
+    ) -> String? {
+        guard isLowPowerModeActive, isLowPowerModeAutoDisableEnabled, usesOnDeviceModel else { return nil }
+        return "Ghost text is paused while Low Power Mode is on. Spelling fixes still work."
     }
 
     static func shouldSchedulePredictionWhenVisualContextBecomesReady(

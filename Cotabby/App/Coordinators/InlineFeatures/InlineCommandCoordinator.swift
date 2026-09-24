@@ -14,31 +14,41 @@ import Foundation
 final class InlineCommandCoordinator {
     private let emoji: EmojiPickerController
     private let macro: MacroController
+    /// Panels the suggestion pipeline opens (candidate list, sentence card). They only claim
+    /// navigation and commit keys, which never start an emoji or macro capture, so they look first.
+    private let participants: [any InlineCaptureParticipant]
     private let inputMonitor: any EmojiInputIntercepting
 
     init(
         emoji: EmojiPickerController,
         macro: MacroController,
+        participants: [any InlineCaptureParticipant] = [],
         inputMonitor: any EmojiInputIntercepting
     ) {
         self.emoji = emoji
         self.macro = macro
+        self.participants = participants
         self.inputMonitor = inputMonitor
     }
 
     func start() {
         emoji.onCaptureStateChanged = { [weak self] in self?.updateInterception() }
         macro.onCaptureStateChanged = { [weak self] in self?.updateInterception() }
+        for participant in participants {
+            participant.onCaptureStateChanged = { [weak self] in self?.updateInterception() }
+        }
         inputMonitor.emojiCaptureKeyDecider = { [weak self] keyEvent in
             self?.decide(keyEvent) ?? .notHandled
         }
         emoji.start()
         macro.start()
+        participants.forEach { $0.start() }
     }
 
     func stop() {
         emoji.stop()
         macro.stop()
+        participants.forEach { $0.stop() }
         inputMonitor.emojiCaptureKeyDecider = nil
         updateInterception()
     }
@@ -47,6 +57,10 @@ final class InlineCommandCoordinator {
     /// Returns whether either feature was involved, so the suggestion coordinator can stand down.
     @discardableResult
     func observe(_ event: CapturedInputEvent) -> Bool {
+        for participant in participants where participant.observe(event) {
+            updateInterception()
+            return true
+        }
         let macroInvolved = macro.observe(event)
         let emojiInvolved = emoji.observe(event)
         updateInterception()
@@ -54,6 +68,12 @@ final class InlineCommandCoordinator {
     }
 
     private func decide(_ keyEvent: InputMonitorKeyEvent) -> InputMonitorAcceptTapDecision {
+        for participant in participants {
+            let decision = participant.decideCaptureKey(keyEvent)
+            if decision != .notHandled {
+                return decision
+            }
+        }
         let macroDecision = macro.decideCaptureKey(keyEvent)
         if macroDecision != .notHandled {
             return macroDecision
@@ -62,6 +82,8 @@ final class InlineCommandCoordinator {
     }
 
     private func updateInterception() {
-        inputMonitor.setCaptureInterceptionActive(emoji.isCapturing || macro.isCapturing)
+        inputMonitor.setCaptureInterceptionActive(
+            emoji.isCapturing || macro.isCapturing || participants.contains { $0.isCapturing }
+        )
     }
 }

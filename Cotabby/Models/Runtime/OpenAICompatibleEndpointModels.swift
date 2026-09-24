@@ -20,6 +20,41 @@ nonisolated enum OpenAICompatibleAPIMode: String, CaseIterable, Codable, Identif
     }
 }
 
+/// Which server family the endpoint engine talks to.
+///
+/// `custom` is the user-typed OpenAI-compatible server (Ollama, LM Studio, vLLM). `groq` pins the
+/// base URL, forces chat completions, keeps its own model selection and Keychain slot, and shapes
+/// requests for Groq's reasoning-model contract. Both presets share one engine and one HTTP client.
+nonisolated enum OpenAICompatibleProviderPreset: String, CaseIterable, Codable, Identifiable, Sendable {
+    case custom
+    case groq
+
+    var id: String { rawValue }
+
+    var displayLabel: String {
+        switch self {
+        case .custom: return "Custom Server"
+        case .groq: return "Groq"
+        }
+    }
+
+    static let groqBaseURLString = "https://api.groq.com/openai/v1"
+    static let groqDefaultModelName = "openai/gpt-oss-20b"
+    static let groqAPIKeyURLString = "https://console.groq.com/keys"
+
+    /// Groq's catalog also lists speech, guard, and agentic models that cannot autocomplete text.
+    private static let groqCompletionModelPrefixes = ["openai/gpt-oss-20b", "openai/gpt-oss-120b", "qwen/", "llama-", "meta-llama/llama-4"]
+
+    func acceptsDiscoveredModel(_ modelID: String) -> Bool {
+        switch self {
+        case .custom:
+            return true
+        case .groq:
+            return Self.groqCompletionModelPrefixes.contains { modelID.hasPrefix($0) }
+        }
+    }
+}
+
 /// One model identifier returned by `GET /v1/models`.
 nonisolated struct OpenAICompatibleModelOption: Decodable, Equatable, Identifiable, Sendable {
     let id: String
@@ -69,12 +104,15 @@ nonisolated struct OpenAICompatibleEndpointConfiguration: Equatable, Sendable {
     let modelName: String
     let apiMode: OpenAICompatibleAPIMode
     let hostScope: OpenAICompatibleHostScope
+    let provider: OpenAICompatibleProviderPreset
 
     init(
         baseURLString: String,
         modelName: String,
-        apiMode: OpenAICompatibleAPIMode
+        apiMode: OpenAICompatibleAPIMode,
+        provider: OpenAICompatibleProviderPreset = .custom
     ) throws {
+        self.provider = provider
         let candidate = baseURLString.trimmingCharacters(in: .whitespacesAndNewlines)
         guard var components = URLComponents(string: candidate),
               let rawScheme = components.scheme,

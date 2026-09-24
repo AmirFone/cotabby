@@ -6,6 +6,9 @@ import SwiftUI
 /// style rules.
 struct WritingPaneView: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
+    @ObservedObject var jevKeyModel: JevKeyModel
+    @StateObject private var systemAutocorrect = SystemAutocorrectModel()
+    @State private var jevKeyDraft = ""
 
     var body: some View {
         SettingsPaneScaffold {
@@ -104,12 +107,78 @@ struct WritingPaneView: View {
 
                     Toggle(isOn: automaticallyFixTyposBinding) {
                         SettingsRowLabel(
-                            title: "Automatically Fix Typos",
-                            description: "After you press Space, replaces a misspelled word without requiring your accept key.",
+                            title: "Automatically Fix Confident Typos",
+                            description: "After you press Space, fixes a word when Cotabby is sure. Otherwise a three-slot bar " +
+                                "opens above the word: your word, the best fix, a runner-up. Tab takes the highlighted " +
+                                "slot, arrows move, Option-1/2/3 pick directly.",
                             systemImage: "checkmark.circle"
                         )
                     }
                     .settingsItem(.automaticallyFixTypos)
+
+                    Toggle(isOn: sentenceCheckBinding) {
+                        SettingsRowLabel(
+                            title: "Check Finished Sentences",
+                            description: "With Groq selected, proofreads each sentence after you finish it (their/there, " +
+                                "missing words, grammar) and offers the fix as one card you can apply with your accept key.",
+                            systemImage: "text.badge.checkmark"
+                        )
+                    }
+                    .settingsItem(.sentenceCheck)
+                }
+
+                Section("macOS Autocorrect") {
+                    if systemAutocorrect.isSystemAutocorrectOn {
+                        SettingsRowLabel(
+                            title: "macOS Autocorrect Is Also On",
+                            description: "macOS and Cotabby both fix words as you type, so they fight over the same word: a fix can "
+                                + "flip back or lose its space. Cotabby covers what macOS does, so turning the macOS one off is "
+                                + "recommended. Apps pick up the change when reopened.",
+                            systemImage: "exclamationmark.triangle"
+                        )
+                        Button("Turn Off macOS Autocorrect and Auto-Capitalize") { systemAutocorrect.turnOff() }
+                    } else {
+                        SettingsRowLabel(
+                            title: "Cotabby Handles Corrections",
+                            description: "macOS autocorrect and auto-capitalize are off, so only Cotabby fixes words.",
+                            systemImage: "checkmark.seal"
+                        )
+                        if systemAutocorrect.canRestore {
+                            Button("Restore macOS Settings") { systemAutocorrect.restore() }
+                        }
+                    }
+                }
+                .onAppear { systemAutocorrect.refresh() }
+
+                Section("Word Intent (Jev)") {
+                    SettingsRowLabel(
+                        title: "Read the Sentence for Unclear Words",
+                        description: "Corrections are local and instant. With a TypeSafe Jev key, words Cotabby " +
+                            "can't settle alone (wich: which or with?) and slips like went their are re-ranked by " +
+                            "reading the whole sentence, usually in under half a second. Confident fixes never use Jev.",
+                        systemImage: "sparkles"
+                    )
+                    HStack {
+                        SecureField(jevKeyModel.hasKey ? "Key saved in Keychain" : "TypeSafe API key", text: $jevKeyDraft)
+                            .textFieldStyle(.roundedBorder)
+                        Button("Save") {
+                            jevKeyModel.save(jevKeyDraft)
+                            jevKeyDraft = ""
+                        }
+                        .disabled(jevKeyDraft.trimmingCharacters(in: .whitespaces).isEmpty)
+                        if jevKeyModel.hasKey {
+                            Button("Test") { jevKeyModel.test() }
+                                .disabled(jevKeyModel.isTesting)
+                            Button("Remove", role: .destructive) { jevKeyModel.remove() }
+                        }
+                    }
+                    if let status = jevKeyModel.statusMessage {
+                        Text(status)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Link("Get a key at typesafe.ai", destination: URL(string: "https://typesafe.ai")!)
+                        .font(.caption)
                 }
 
                 // Dictionaries rank candidates for the two correction actions above, so they only
@@ -202,6 +271,13 @@ struct WritingPaneView: View {
         Binding(
             get: { suggestionSettings.automaticallyFixTypos },
             set: { suggestionSettings.setAutomaticallyFixTypos($0) }
+        )
+    }
+
+    private var sentenceCheckBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.isSentenceCheckEnabled },
+            set: { suggestionSettings.setSentenceCheckEnabled($0) }
         )
     }
 

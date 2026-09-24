@@ -12,6 +12,68 @@ extension EngineAndModelPaneView {
     @ViewBuilder
     var openAICompatibleSections: some View {
         Section("Connection") {
+            Picker(selection: endpointProviderBinding) {
+                ForEach(OpenAICompatibleProviderPreset.allCases) { provider in
+                    Text(provider.displayLabel).tag(provider)
+                }
+            } label: {
+                SettingsRowLabel(
+                    title: "Provider",
+                    description: "Groq runs open models in the cloud at very high speed. Custom Server " +
+                        "talks to Ollama, LM Studio, vLLM, or any OpenAI-compatible address.",
+                    systemImage: "server.rack"
+                )
+            }
+            .pickerStyle(.segmented)
+            .settingsItem(.endpointProvider)
+
+            if suggestionSettings.endpointProvider == .groq {
+                groqConnectionRow
+            } else {
+                customServerConnectionRow
+            }
+
+            endpointAPIKeyRow
+
+            if let warning = endpointPrivacyWarning {
+                SettingsCalloutView(callout: SettingsPaneCallout(tone: .warning, message: warning))
+            }
+            if let endpointCredentialError {
+                SettingsCalloutView(
+                    callout: SettingsPaneCallout(tone: .warning, message: endpointCredentialError)
+                )
+            }
+        }
+
+        endpointModelSection
+    }
+
+    private var groqConnectionRow: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SettingsRowLabel(
+                title: "Groq",
+                description: "Requests go to \(OpenAICompatibleProviderPreset.groqBaseURLString). " +
+                    "Paste an API key below, then Connect to load the model list.",
+                systemImage: "bolt.horizontal"
+            )
+
+            HStack(spacing: 8) {
+                endpointConnectionStatus
+
+                Spacer(minLength: 8)
+
+                if let keyURL = URL(string: OpenAICompatibleProviderPreset.groqAPIKeyURLString) {
+                    Link("Get a key", destination: keyURL)
+                }
+
+                Button(endpointConnectButtonTitle, action: refreshEndpointModels)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(openAICompatibleConnectionModel.state == .connecting)
+            }
+        }
+    }
+
+    private var customServerConnectionRow: some View {
             VStack(alignment: .leading, spacing: 10) {
                 SettingsRowLabel(
                     title: "Server URL",
@@ -53,7 +115,9 @@ extension EngineAndModelPaneView {
                 }
             }
             .settingsItem(.endpointBaseURL)
+    }
 
+    private var endpointAPIKeyRow: some View {
             LabeledContent {
                 HStack(spacing: 8) {
                     SecureField("", text: $endpointAPIKeyDraft, prompt: Text("Paste API key"))
@@ -76,22 +140,17 @@ extension EngineAndModelPaneView {
             } label: {
                 SettingsRowLabel(
                     title: "API Key",
-                    description: "Optional bearer token stored in Keychain. Ollama does not require one.",
+                    description: suggestionSettings.endpointProvider == .groq
+                        ? "Your Groq key, stored in Keychain separately from the custom server's token."
+                        : "Optional bearer token stored in Keychain. Ollama does not require one.",
                     systemImage: "key"
                 )
             }
             .settingsItem(.endpointAPIKey)
+    }
 
-            if let warning = endpointPrivacyWarning {
-                SettingsCalloutView(callout: SettingsPaneCallout(tone: .warning, message: warning))
-            }
-            if let endpointCredentialError {
-                SettingsCalloutView(
-                    callout: SettingsPaneCallout(tone: .warning, message: endpointCredentialError)
-                )
-            }
-        }
-
+    @ViewBuilder
+    private var endpointModelSection: some View {
         Section("Model") {
             LabeledContent {
                 HStack(spacing: 6) {
@@ -103,7 +162,7 @@ extension EngineAndModelPaneView {
                     Menu {
                         ForEach(openAICompatibleConnectionModel.models) { model in
                             Button(model.id) {
-                                suggestionSettings.setOpenAICompatibleModelName(model.id)
+                                suggestionSettings.setActiveEndpointModelName(model.id)
                             }
                         }
                     } label: {
@@ -120,12 +179,59 @@ extension EngineAndModelPaneView {
             } label: {
                 SettingsRowLabel(
                     title: "Model",
-                    description: "Choose a model returned by the server or enter its identifier manually.",
+                    description: suggestionSettings.endpointProvider == .groq
+                        ? "\(OpenAICompatibleProviderPreset.groqDefaultModelName) is the fastest option. " +
+                            "Larger models are smarter but add latency."
+                        : "Choose a model returned by the server or enter its identifier manually.",
                     systemImage: "shippingbox"
                 )
             }
             .settingsItem(.endpointModel)
 
+            if suggestionSettings.endpointProvider == .custom {
+                endpointAPIModePicker
+            } else {
+                groqThroughputControls
+            }
+        }
+    }
+
+    /// Groq is fast enough to read far more of the document per keystroke, but the free tier's
+    /// token allowance is tiny, so the plan picker also switches Cotabby to word-boundary requests.
+    @ViewBuilder
+    private var groqThroughputControls: some View {
+        Toggle(isOn: Binding(
+            get: { suggestionSettings.isLargeEndpointContextEnabled },
+            set: { suggestionSettings.setLargeEndpointContextEnabled($0) }
+        )) {
+            SettingsRowLabel(
+                title: "Large Context",
+                description: "Sends up to about 7,500 characters before the caret and 600 after it. " +
+                    "Turn off to send about 4,000 and use fewer tokens.",
+                systemImage: "text.alignleft"
+            )
+        }
+        .settingsItem(.endpointContextSize)
+
+        Picker(selection: Binding(
+            get: { suggestionSettings.endpointTokensPerMinuteBudget },
+            set: { suggestionSettings.setEndpointTokensPerMinuteBudget($0) }
+        )) {
+            Text("Developer").tag(SuggestionSettingsStore.defaultEndpointTokensPerMinuteBudget)
+            Text("Free").tag(SuggestionSettingsStore.freeTierEndpointTokensPerMinuteBudget)
+        } label: {
+            SettingsRowLabel(
+                title: "Groq Plan",
+                description: "Matches Cotabby's request pace to your Groq limits. Free (8k tokens per minute) " +
+                    "only asks at word boundaries; Developer (250k) suggests on every pause.",
+                systemImage: "gauge.with.dots.needle.33percent"
+            )
+        }
+        .pickerStyle(.segmented)
+        .settingsItem(.endpointRateBudget)
+    }
+
+    private var endpointAPIModePicker: some View {
             Picker(selection: endpointAPIModeBinding) {
                 Text("Chat Completions").tag(OpenAICompatibleAPIMode.chatCompletions)
                 Text("Text Completions").tag(OpenAICompatibleAPIMode.completions)
@@ -139,7 +245,6 @@ extension EngineAndModelPaneView {
             }
             .pickerStyle(.segmented)
             .settingsItem(.endpointAPIMode)
-        }
     }
 
     @ViewBuilder

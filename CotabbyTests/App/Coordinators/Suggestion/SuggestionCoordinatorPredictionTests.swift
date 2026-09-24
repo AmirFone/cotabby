@@ -195,7 +195,8 @@ final class SuggestionCoordinatorPredictionTests: XCTestCase {
         })
     }
 
-    func test_typoGate_offersACorrectionSessionInsteadOfGenerating() async {
+    func test_typoGate_offersTheSpellingBarInsteadOfGenerating() async {
+        // #given a misspelled word mid-typing and a presenter for the bar
         let rig = retained(makeCoordinatorRig(
             snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "I typed recieve"),
             settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(
@@ -204,17 +205,20 @@ final class SuggestionCoordinatorPredictionTests: XCTestCase {
                 offerTypoCorrections: true
             )
         ))
+        let presenter = RecordingOfferPresenter()
+        rig.coordinator.candidateOfferPresenter = presenter
 
+        // #when
         rig.coordinator.schedulePrediction()
-        await waitUntil("Correction was never offered") {
-            rig.interactionState.activeSession?.kind.isCorrection == true
-        }
+        await waitUntil("The spelling bar was never offered") { presenter.presented.count == 1 }
 
+        // #then the bar leads with the typed word and highlights the fix, and no model runs
+        let offer = presenter.presented[0]
+        XCTAssertEqual(offer.candidates.first, "recieve")
+        XCTAssertEqual(offer.preferredIndex, 1)
+        XCTAssertTrue(offer.isSpellingBar)
         XCTAssertTrue(rig.engine.requests.isEmpty, "Corrections are native; no model generation runs")
-        guard case .ready = rig.coordinator.state else {
-            return XCTFail("A correction offer should present as ready, got \(rig.coordinator.state)")
-        }
-        XCTAssertTrue(rig.coordinator.overlayState.isVisible)
+        XCTAssertEqual(rig.coordinator.state, .idle)
     }
 
     func test_typoGate_automaticallyFixesACompletedWordAfterSpace() async {
@@ -468,4 +472,16 @@ final class SuggestionCoordinatorPredictionTests: XCTestCase {
         rig.coordinator.schedulePredictionForCurrentFocusIfPossible(matching: otherIdentity)
         XCTAssertEqual(rig.coordinator.state, .idle, "A different field must not reschedule")
     }
+}
+
+@MainActor
+private final class RecordingOfferPresenter: CandidateOfferPresenting {
+    private(set) var presented: [CandidateOffer] = []
+    var isShowingChoices: Bool { !presented.isEmpty }
+
+    func presentChoices(_ offer: CandidateOffer) { presented.append(offer) }
+    func armChoices(_ offer: CandidateOffer) {}
+    func disarmChoices() {}
+    func dismissChoices() {}
+    func flashAutoCorrection(typo: String, correction: String, caretRect: CGRect) {}
 }

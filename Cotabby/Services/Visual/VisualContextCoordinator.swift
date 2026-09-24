@@ -27,6 +27,12 @@ final class VisualContextCoordinator {
     private var pendingStartTask: Task<Void, Never>?
     private var pendingStartContext: FocusedInputSnapshot?
     private static let sessionStartSettleNanoseconds: UInt64 = 250_000_000
+    /// Minimum age of the last capture before typing refreshes it. The pixel-hash cache in
+    /// `ScreenshotContextGenerator` makes an unchanged screen nearly free, so this mainly bounds
+    /// screenshot frequency while a chat thread or document scrolls beside the field.
+    static let typingRefreshInterval: TimeInterval = 6
+    private var lastCaptureStartedAt: Date?
+    private var refreshTask: Task<Void, Never>?
 
     private static let permissionMissingReason =
         "Screen Recording permission is required for screenshot-derived prompt context."
@@ -127,6 +133,7 @@ final class VisualContextCoordinator {
         activeAugmentationSession = session
         latestExcerpt = nil
         status = initialStatus
+        lastCaptureStartedAt = Date()
         publishState()
 
         guard hasPermission else {
@@ -171,7 +178,34 @@ final class VisualContextCoordinator {
     /// `resetState` lets callers choose between:
     /// 1. Fully returning the service to `.idle`
     /// 2. Silently tearing down a prior session because a replacement session is about to start
+    /// Refreshes a ready session in place. The previous excerpt keeps serving requests until the new
+    /// one lands, and readiness is not re-announced, so a refresh never triggers an extra generation.
+    func refreshWhileTyping(for snapshotContext: FocusedInputSnapshot) {
+        guard let session = activeAugmentationSession,
+              session.elementIdentifier == snapshotContext.elementIdentifier,
+              session.focusChangeSequence == snapshotContext.focusChangeSequence,
+              session.status == .ready,
+              pendingStartTask == nil,
+              refreshTask == nil,
+              screenRecordingPermissionProvider(),
+              Date().timeIntervalSince(lastCaptureStartedAt ?? .distantPast) >= Self.typingRefreshInterval
+        else { return }
+
+        lastCaptureStartedAt = Date()
+        refreshTask = Task { [weak self] in
+            guard let self else { return }
+            defer { self.refreshTask = nil }
+            guard let excerpt = try? await self.screenshotContextGenerator.generateContext(
+                for: snapshotContext,
+                onStatusChange: { _ in }
+            ), !Task.isCancelled else { return }
+            self.applyExcerpt(excerpt, for: session.sessionID, identity: snapshotContext.identity, announce: false)
+        }
+    }
+
     func cancel(resetState: Bool) {
+        refreshTask?.cancel()
+        refreshTask = nil
         pendingStartTask?.cancel()
         pendingStartTask = nil
         pendingStartContext = nil
@@ -216,7 +250,8 @@ final class VisualContextCoordinator {
     private func applyExcerpt(
         _ excerpt: VisualContextExcerpt,
         for sessionID: UUID,
-        identity: FocusedInputIdentity
+        identity: FocusedInputIdentity,
+        announce: Bool = true
     ) {
         guard activeAugmentationSession?.sessionID == sessionID,
             activeAugmentationSession?.elementIdentifier == identity.elementIdentifier,
@@ -231,7 +266,9 @@ final class VisualContextCoordinator {
         latestExcerpt = excerpt.text
         CotabbyLogger.app.debug("Visual context ready: \(excerpt.text.count) chars")
         publishState()
-        onInjectedContextReady?(identity)
+        if announce {
+            onInjectedContextReady?(identity)
+        }
     }
 
     private func errorStatus(for error: ScreenshotContextGenerationError) -> VisualContextStatus {

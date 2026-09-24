@@ -307,17 +307,30 @@ final class SuggestionCoordinatorInputTests: XCTestCase {
         XCTAssertEqual(rig.visualContext.cancelCalls, [true])
     }
 
+    // MARK: - Host publish
+
+    func test_publishedSuffix_onlyForPredictableTypedCharacters() {
+        // #then letters, digits, space and plain punctuation must appear at the end of the field
+        XCTAssertEqual(SuggestionCoordinator.publishedSuffix(for: CapturedInputEvent(kind: .textMutation, keyCode: 49, characters: " ", flags: [])), " ")
+        XCTAssertEqual(SuggestionCoordinator.publishedSuffix(for: CapturedInputEvent(kind: .textMutation, keyCode: 0, characters: "a", flags: [])), "a")
+        // quotes may become smart quotes, backspace types nothing
+        XCTAssertNil(SuggestionCoordinator.publishedSuffix(for: CapturedInputEvent(kind: .textMutation, keyCode: 39, characters: "'", flags: [])))
+        XCTAssertNil(SuggestionCoordinator.publishedSuffix(for: CapturedInputEvent(kind: .textMutation, keyCode: 51, characters: "", flags: [])))
+    }
+
     // MARK: - Low Power Mode changes
 
-    func test_lowPowerModePublisher_disablesPipelineWhenActiveAndAutoDisableEnabled() {
+    func test_lowPowerModePublisher_keepsPipelineRunningAndStopsScreenCapture() {
+        // #given
         let rig = retained(makeCoordinatorRig())
 
+        // #when
         rig.lowPowerModeProvider.setLowPowerModeEnabled(true)
 
-        guard case let .disabled(reason) = rig.coordinator.state else {
-            return XCTFail("Expected disabled, got \(rig.coordinator.state)")
+        // #then spelling still runs, so the pipeline is not disabled; screenshots stop
+        if case .disabled = rig.coordinator.state {
+            XCTFail("Low Power Mode must not disable the whole pipeline")
         }
-        XCTAssertEqual(reason, "Cotabby is paused because Low Power Mode is on.")
         XCTAssertEqual(rig.visualContext.cancelCalls, [true])
     }
 

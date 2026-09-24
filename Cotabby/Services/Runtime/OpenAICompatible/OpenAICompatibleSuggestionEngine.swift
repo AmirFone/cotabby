@@ -9,17 +9,21 @@ final class OpenAICompatibleSuggestionEngine: SuggestionGenerating {
     private let client: OpenAICompatibleAPIClient
     private let configurationProvider: @MainActor () throws -> OpenAICompatibleEndpointConfiguration
     private let apiKeyProvider: @MainActor () throws -> String?
+    /// Shared with the API client and Settings; nil disables client-side budgeting (tests, local servers).
+    private let rateGovernor: EndpointRateGovernor?
     /// Owned for the engine's lifetime so focus-scoped warmup calls share one in-flight model load.
     private let preloadWorkController = OllamaPreloadWorkController()
 
     init(
         client: OpenAICompatibleAPIClient,
         configurationProvider: @escaping @MainActor () throws -> OpenAICompatibleEndpointConfiguration,
-        apiKeyProvider: @escaping @MainActor () throws -> String?
+        apiKeyProvider: @escaping @MainActor () throws -> String?,
+        rateGovernor: EndpointRateGovernor? = nil
     ) {
         self.client = client
         self.configurationProvider = configurationProvider
         self.apiKeyProvider = apiKeyProvider
+        self.rateGovernor = rateGovernor
     }
 
     func generateSuggestion(for request: SuggestionRequest) async throws -> SuggestionResult {
@@ -38,6 +42,15 @@ final class OpenAICompatibleSuggestionEngine: SuggestionGenerating {
         do {
             let configuration = try configurationProvider()
             let apiKey = try apiKeyProvider()
+            if configuration.provider == .groq {
+                return try await generateCloudSuggestion(
+                    for: request,
+                    configuration: configuration,
+                    apiKey: apiKey,
+                    onPartial: onPartial,
+                    startTime: startTime
+                )
+            }
             let partialHandler: (@MainActor (String) -> Void)?
             if let onPartial {
                 partialHandler = { @MainActor cumulativeRaw in
@@ -123,6 +136,143 @@ final class OpenAICompatibleSuggestionEngine: SuggestionGenerating {
                 metadata: metadata
             )
             throw SuggestionClientError.generationFailed(error.localizedDescription)
+        }
+    }
+
+    /// Cloud path: chat prompt with both sides of the caret, alternates in the same stream, and the
+    /// shared rate governor consulted before any bytes leave the Mac.
+    private func generateCloudSuggestion(
+        for request: SuggestionRequest,
+        configuration: OpenAICompatibleEndpointConfiguration,
+        apiKey: String?,
+        onPartial: (@MainActor (SuggestionResult) -> Void)?,
+        startTime: Date
+    ) async throws -> SuggestionResult {
+        let metadata: Logger.Metadata = [
+            "request_id": .string(request.requestID),
+            "engine": .string("openai_compatible_cloud")
+        ]
+        guard let prefixScale = try await admitCloudRequest(request) else {
+            return SuggestionResult(
+                generation: request.generation,
+                rawText: "",
+                text: "",
+                latency: Date().timeIntervalSince(startTime),
+                suppressionReason: "rateLimited"
+            )
+        }
+        let prompt = EndpointChatPromptRenderer.render(for: request, prefixScale: prefixScale)
+
+        let partialHandler: (@MainActor (String) -> Void)? = onPartial.map { onPartial in
+            { @MainActor cumulativeRaw in
+                let primary = PartialWordOverlapTrimmer.trim(
+                    AlternateCandidateSplitter.primaryForPartial(cumulativeRaw),
+                    precedingText: request.prefixText
+                )
+                let normalized = SuggestionTextNormalizer.normalizeDetailed(primary, for: request).text
+                guard !normalized.isEmpty else { return }
+                onPartial(SuggestionResult(
+                    generation: request.generation,
+                    rawText: cumulativeRaw,
+                    text: normalized,
+                    latency: Date().timeIntervalSince(startTime)
+                ))
+            }
+        }
+
+        let raw: String
+        do {
+            raw = try await client.generate(
+                configuration: configuration,
+                apiKey: apiKey,
+                prompt: prompt.user,
+                systemPrompt: prompt.system,
+                options: OpenAICompatibleGenerationOptions(
+                    maxPredictionTokens: request.maxPredictionTokens,
+                    temperature: request.temperature,
+                    topP: request.topP
+                ),
+                onPartialRawText: partialHandler
+            )
+        } catch OpenAICompatibleClientError.rateLimited(let retryAfter, let message) {
+            rateGovernor?.noteRateLimited(retryAfterSeconds: retryAfter)
+            CotabbyLogger.suggestion.warning(
+                "Cloud endpoint rate limited: \(message ?? "no detail")",
+                metadata: metadata
+            )
+            return SuggestionResult(
+                generation: request.generation,
+                rawText: "",
+                text: "",
+                latency: Date().timeIntervalSince(startTime),
+                suppressionReason: "rateLimited"
+            )
+        }
+        try Task.checkCancellation()
+        rateGovernor?.noteSuccess()
+
+        let split = AlternateCandidateSplitter.split(raw, maxAlternates: request.alternateCount)
+        let normalization = SuggestionTextNormalizer.normalizeDetailed(
+            PartialWordOverlapTrimmer.trim(split.primary, precedingText: request.prefixText),
+            for: request
+        )
+        var alternates: [String] = []
+        for candidate in split.alternates {
+            let text = SuggestionTextNormalizer.normalizeDetailed(
+                PartialWordOverlapTrimmer.trim(candidate, precedingText: request.prefixText),
+                for: request
+            ).text
+            if !text.isEmpty, text != normalization.text, !alternates.contains(text) {
+                alternates.append(text)
+            }
+        }
+        let latency = Date().timeIntervalSince(startTime)
+        let latencyMs = Int((latency * 1_000).rounded())
+        CotabbyLogger.llmIO.debug(
+            "Cloud endpoint generation",
+            metadata: metadata.merging([
+                "model": .string(configuration.modelName),
+                "system_prompt": .string(prompt.system),
+                "prompt": .string(prompt.user),
+                "prefix_scale": .stringConvertible(prefixScale),
+                "completion_raw": .string(raw),
+                "completion_normalized": .string(normalization.text),
+                "alternates": .string(alternates.joined(separator: " | ")),
+                "suppression_reason": .string(normalization.suppression?.rawValue ?? "none"),
+                "latency_ms": .stringConvertible(latencyMs)
+            ]) { _, new in new }
+        )
+        return SuggestionResult(
+            generation: request.generation,
+            rawText: raw,
+            text: normalization.text,
+            latency: latency,
+            suppressionReason: normalization.suppression?.rawValue,
+            alternates: normalization.text.isEmpty ? [] : alternates
+        )
+    }
+
+    /// Returns the prefix scale to send with, or nil when the budget says to skip this keystroke.
+    /// Short spacing waits sleep cooperatively so a newer keystroke cancels them.
+    private func admitCloudRequest(_ request: SuggestionRequest) async throws -> Double? {
+        guard let rateGovernor else { return 1 }
+        let systemTokens = TokenCountEstimator.estimate(EndpointChatPromptRenderer.systemPrompt(for: request))
+        let userTokens = TokenCountEstimator.estimate(EndpointChatPromptRenderer.userPrompt(for: request))
+        let estimatedTokens = systemTokens + userTokens + request.maxPredictionTokens
+        let isAtWordBoundary = request.prefixText.last.map { $0.isWhitespace || $0.isPunctuation } ?? true
+        while true {
+            switch rateGovernor.decide(estimatedTokens: estimatedTokens, isAtWordBoundary: isAtWordBoundary) {
+            case .send(let prefixScale):
+                return prefixScale
+            case .wait(let seconds):
+                try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+            case .skip(let reason):
+                CotabbyLogger.suggestion.debug(
+                    "Cloud request skipped by rate budget",
+                    metadata: ["request_id": .string(request.requestID), "reason": .string(reason.rawValue)]
+                )
+                return nil
+            }
         }
     }
 

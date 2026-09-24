@@ -23,8 +23,6 @@ extension SuggestionCoordinator {
         if SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
             globallyEnabled: settingsSnapshot.isGloballyEnabled,
             temporarilyPaused: settingsSnapshot.isTemporarilyPaused,
-            isLowPowerModeActive: lowPowerModeProvider.isLowPowerModeEnabled,
-            isLowPowerModeAutoDisableEnabled: settingsSnapshot.isLowPowerModeAutoDisableEnabled,
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
             disabledDomains: PerDomainDisableSettings.disabledDomains(),
             suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,
@@ -39,12 +37,13 @@ extension SuggestionCoordinator {
     func handleLowPowerModeChange() {
         CotabbyLogger.suggestion.debug("Low Power Mode state changed, reconciling")
         reconcileWithCurrentEnvironment()
+        if lowPowerModeProvider.isLowPowerModeEnabled, settingsSnapshot.isLowPowerModeAutoDisableEnabled {
+            visualContextCoordinator.cancel(resetState: true)
+        }
 
         if SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
             globallyEnabled: settingsSnapshot.isGloballyEnabled,
             temporarilyPaused: settingsSnapshot.isTemporarilyPaused,
-            isLowPowerModeActive: lowPowerModeProvider.isLowPowerModeEnabled,
-            isLowPowerModeAutoDisableEnabled: settingsSnapshot.isLowPowerModeAutoDisableEnabled,
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
             disabledDomains: PerDomainDisableSettings.disabledDomains(),
             suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,
@@ -231,7 +230,7 @@ extension SuggestionCoordinator {
             // reads pre-keystroke text and feeds it into generation. The result is a suggestion
             // that looks like the typed character was ignored — see
             // `schedulePredictionAfterHostPublishDelay` for the full rationale.
-            schedulePredictionAfterHostPublishDelay()
+            schedulePredictionAfterHostPublishDelay(expectingSuffix: Self.publishedSuffix(for: event))
         }
 
         return false
@@ -267,7 +266,21 @@ extension SuggestionCoordinator {
     /// `schedulePrediction()` internally `replaceDebouncedWork`s, so back-to-back keystrokes
     /// still collapse cleanly. The `hostPublishPollGeneration` token adds the missing outer
     /// coalescing layer: only the newest keystroke's polling chain may keep reading AX.
-    func schedulePredictionAfterHostPublishDelay() {
+    /// The character a typing keystroke must leave at the end of the field, when it is predictable.
+    /// Quotes are excluded because hosts may substitute smart quotes.
+    static func publishedSuffix(for event: CapturedInputEvent) -> String? {
+        guard event.kind == .textMutation, event.characters.count == 1, let character = event.characters.first,
+              character.isLetter || character.isNumber || " .,!?;:-".contains(character) else {
+            return nil
+        }
+        return event.characters
+    }
+
+    /// - Parameter expectingSuffix: the character the keystroke typed. When given, the host counts as
+    ///   having published only once the field ends with it; otherwise a field that was already lagging
+    ///   one keystroke behind (`over` read while `over ` was typed) passes the "text changed" test a
+    ///   key early, and a finished word is processed as if it were still being typed.
+    func schedulePredictionAfterHostPublishDelay(expectingSuffix: String? = nil) {
         hostPublishPollGeneration &+= 1
         let pollGeneration = hostPublishPollGeneration
         let baseline = focusModel.snapshot.context
@@ -290,7 +303,8 @@ extension SuggestionCoordinator {
                     precedingText: baseline?.precedingText,
                     elementIdentifier: baseline?.elementIdentifier,
                     selectionLocation: baseline?.selection.location,
-                    keystrokeUptimeNanoseconds: keystrokeUptimeNanoseconds
+                    keystrokeUptimeNanoseconds: keystrokeUptimeNanoseconds,
+                    expectedSuffix: expectingSuffix
                 ),
                 pollGeneration: pollGeneration,
                 elapsedMs: Self.hostPublishFirstPollIntervalMs
@@ -305,6 +319,7 @@ extension SuggestionCoordinator {
         let elementIdentifier: String?
         let selectionLocation: Int?
         let keystrokeUptimeNanoseconds: UInt64
+        let expectedSuffix: String?
     }
 
     /// Drives the snapshot-changed gate. Reads the live focus snapshot, fires `schedulePrediction`
@@ -331,7 +346,9 @@ extension SuggestionCoordinator {
         let textChanged = currentContext?.precedingText != baseline.precedingText
         let elementChanged = currentContext?.elementIdentifier != baseline.elementIdentifier
         let selectionChanged = currentContext?.selection.location != baseline.selectionLocation
-        if textChanged || elementChanged || selectionChanged {
+        let showsTypedCharacter = elementChanged
+            || baseline.expectedSuffix.map { currentContext?.precedingText.hasSuffix($0) ?? true } ?? true
+        if (textChanged || elementChanged || selectionChanged) && showsTypedCharacter {
             // The publish arrived. When it matches the snapshot a speculative post-acceptance
             // generation was built against, that generation is already in flight (or applied) for
             // exactly this content: scheduling another would only retire it and pay the full
@@ -394,10 +411,28 @@ extension SuggestionCoordinator {
     /// While a suggestion tail is active, normal typing is interpreted relative to that tail first.
     /// This is the same idea as reconciling optimistic UI with the eventual live editor state:
     /// keep the existing session only when the user's new input is still consistent with it.
+    /// Typing exactly what the ghost text predicted skips the prediction pipeline, which is where the
+    /// sentence pass runs. When such typing crosses a word boundary, look at the field once the host
+    /// has published it, so a sentence finished by type-through is still proofread.
+    func noteSentenceBoundaryDuringTypeThrough(_ characters: String) {
+        guard sentenceFixPresenter != nil, characters.contains(where: { $0 == " " || $0.isNewline }) else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.typeThroughSentenceCheckDelaySeconds) { [weak self] in
+            guard let self else { return }
+            self.focusModel.refreshNow()
+            guard let context = self.focusModel.snapshot.context, !context.isSecure else { return }
+            self.sentenceFixPresenter?.noteTypedText(
+                context.precedingText,
+                caretRect: context.caretRect,
+                focusChangeSequence: context.focusChangeSequence
+            )
+        }
+    }
+
     func handleInputEvent(_ event: CapturedInputEvent, with session: ActiveSuggestionSession) -> Bool {
         switch event.kind {
         case .textMutation:
             if advanceActiveSessionIfTypedCharactersMatch(event.characters, session: session) {
+                noteSentenceBoundaryDuringTypeThrough(event.characters)
                 return false
             }
 
@@ -406,7 +441,7 @@ extension SuggestionCoordinator {
                 clearDiagnostics: false
             )
             if event.shouldSchedulePrediction {
-                schedulePredictionAfterHostPublishDelay()
+                schedulePredictionAfterHostPublishDelay(expectingSuffix: Self.publishedSuffix(for: event))
             }
             return false
 

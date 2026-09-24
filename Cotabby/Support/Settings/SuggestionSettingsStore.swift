@@ -94,6 +94,15 @@ struct SuggestionSettingsStore {
     private static let openAICompatibleBaseURLDefaultsKey = "cotabbyOpenAICompatibleBaseURL"
     private static let openAICompatibleModelNameDefaultsKey = "cotabbyOpenAICompatibleModelName"
     private static let openAICompatibleAPIModeDefaultsKey = "cotabbyOpenAICompatibleAPIMode"
+    private static let endpointProviderDefaultsKey = "cotabbyEndpointProvider"
+    private static let groqModelNameDefaultsKey = "cotabbyGroqModelName"
+    private static let largeEndpointContextDefaultsKey = "cotabbyLargeEndpointContext"
+    private static let endpointTokensPerMinuteBudgetDefaultsKey = "cotabbyEndpointTokensPerMinuteBudget"
+    private static let sentenceCheckEnabledDefaultsKey = "cotabbySentenceCheckEnabled"
+    /// Groq Developer tier: 250k tokens per minute for gpt-oss-20b.
+    static let defaultEndpointTokensPerMinuteBudget = 250_000
+    /// Groq free tier: 8k tokens per minute.
+    static let freeTierEndpointTokensPerMinuteBudget = 8_000
     private static let selectedWordCountPresetDefaultsKey = "cotabbySelectedWordCountPreset"
     private static let usingCustomWordCountRangeDefaultsKey = "cotabbyUsingCustomWordCountRange"
     private static let customWordCountLowWordsDefaultsKey = "cotabbyCustomWordCountLowWords"
@@ -181,6 +190,11 @@ struct SuggestionSettingsStore {
         openAICompatibleBaseURLDefaultsKey,
         openAICompatibleModelNameDefaultsKey,
         openAICompatibleAPIModeDefaultsKey,
+        endpointProviderDefaultsKey,
+        groqModelNameDefaultsKey,
+        largeEndpointContextDefaultsKey,
+        endpointTokensPerMinuteBudgetDefaultsKey,
+        sentenceCheckEnabledDefaultsKey,
         selectedWordCountPresetDefaultsKey,
         usingCustomWordCountRangeDefaultsKey,
         customWordCountLowWordsDefaultsKey,
@@ -289,6 +303,21 @@ struct SuggestionSettingsStore {
             .string(forKey: Self.openAICompatibleAPIModeDefaultsKey)
             .flatMap(OpenAICompatibleAPIMode.init(rawValue:))
             ?? .chatCompletions
+        let resolvedEndpointProvider = userDefaults
+            .string(forKey: Self.endpointProviderDefaultsKey)
+            .flatMap(OpenAICompatibleProviderPreset.init(rawValue:))
+            ?? .groq
+        let resolvedGroqModelName = userDefaults
+            .string(forKey: Self.groqModelNameDefaultsKey)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .flatMap { $0.isEmpty ? nil : $0 }
+            ?? OpenAICompatibleProviderPreset.groqDefaultModelName
+        let resolvedLargeEndpointContext =
+            userDefaults.object(forKey: Self.largeEndpointContextDefaultsKey) as? Bool ?? true
+        let resolvedEndpointTokensPerMinuteBudget: Int = {
+            let stored = userDefaults.integer(forKey: Self.endpointTokensPerMinuteBudgetDefaultsKey)
+            return stored > 0 ? stored : Self.defaultEndpointTokensPerMinuteBudget
+        }()
         let resolvedWordCountPreset: SuggestionWordCountPreset = {
             let storedRaw = userDefaults.string(forKey: Self.selectedWordCountPresetDefaultsKey)
             // Migrate the retired "3-7" raw value to its replacement "4-7" so users who picked
@@ -320,8 +349,8 @@ struct SuggestionSettingsStore {
         let resolvedFastModeEnabled =
             userDefaults.object(forKey: Self.fastModeEnabledDefaultsKey) as? Bool ?? false
         // Hiding a completion on a misspelled current word and offering a fix remain the default
-        // behavior. Automatic replacement is deliberately opt-in because it mutates host-app text
-        // without a confirmation key.
+        // behavior. Automatic replacement is on by default in this build: it only fires for
+        // high-confidence fixes at a Space boundary, flashes the change, and Esc reverts it.
         let resolvedSuppressCompletionsOnTypo =
             userDefaults.object(forKey: Self.suppressCompletionsOnTypoDefaultsKey) as? Bool ?? true
         let resolvedOfferTypoCorrections =
@@ -335,7 +364,9 @@ struct SuggestionSettingsStore {
             )
         }()
         let resolvedAutomaticallyFixTypos =
-            userDefaults.object(forKey: Self.automaticallyFixTyposDefaultsKey) as? Bool ?? false
+            userDefaults.object(forKey: Self.automaticallyFixTyposDefaultsKey) as? Bool ?? true
+        let resolvedSentenceCheckEnabled =
+            userDefaults.object(forKey: Self.sentenceCheckEnabledDefaultsKey) as? Bool ?? true
         // Defaults to false so the metrics ring buffer stays empty until the user explicitly opts
         // in from the Performance pane.
         let resolvedPerformanceTrackingEnabled =
@@ -520,6 +551,10 @@ struct SuggestionSettingsStore {
                 openAICompatibleBaseURL: resolvedOpenAICompatibleBaseURL,
                 openAICompatibleModelName: resolvedOpenAICompatibleModelName,
                 openAICompatibleAPIMode: resolvedOpenAICompatibleAPIMode,
+                endpointProvider: resolvedEndpointProvider,
+                groqModelName: resolvedGroqModelName,
+                isLargeEndpointContextEnabled: resolvedLargeEndpointContext,
+                endpointTokensPerMinuteBudget: resolvedEndpointTokensPerMinuteBudget,
                 isPowerBasedModelSwitchingEnabled: resolvedPowerBasedModelSwitchingEnabled,
                 batteryEngine: resolvedBatteryEngine,
                 batteryModelFilename: resolvedBatteryModelFilename,
@@ -554,7 +589,8 @@ struct SuggestionSettingsStore {
                 suppressCompletionsOnTypo: resolvedSuppressCompletionsOnTypo,
                 offerTypoCorrections: resolvedOfferTypoCorrections,
                 enabledSpellingDictionaryCodes: resolvedEnabledSpellingDictionaryCodes,
-                automaticallyFixTypos: resolvedAutomaticallyFixTypos
+                automaticallyFixTypos: resolvedAutomaticallyFixTypos,
+                isSentenceCheckEnabled: resolvedSentenceCheckEnabled
             ),
             presentation: SuggestionPresentationSettings(
                 showIndicator: resolvedShowIndicator,
@@ -609,6 +645,10 @@ struct SuggestionSettingsStore {
         saveOpenAICompatibleBaseURL(data.openAICompatibleBaseURL)
         saveOpenAICompatibleModelName(data.openAICompatibleModelName)
         saveOpenAICompatibleAPIMode(data.openAICompatibleAPIMode)
+        saveEndpointProvider(data.endpointProvider)
+        saveGroqModelName(data.groqModelName)
+        saveLargeEndpointContextEnabled(data.isLargeEndpointContextEnabled)
+        saveEndpointTokensPerMinuteBudget(data.endpointTokensPerMinuteBudget)
         saveSelectedWordCountPreset(data.selectedWordCountPreset)
         saveUsingCustomWordCountRange(data.isUsingCustomWordCountRange)
         saveCustomWordCountRange(low: data.customWordCountLowWords, high: data.customWordCountHighWords)
@@ -619,6 +659,7 @@ struct SuggestionSettingsStore {
         saveOfferTypoCorrections(data.offerTypoCorrections)
         saveEnabledSpellingDictionaryCodes(data.enabledSpellingDictionaryCodes)
         saveAutomaticallyFixTypos(data.automaticallyFixTypos)
+        saveSentenceCheckEnabled(data.isSentenceCheckEnabled)
         savePerformanceTrackingEnabled(data.isPerformanceTrackingEnabled)
         saveLowPowerModeAutoDisableEnabled(data.isLowPowerModeAutoDisableEnabled)
         saveMenuBarIconVisible(data.isMenuBarIconVisible)
@@ -773,6 +814,14 @@ struct SuggestionSettingsStore {
         userDefaults.set(mode.rawValue, forKey: Self.openAICompatibleAPIModeDefaultsKey)
     }
 
+    func saveEndpointProvider(_ provider: OpenAICompatibleProviderPreset) {
+        userDefaults.set(provider.rawValue, forKey: Self.endpointProviderDefaultsKey)
+    }
+
+    func saveGroqModelName(_ modelName: String) {
+        userDefaults.set(modelName, forKey: Self.groqModelNameDefaultsKey)
+    }
+
     func savePowerBasedModelSwitchingEnabled(_ enabled: Bool) {
         userDefaults.set(enabled, forKey: Self.powerModelSwitchingEnabledDefaultsKey)
     }
@@ -844,6 +893,18 @@ struct SuggestionSettingsStore {
 
     func saveAutomaticallyFixTypos(_ enabled: Bool) {
         userDefaults.set(enabled, forKey: Self.automaticallyFixTyposDefaultsKey)
+    }
+
+    func saveSentenceCheckEnabled(_ enabled: Bool) {
+        userDefaults.set(enabled, forKey: Self.sentenceCheckEnabledDefaultsKey)
+    }
+
+    func saveLargeEndpointContextEnabled(_ enabled: Bool) {
+        userDefaults.set(enabled, forKey: Self.largeEndpointContextDefaultsKey)
+    }
+
+    func saveEndpointTokensPerMinuteBudget(_ budget: Int) {
+        userDefaults.set(budget, forKey: Self.endpointTokensPerMinuteBudgetDefaultsKey)
     }
 
     func savePerformanceTrackingEnabled(_ enabled: Bool) {

@@ -118,7 +118,7 @@ final class SuggestionCoordinatorLifecycleTests: XCTestCase {
         XCTAssertEqual(rig.visualContext.cancelCalls, [true])
     }
 
-    func test_settingsChange_autoDisablingWhileAlreadyInLowPowerModeDoesNotRestartThePipeline() {
+    func test_settingsChange_autoDisablingWhileInLowPowerModeKeepsSpellingButNotScreenCapture() {
         let rig = retained(makeCoordinatorRig(
             lowPowerModeEnabled: true,
             settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(
@@ -134,7 +134,8 @@ final class SuggestionCoordinatorLifecycleTests: XCTestCase {
             )
         )
 
-        XCTAssertNotEqual(rig.coordinator.state, .debouncing)
+        // #then the pipeline restarts (spelling runs; generation pauses later) but screenshots stay off
+        XCTAssertEqual(rig.coordinator.state, .debouncing)
         XCTAssertTrue(rig.visualContext.startedSessions.isEmpty)
         XCTAssertEqual(rig.visualContext.cancelCalls, [true])
     }

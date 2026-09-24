@@ -49,6 +49,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case offerTypoCorrections
     case spellingDictionaries
     case automaticallyFixTypos
+    case sentenceCheck
     // Context
     case extendedContext
     case contextLivePreview
@@ -65,6 +66,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case huggingFaceBrowser
     case modelsFolder
     case lmStudio
+    case endpointProvider
+    case endpointContextSize
+    case endpointRateBudget
     case endpointBaseURL
     case endpointAPIMode
     case endpointAPIKey
@@ -132,6 +136,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .offerTypoCorrections: return "Offer Corrections on Typo"
         case .spellingDictionaries: return "Spelling Dictionaries"
         case .automaticallyFixTypos: return "Automatically Fix Typos"
+        case .sentenceCheck: return "Check Finished Sentences"
+        case .endpointContextSize: return "Groq Large Context"
+        case .endpointRateBudget: return "Groq Plan"
         case .extendedContext: return "Extended Context"
         case .contextLivePreview: return "Live Preview"
         case .engine: return "Engine"
@@ -146,6 +153,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .huggingFaceBrowser: return "Hugging Face Model Browser"
         case .modelsFolder: return "Models Folder"
         case .lmStudio: return "LM Studio Models"
+        case .endpointProvider: return "Endpoint Provider"
         case .endpointBaseURL: return "Endpoint Server URL"
         case .endpointAPIMode: return "Endpoint API Format"
         case .endpointAPIKey: return "Endpoint API Key"
@@ -208,6 +216,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .offerTypoCorrections: return "checkmark.bubble"
         case .spellingDictionaries: return "character.book.closed"
         case .automaticallyFixTypos: return "checkmark.circle"
+        case .sentenceCheck: return "text.badge.checkmark"
+        case .endpointContextSize: return "text.alignleft"
+        case .endpointRateBudget: return "gauge.with.dots.needle.33percent"
         case .extendedContext: return "doc.text"
         case .contextLivePreview: return "text.cursor"
         case .engine: return "cpu"
@@ -222,6 +233,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .huggingFaceBrowser: return "magnifyingglass"
         case .modelsFolder: return "folder"
         case .lmStudio: return "square.stack.3d.up"
+        case .endpointProvider: return "server.rack"
         case .endpointBaseURL: return "network"
         case .endpointAPIMode: return "arrow.left.arrow.right"
         case .endpointAPIKey: return "key"
@@ -261,14 +273,16 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .emojiPicker, .emojiSkinTone, .emojiPeopleStyle, .emojiHistory:
             return .emoji
         case .length, .acceptPunctuation, .addSpaceAfterAccept, .name, .languages, .customRules,
-             .hideSuggestionsOnTypo, .offerTypoCorrections, .spellingDictionaries, .automaticallyFixTypos:
+             .hideSuggestionsOnTypo, .offerTypoCorrections, .spellingDictionaries, .automaticallyFixTypos,
+             .sentenceCheck:
             return .writing
         case .extendedContext, .contextLivePreview:
             return .context
         case .engine, .appleIntelligenceAvailability, .modelStatus, .selectedModel,
              .lowPowerModeAutoDisable, .powerBasedModelSwitching, .batteryModel, .pluggedInModel,
              .downloadModels, .huggingFaceBrowser, .modelsFolder, .lmStudio,
-             .endpointBaseURL, .endpointAPIMode, .endpointAPIKey, .endpointStatus, .endpointModel:
+             .endpointProvider, .endpointContextSize, .endpointRateBudget, .endpointBaseURL, .endpointAPIMode,
+             .endpointAPIKey, .endpointStatus, .endpointModel:
             return .engineAndModel
         case .acceptanceMode, .acceptWord, .acceptEntireSuggestion, .toggleTabby:
             return .shortcuts
@@ -321,6 +335,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .offerTypoCorrections: return "Offer a green replacement for the misspelled word."
         case .spellingDictionaries: return "Dictionaries used to detect typos."
         case .automaticallyFixTypos: return "Replace a misspelled word right after you press Space."
+        case .sentenceCheck: return "Proofread each finished sentence and offer the fix as one card."
+        case .endpointContextSize: return "Send more of the document to Groq for better suggestions."
+        case .endpointRateBudget: return "Pace requests to your Groq Developer or Free limits."
         case .extendedContext: return "A glossary or notes sent with every suggestion."
         case .contextLivePreview: return "A real field that exercises the full pipeline."
         case .engine: return "Apple Intelligence, bundled Open Source, or a local endpoint."
@@ -335,6 +352,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .huggingFaceBrowser: return "Search Hugging Face for GGUF models."
         case .modelsFolder: return "Where downloaded model files live on this Mac."
         case .lmStudio: return "Also load models from your LM Studio library."
+        case .endpointProvider: return "Use Groq's cloud models or your own OpenAI-compatible server."
         case .endpointBaseURL: return "The OpenAI-compatible server address; /v1 is added when omitted."
         case .endpointAPIMode: return "Choose Chat Completions or Text Completions for this model."
         case .endpointAPIKey: return "Optional bearer token stored securely in Keychain."
@@ -468,7 +486,14 @@ enum SettingsItem: String, CaseIterable, Identifiable {
                     "russian", "symspell", "autocorrect"]
         case .automaticallyFixTypos:
             return ["typo", "automatic", "automatically", "autocorrect", "fix", "spelling",
-                    "replace", "space", "instant", "without accepting"]
+                    "replace", "space", "instant", "without accepting", "dyslexia", "confidence"]
+        case .sentenceCheck:
+            return ["sentence", "grammar", "proofread", "their there", "dyslexia", "check",
+                    "fix sentence", "groq"]
+        case .endpointContextSize:
+            return ["context", "large context", "window", "characters", "groq", "tokens"]
+        case .endpointRateBudget:
+            return ["rate limit", "tokens per minute", "free tier", "developer", "plan", "groq", "429"]
         case .extendedContext:
             return ["context", "glossary", "reference", "notes", "jargon", "instructions",
                     "memory", "background", "system prompt", "vocabulary"]
@@ -513,6 +538,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .lmStudio:
             return ["lm studio", "lmstudio", "import", "library", "external", "source",
                     "third party"]
+        case .endpointProvider:
+            return ["groq", "provider", "cloud", "gpt-oss", "gpt oss", "fast", "hosted", "remote"]
         case .endpointBaseURL:
             return ["endpoint", "url", "server", "host", "ollama", "localhost", "openai", "v1"]
         case .endpointAPIMode:

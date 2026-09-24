@@ -95,6 +95,57 @@ final class SuggestionTextNormalizerTests: XCTestCase {
         XCTAssertEqual(normalized, "")
     }
 
+    func test_normalize_dropsDigitNoiseAfterProse() {
+        // #given prose with no numbers in sight
+        let request = CotabbyTestFixtures.suggestionRequest(precedingText: "over there ")
+
+        // #when the model emits a digit run
+        let result = SuggestionTextNormalizer.normalizeDetailed(": 123456789012345678901234", for: request)
+
+        // #then nothing is shown
+        XCTAssertEqual(result, SuggestionNormalizationResult(text: "", suppression: .implausible))
+    }
+
+    func test_normalize_keepsNumbersWhenTheTextIsAboutNumbers() {
+        let request = CotabbyTestFixtures.suggestionRequest(precedingText: "Invoice 4471 total: $")
+
+        XCTAssertEqual(SuggestionTextNormalizer.normalize("1,250.00 due", for: request), "1,250.00 due")
+    }
+
+    func test_normalize_keepsShortNumbersInProse() {
+        let request = CotabbyTestFixtures.suggestionRequest(precedingText: "See you in ")
+
+        XCTAssertEqual(SuggestionTextNormalizer.normalize("2027", for: request), "2027")
+    }
+
+    func test_normalize_dropsModelNarratingThePrompt() {
+        let request = CotabbyTestFixtures.suggestionRequest(precedingText: "The")
+
+        let result = SuggestionTextNormalizer.normalizeDetailed(" user is typing in TextEdit.", for: request)
+
+        XCTAssertEqual(result.suppression, .implausible)
+    }
+
+    func test_plausibility_rejectsCopiedInstructions() {
+        // #given instructions the model can see but the writer never typed
+        let instructions = "The user usually writes in English. Match the language of the text before the caret."
+
+        // #then copying four of their words in a row is narration
+        XCTAssertFalse(SuggestionPlausibilityGate.isPlausible(
+            "user usually writes in English.", precedingText: "I think ", instructions: instructions
+        ))
+        XCTAssertTrue(SuggestionPlausibilityGate.isPlausible(
+            "we should match the plan", precedingText: "I think ", instructions: instructions
+        ))
+    }
+
+    func test_plausibility_allowsLanguageTalkTheWriterStarted() {
+        XCTAssertFalse(SuggestionPlausibilityGate.isPlausible("text is in English.", precedingText: "The "))
+        XCTAssertTrue(SuggestionPlausibilityGate.isPlausible(
+            "in English and Spanish.", precedingText: "I teach English classes, mostly "
+        ))
+    }
+
     func test_normalize_stripsModelLeadingWhitespaceWhenPrecedingTextAlreadyEndsWithWhitespace() {
         let request = CotabbyTestFixtures.suggestionRequest(precedingText: "Hello ")
 

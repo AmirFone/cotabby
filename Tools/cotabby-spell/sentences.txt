@@ -1,0 +1,24 @@
+# Sentence pass. <auto-fixed><TAB><with suggestions><TAB><input>; `=` = same as previous column/input.
+# The last word is left to the word-level gate, so these sentences end with a clean word.
+I went to the store today.	=	I went to the the store today.
+Hello, world again.	=	Hello , world again.
+Hello, world again.	=	Hello,world again.
+I think so too.	=	I  think so too.
+I had had enough by then.	=	I had had enough by then.
+I know that that works.	=	I know that that works.
+I said I would come.	=	i said i would come.
+I'm sure it works.	=	i'm sure it works.
+It broke because the cable failed.	=	It broke becuase the cable failed.
+I don't think so.	=	I dont think so.
+=	I went there yesterday.	I went their yesterday.
+=	It is different from the old one.	It is different form the old one.
+=	=	Put it over there please.
+=	=	Their house is big.
+=	=	The weather is nice today.
+=	=	See you on Monday.
+=	=	The Bering strait is cold.
+We need to buy milk and eggs.	=	We need to buy milk and eggs.
+=	I could see it clearly.	I cud see it clearly.
+I think the problem is here.	=	I think teh the problem is here.
+=	=	She lets the dog out.
+Hello, world is here.	=	Hello ,world is here.

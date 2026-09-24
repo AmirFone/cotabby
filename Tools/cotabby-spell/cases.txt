@@ -1,0 +1,204 @@
+# cotabby-spell regression suite. Format: <expected><TAB><text>, `|` marks the caret.
+# Expected: auto:WORD, bar:WORD (best slot), realword:WORD, bar-has:WORD, proceed, suppress,
+# `!auto` (anything but an automatic edit), alternatives joined by `/`.
+
+## Classic misspellings, finished with Space: fix automatically
+auto:the	I think teh |
+auto:The	hte |
+auto:because	it broke becuase |
+auto:receive	did you recieve |
+auto:definitely	I will definately |
+auto:friend	my best freind |
+auto:their	they left thier |
+auto:until	wait untill |
+auto:occurred	it occured |
+auto:separate	keep them seperate |
+auto:believe	I don't beleive |
+auto:tomorrow	see you tommorow |
+auto:government	the goverment |
+auto:necessary	is it necesary |
+auto:probably	it will probaly |
+auto:different	something diffrent |
+auto:environment	the enviroment |
+auto:beginning	from the begining |
+auto:embarrass	don't embarass |
+auto:immediately	call me immediatly |
+auto:knowledge	general knowlege |
+auto:library	at the libary |
+auto:restaurant	a nice restuarant |
+auto:schedule	check the schedual |
+auto:surprise	what a suprise |
+auto:truly	yours truely |
+auto:weird/bar:weird	that is wierd |
+auto:which/bar:which	I don't know wich |
+bar:which/auto:which	the one with wich |
+
+## Case is preserved
+auto:The	Teh |
+auto:Because	Becuase |
+auto:THE/proceed	TEH |
+
+## Ambiguous: bar, never an automatic edit
+auto:address	my adress |
+bar-has:a lot/auto:a lot	thanks alot |
+!auto	we wen |
+!auto	it was form |
+
+## Mid-word: nothing while the letters still spell the start of a word
+proceed	I think rece|
+proceed	I think becau|
+proceed	I think tomm|
+proceed	I think wha|
+proceed	I think diffr|
+proceed	the qu|
+proceed	a|
+proceed	an|
+
+## Mid-word slips: bar with completions, never auto
+bar-has:receive/bar-has:received	I think recie|
+bar-has:question/bar-has:questions	the questoi|
+!auto	I think definat|
+!auto	the enviro|
+
+## Real-word slips (spelled right, wrong word): offered, never applied
+realword:there	I went their |
+realword:there	I want to go their |
+realword:from	It is different form |
+realword:than	more then |
+realword:buy	we need to by |
+realword:knew	I new |
+realword:your	thank you for you're |
+realword:here	come over hear |
+realword:lose	I don't want to loose |
+
+## Correct words and phrases: leave alone
+proceed	over there |
+proceed	I want to |
+proceed	their house |
+proceed	I know |
+proceed	I no longer |
+proceed	you're welcome |
+proceed	it's fine |
+proceed	its color |
+proceed	more than |
+proceed	then we left |
+proceed	from here |
+proceed	the form |
+proceed	fill out the form |
+proceed	by the way |
+proceed	I knew |
+proceed	a new car |
+proceed	too much |
+proceed	right now |
+proceed	the weather |
+proceed	loose change |
+proceed	Hello world |
+proceed	The quick brown fox jumps over the lazy dog |
+
+## Things that are not words: never touch
+proceed	see https://exmaple.com |
+proceed	email me at sam@exmaple.com |
+proceed	call my_varaible |
+proceed	the API returns JSONN |
+proceed	HTTPS |
+proceed	version 2.0.1 |
+proceed	about 42 |
+proceed	room 4b |
+proceed	#hastag |
+proceed	@mentoin |
+proceed	~/Desktop/fiel |
+
+## Whitespace and boundaries
+proceed	|
+proceed	   |
+proceed	teh  |
+proceed	I think\n|
+!auto	end of line teh\n|
+auto:The	First line.\nteh |
+auto:Hello	hello, |
+auto:The	teh, |
+proceed	(teh) |
+
+## Contractions and apostrophes
+auto:Don't	don't |
+proceed	I'm |
+auto:Can't	can't |
+auto:don't	I dont |
+proceed	it’s fine |
+auto:I'm	im |
+auto:I'm	so im |
+auto:can't	I cant |
+auto:Don't	Dont |
+auto:They're	theyre |
+auto:That's	thats |
+proceed	I wont |
+proceed	lets go |
+auto:We'll	we'll |
+bar:don't	I dont|
+
+## Names and jargon (system dictionary knows many)
+proceed	I use Kubernetes |
+proceed	talk to Maria |
+proceed	visit Brooklyn |
+bar-has:Kubernetes	ask Kubernets|
+
+## Short words: conservative
+!auto	I wen |
+!auto	a teh|
+auto:Ok	ok |
+auto:Hi	hi |
+
+## Doubles and repeats
+proceed	the the |
+auto:Tomorrow	tomorow |
+auto:Really	realy |
+auto:beautiful	so beautifull |
+auto:Accommodate	accomodate |
+
+## Words that start like contractions keep typing undisturbed
+proceed	the im|
+proceed	I hes|
+proceed	the cant|
+bar:that's/proceed	it thats|
+
+## Unicode, emoji, other scripts
+proceed	great job 🎉 |
+auto:Café	café |
+auto:Naïve	naïve |
+auto:Привет	привет |
+proceed	שלום |
+auto:the	🎉 teh |
+
+## Long context before the word
+auto:because	This is a long paragraph about many things, and it keeps going for quite a while so that the context window is large, becuase |
+realword:than	We spent a lot of time on this and honestly it was more then |
+
+## Capitalization as each word is finished
+auto:Hello	hello |
+auto:Thanks	See you soon. thanks |
+auto:The	It broke! the |
+auto:I	so i |
+auto:I'm	then i'm |
+auto:I've	i've |
+auto:The	Done.\nthe |
+proceed	e.g. the |
+proceed	I met Mr. smith |
+proceed	the U.S. economy |
+proceed	wait... what |
+proceed	see iPhone |
+proceed	I think this |
+auto:The	First line. teh |
+!auto	hello|
+
+## Typos right before punctuation are still caught (punctuation kept)
+auto:the	I saw teh, |
+auto:because	It broke becuase. |
+bar:the	I saw teh,|
+auto:don't	I dont! |
+realword:there	I went their. |
+proceed	I said hello, |
+auto:Etc	etc. |
+
+## Archaic spellings the system dictionary accepts but nobody means
+auto:height	what is the hight |
+auto:cheese	more cheez |

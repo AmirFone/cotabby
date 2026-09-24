@@ -21,7 +21,7 @@ enum SuggestionEngineKind: String, CaseIterable, Equatable, Hashable, Sendable, 
         case .llamaOpenSource:
             return "Open Source"
         case .openAICompatible:
-            return "Local Endpoint"
+            return "Groq / Endpoint"
         }
     }
 
@@ -177,6 +177,18 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     /// commits the misspelled word with Space. The word boundary prevents pauses in unfinished words
     /// from triggering destructive edits.
     let automaticallyFixTypos: Bool
+    /// Which server the endpoint engine calls; cloud-only behavior (large context, sentence check,
+    /// continuation alternates, rate budgeting) keys off `.groq`.
+    let endpointProvider: OpenAICompatibleProviderPreset
+    let isLargeEndpointContextEnabled: Bool
+    let endpointTokensPerMinuteBudget: Int
+    let isSentenceCheckEnabled: Bool
+
+    /// True when requests leave the Mac for a hosted provider fast enough to afford a large prompt,
+    /// alternates, and a per-sentence check.
+    var usesCloudEndpoint: Bool {
+        selectedEngine == .openAICompatible && endpointProvider == .groq
+    }
 
     /// Single chokepoint that picks between the preset's range and the user's custom range.
     /// Every downstream consumer (token-budget math, prompt-instruction text, UI labels in the

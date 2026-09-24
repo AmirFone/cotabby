@@ -226,6 +226,134 @@ protocol EmojiTextInserting: AnyObject {
     func replace(deletingUTF16Count: Int, with text: String) -> Bool
 }
 
+/// Choices the writer can pick from near the caret: fixes for a misspelled word, or alternative
+/// continuations for the ghost text. Produced by `SuggestionCoordinator`, shown by
+/// `CandidateListController`.
+struct CandidateOffer: Equatable, Sendable {
+    enum Source: Equatable, Sendable {
+        /// Replace `typo` (the trailing word) with the chosen candidate.
+        case spelling(typo: String)
+        /// Insert the chosen candidate at the caret.
+        case continuation
+    }
+
+    let source: Source
+    let candidates: [String]
+    /// Per-candidate confidence in [0, 1] for spelling offers; empty for continuations.
+    let scores: [Double]
+    var caretRect: CGRect
+    let focusChangeSequence: UInt64
+    /// The row highlighted when the offer opens. Spelling bars put the typed word first and the
+    /// best fix in the middle, like the iPhone keyboard, so they open on row 1.
+    var preferredIndex = 0
+    /// What to remember when the writer keeps the typed word (row 0 of a spelling bar), so the
+    /// same word is not flagged again. Nil for continuations.
+    var keepKey: String?
+    /// The order came from Jev reading the sentence rather than from local evidence alone.
+    var isContextRefined = false
+
+    /// Spelling offers render as a horizontal three-slot bar; continuations as a vertical list.
+    var isSpellingBar: Bool {
+        if case .spelling = source { return true }
+        return false
+    }
+}
+
+/// What the review card shows: the sentence with the word under review marked, and its options with
+/// the typed word first (in quotes), like the spelling bar.
+struct SentenceReviewPresentation: Equatable, Sendable {
+    enum Role: Equatable, Sendable {
+        case plain
+        /// Still to review, later in the sentence.
+        case pending
+        /// The word being decided now.
+        case current
+    }
+
+    struct Piece: Equatable, Sendable {
+        let text: String
+        let role: Role
+    }
+
+    let pieces: [Piece]
+    let options: [String]
+    let selectedIndex: Int
+    let position: Int
+    let total: Int
+
+    init(sentence: String, flags: [SentenceFlag], current: Int, selectedIndex: Int) {
+        var pieces: [Piece] = []
+        var cursor = sentence.startIndex
+        for (index, flag) in flags.enumerated() {
+            if cursor < flag.range.lowerBound {
+                pieces.append(Piece(text: String(sentence[cursor..<flag.range.lowerBound]), role: .plain))
+            }
+            let role: Role = index == current ? .current : (index > current ? .pending : .plain)
+            pieces.append(Piece(text: String(sentence[flag.range]), role: role))
+            cursor = flag.range.upperBound
+        }
+        if cursor < sentence.endIndex {
+            pieces.append(Piece(text: String(sentence[cursor...]), role: .plain))
+        }
+        self.pieces = pieces
+        options = [flags[current].typed] + flags[current].options
+        self.selectedIndex = selectedIndex
+        position = current + 1
+        total = flags.count
+    }
+}
+
+/// The suggestion coordinator's handle on the candidate list. A visible list owns Up/Down/Tab/Return/
+/// Escape until it closes; an armed offer stays invisible until the writer presses Down.
+@MainActor
+protocol CandidateOfferPresenting: AnyObject {
+    var isShowingChoices: Bool { get }
+    func presentChoices(_ offer: CandidateOffer)
+    func armChoices(_ offer: CandidateOffer)
+    func disarmChoices()
+    func dismissChoices()
+    func flashAutoCorrection(typo: String, correction: String, caretRect: CGRect)
+}
+
+/// The candidate list's slice of its floating panel, behind a protocol so the controller is testable
+/// without an `NSPanel`.
+@MainActor
+protocol CandidateListPanelPresenting: AnyObject {
+    var onSelectIndex: ((Int) -> Void)? { get set }
+    var onClickOutside: (() -> Void)? { get set }
+
+    func show(offer: CandidateOffer, selectedIndex: Int, acceptKeyLabel: String)
+    func setSelectedIndex(_ index: Int)
+    func showFlash(typo: String, correction: String, caretRect: CGRect)
+    func showSentenceFix(segments: [SentenceFixSegment], caretRect: CGRect, acceptKeyLabel: String)
+    /// Briefly shows fixes that were already applied; not clickable, hides itself.
+    func showSentenceFlash(segments: [SentenceFixSegment], caretRect: CGRect)
+    /// The step-through review of a finished sentence's unsure words. Clicking an option reports its
+    /// index through `onSelectIndex`.
+    func showSentenceReview(_ review: SentenceReviewPresentation, caretRect: CGRect, acceptKeyLabel: String)
+    func hide()
+}
+
+/// An inline feature that can own keys while its panel is visible. `InlineCommandCoordinator` fans
+/// keystrokes out to every participant and keeps the input monitor's single capture slot in sync.
+@MainActor
+protocol InlineCaptureParticipant: AnyObject {
+    var isCapturing: Bool { get }
+    var onCaptureStateChanged: (() -> Void)? { get set }
+    func start()
+    func stop()
+    func observe(_ event: CapturedInputEvent) -> Bool
+    func decideCaptureKey(_ keyEvent: InputMonitorKeyEvent) -> InputMonitorAcceptTapDecision
+}
+
+/// The suggestion coordinator's handle on the per-sentence proofreading card.
+@MainActor
+protocol SentenceFixPresenting: AnyObject {
+    var isShowingFix: Bool { get }
+    /// Called on every prediction cycle with the live text before the caret.
+    func noteTypedText(_ precedingText: String, caretRect: CGRect, focusChangeSequence: UInt64)
+}
+
 /// The emoji picker's slice of its floating panel: present/move/hide the match list. Behind a
 /// protocol so `EmojiPickerController` can be unit-tested without constructing a real `NSPanel`.
 @MainActor
@@ -269,6 +397,12 @@ protocol VisualContextCoordinating: AnyObject {
     var onInjectedContextReady: ((FocusedInputIdentity) -> Void)? { get set }
 
     func startSessionIfNeeded(for snapshotContext: FocusedInputSnapshot)
+    /// Re-captures the screen for the field already being typed in when the last capture is stale.
+    func refreshWhileTyping(for snapshotContext: FocusedInputSnapshot)
     func cancel(resetState: Bool)
     func excerpt(for context: FocusedInputContext) -> String?
+}
+
+extension VisualContextCoordinating {
+    func refreshWhileTyping(for snapshotContext: FocusedInputSnapshot) {}
 }

@@ -124,7 +124,9 @@ enum CotabbyTestFixtures {
         languageInstruction: String? = nil,
         clipboardContext: String? = nil,
         visualContextSummary: String? = nil,
-        isMultiLineEnabled: Bool = false
+        isMultiLineEnabled: Bool = false,
+        suffixText: String? = nil,
+        alternateCount: Int = 0
     ) -> SuggestionRequest {
         let resolvedPrecedingText = precedingText ?? prefixText
         let context = focusedInputContext(
@@ -153,7 +155,9 @@ enum CotabbyTestFixtures {
             languageInstruction: languageInstruction,
             clipboardContext: clipboardContext,
             visualContextSummary: visualContextSummary,
-            isMultiLineEnabled: isMultiLineEnabled
+            isMultiLineEnabled: isMultiLineEnabled,
+            suffixText: suffixText,
+            alternateCount: alternateCount
         )
     }
 
@@ -263,7 +267,11 @@ enum CotabbyTestFixtures {
         suppressCompletionsOnTypo: Bool = false,
         offerTypoCorrections: Bool = false,
         enabledSpellingDictionaryCodes: [String] = SpellingDictionaryCatalog.defaultEnabledCodes,
-        automaticallyFixTypos: Bool = false
+        automaticallyFixTypos: Bool = false,
+        endpointProvider: OpenAICompatibleProviderPreset = .custom,
+        isLargeEndpointContextEnabled: Bool = true,
+        endpointTokensPerMinuteBudget: Int = 250_000,
+        isSentenceCheckEnabled: Bool = false
     ) -> SuggestionSettingsSnapshot {
         SuggestionSettingsSnapshot(
             isGloballyEnabled: isGloballyEnabled,
@@ -293,7 +301,11 @@ enum CotabbyTestFixtures {
             suppressCompletionsOnTypo: suppressCompletionsOnTypo,
             offerTypoCorrections: offerTypoCorrections,
             enabledSpellingDictionaryCodes: enabledSpellingDictionaryCodes,
-            automaticallyFixTypos: automaticallyFixTypos
+            automaticallyFixTypos: automaticallyFixTypos,
+            endpointProvider: endpointProvider,
+            isLargeEndpointContextEnabled: isLargeEndpointContextEnabled,
+            endpointTokensPerMinuteBudget: endpointTokensPerMinuteBudget,
+            isSentenceCheckEnabled: isSentenceCheckEnabled
         )
     }
 }

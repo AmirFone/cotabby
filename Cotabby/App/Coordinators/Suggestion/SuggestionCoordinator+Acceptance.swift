@@ -24,6 +24,8 @@ extension SuggestionCoordinator {
         fullText: Bool,
         keyName: String
     ) -> Bool {
+        // Alternates describe the whole suggestion; after any part of it is typed they no longer fit.
+        candidateOfferPresenter?.disarmChoices()
         let snapshot = focusModel.snapshot
 
         if let disabledReason = currentDisabledReason(focusSnapshot: snapshot) {
@@ -400,6 +402,8 @@ extension SuggestionCoordinator {
         hideOverlay(reason: "Overlay hidden because \(keyName) accepted a typo correction.")
         state = .idle
         let workID = currentWorkID
+        personalCorrectionMemory?.recordAccepted(typo: typoWord, replacement: session.fullText)
+        qualityMetricsStore.recordCorrectionAccepted(fromList: false)
         deferAcceptanceBookkeeping { [weak self] in
             self?.recordAcceptedWords(from: replacement.replacementText)
             self?.logStage(
@@ -958,8 +962,20 @@ extension SuggestionCoordinator {
         }
     }
 
+    /// Clears ghost text and in-flight work so a Cotabby panel that is about to take Tab is the only
+    /// thing at the caret.
+    func standDownForInlinePanel() {
+        cancelPredictionWork()
+        clearSuggestion(clearDiagnostics: false)
+        hideOverlay(reason: "Overlay hidden because a Cotabby panel is taking over the caret.")
+        state = .idle
+    }
+
     func hideOverlay(reason: String) {
         _ = overlayPresenter.hide(reason: reason)
+        // An armed list belongs to the ghost text it was offered with; once that ghost is gone,
+        // Down must go back to moving the caret.
+        candidateOfferPresenter?.disarmChoices()
     }
 
     func logStage(

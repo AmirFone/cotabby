@@ -68,6 +68,31 @@ nonisolated final class SymSpellCorrector: @unchecked Sendable {
         return TypoCaseTransfer.applying(caseOf: word, to: suggestion.term)
     }
 
+    /// Everything the correction ranker needs for one word, or nil while the index is still loading.
+    /// `isWordInProgress` is only meaningful when the caret sits directly after the word.
+    func candidates(
+        for word: String,
+        language: SpellingDictionaryLanguage = .english,
+        includePrefixMatches: Bool
+    ) -> SpellingCandidateSources? {
+        guard let symSpell = cachedIndexOrRequestLoad(for: language) else {
+            return nil
+        }
+        let lowered = word.lowercased()
+        let fullWord = symSpell.lookup(lowered).filter { $0.distance > 0 }
+        let phonetic = symSpell.phoneticMatches(for: lowered)
+        guard includePrefixMatches else {
+            return SpellingCandidateSources(fullWord: fullWord, prefix: [], isCommonWordPrefix: false, phonetic: phonetic)
+        }
+        let prefixDistance = lowered.count >= 5 ? 2 : 1
+        return SpellingCandidateSources(
+            fullWord: fullWord,
+            prefix: symSpell.prefixMatches(for: lowered, maxEditDistance: prefixDistance, limit: 24),
+            isCommonWordPrefix: symSpell.isCommonWordPrefix(lowered),
+            phonetic: phonetic
+        )
+    }
+
     /// Test seam: synchronously publishes a small in-memory dictionary without touching the bundle.
     func loadForTesting(
         contents: String,

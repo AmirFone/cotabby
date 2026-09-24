@@ -9,10 +9,16 @@ import Security
 @MainActor
 final class KeychainOpenAICompatibleCredentialStore: OpenAICompatibleCredentialStoring {
     private let service: String
-    private let account = "api-key"
+    private let account: String
 
-    init(bundleIdentifier: String = Bundle.main.bundleIdentifier ?? "com.jacobfu.tabby") {
+    /// `account` separates provider slots under one service so a Groq key never overwrites the
+    /// custom server's token (`"api-key"` keeps the pre-existing slot readable after upgrade).
+    init(
+        bundleIdentifier: String = Bundle.main.bundleIdentifier ?? "com.jacobfu.tabby",
+        account: String = "api-key"
+    ) {
         service = "\(bundleIdentifier).openai-compatible-endpoint"
+        self.account = account
     }
 
     // Keep this explicit while Xcode 26.0–26.3 remain supported. Those toolchains can emit an

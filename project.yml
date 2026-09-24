@@ -174,6 +174,49 @@ targets:
         # and replace itself with the released bundle, the exact identity collapse this target exists
         # to prevent.
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: COTABBY_DEV $(inherited)
+  # Command-line harness for the spelling engine. It compiles the app's own spelling sources (no
+  # copies), so `cotabby-spell --suite Tools/cotabby-spell/cases.txt` exercises the exact decision
+  # code that ships. Run from the repo root so it finds Cotabby/Resources.
+  cotabby-spell:
+    type: tool
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: Tools/cotabby-spell
+        excludes:
+          - "*.txt"
+      - Cotabby/Services/Spelling/TypoGateInputs.swift
+      - Cotabby/Services/Spelling/CurrentWordSpellChecker.swift
+      - Cotabby/Services/Spelling/SymSpellCorrector.swift
+      - Cotabby/Services/Spelling/BigramContextModel.swift
+      - Cotabby/Services/Spelling/WordIntentRefiner.swift
+      - Cotabby/Services/Spelling/JevWordIntentClient.swift
+      - Cotabby/Services/Spelling/PersonalCorrectionMemory.swift
+      - Cotabby/Support/Spelling/SymSpell.swift
+      - Cotabby/Support/Spelling/SpellingCandidateRanker.swift
+      - Cotabby/Support/Spelling/TypoGate.swift
+      - Cotabby/Support/Spelling/CurrentWordExtractor.swift
+      - Cotabby/Support/Spelling/TypoCaseTransfer.swift
+      - Cotabby/Support/Spelling/RealWordErrorDetector.swift
+      - Cotabby/Support/Spelling/KnownMisspellings.swift
+      - Cotabby/Support/Spelling/PhoneticKey.swift
+      - Cotabby/Support/Spelling/SentenceCapitalization.swift
+      - Cotabby/Support/Spelling/LocalSentenceProofreader.swift
+      - Cotabby/Support/Spelling/SpellingLanguageResolver.swift
+      - Cotabby/Models/Spelling/SpellingDictionaryCatalog.swift
+    dependencies:
+      - package: swift-log
+        product: Logging
+    settings:
+      base:
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+        DEVELOPMENT_TEAM: ""
+        PRODUCT_NAME: cotabby-spell
+        SWIFT_APPROACHABLE_CONCURRENCY: YES
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+        SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY: YES
+        SWIFT_VERSION: "5.0"
   CotabbyTests:
     type: bundle.unit-test
     platform: macOS

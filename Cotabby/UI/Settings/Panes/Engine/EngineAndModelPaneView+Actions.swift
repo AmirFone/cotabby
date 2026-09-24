@@ -71,8 +71,18 @@ extension EngineAndModelPaneView {
 
     var endpointModelBinding: Binding<String> {
         Binding(
-            get: { suggestionSettings.openAICompatibleModelName },
-            set: { suggestionSettings.setOpenAICompatibleModelName($0) }
+            get: { suggestionSettings.activeEndpointModelName },
+            set: { suggestionSettings.setActiveEndpointModelName($0) }
+        )
+    }
+
+    var endpointProviderBinding: Binding<OpenAICompatibleProviderPreset> {
+        Binding(
+            get: { suggestionSettings.endpointProvider },
+            set: { provider in
+                suggestionSettings.setEndpointProvider(provider)
+                loadEndpointAPIKey()
+            }
         )
     }
 
@@ -205,10 +215,10 @@ extension EngineAndModelPaneView {
                     apiKey: endpointAPIKeyDraft
                 )
                 if let preferredModel = OpenAICompatibleModelSelectionResolver.preferredSelection(
-                    currentSelection: suggestionSettings.openAICompatibleModelName,
+                    currentSelection: suggestionSettings.activeEndpointModelName,
                     discoveredModels: openAICompatibleConnectionModel.models
-                ), preferredModel != suggestionSettings.openAICompatibleModelName {
-                    suggestionSettings.setOpenAICompatibleModelName(preferredModel)
+                ), preferredModel != suggestionSettings.activeEndpointModelName {
+                    suggestionSettings.setActiveEndpointModelName(preferredModel)
                 }
             } catch {
                 endpointCredentialError = error.localizedDescription

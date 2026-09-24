@@ -36,11 +36,14 @@ enum SuggestionRequestFactory {
         clipboardContext: String? = nil,
         visualContextSummary: String? = nil
     ) -> SuggestionRequestBuildResult {
+        let cloudWindow = cloudContextWindow(for: settings)
         let prefixText = truncatedPromptPrefix(
             from: context.precedingText,
             configuration: configuration,
-            engine: settings.selectedEngine
+            engine: settings.selectedEngine,
+            cloudWindow: cloudWindow
         )
+        let alternateCount = cloudWindow != nil && !settings.isMultiLineEnabled ? cloudAlternateCount : 0
         let completionLengthInstruction = settings.effectiveWordRange.promptInstruction
         let userName = activeUserName(settings: settings)
         // Custom rules are hidden from users (CustomRulesCatalog.isUserFacingEnabled == false): the
@@ -104,11 +107,14 @@ enum SuggestionRequestFactory {
             prefixText: prefixText,
             prompt: prompt,
             generation: context.generation,
-            maxPredictionTokens: activeMaxPredictionTokens(
-                configuration: configuration,
-                wordRange: settings.effectiveWordRange,
-                responseLanguages: settings.responseLanguages,
-                isMultiLineEnabled: settings.isMultiLineEnabled
+            maxPredictionTokens: cloudAwareMaxPredictionTokens(
+                base: activeMaxPredictionTokens(
+                    configuration: configuration,
+                    wordRange: settings.effectiveWordRange,
+                    responseLanguages: settings.responseLanguages,
+                    isMultiLineEnabled: settings.isMultiLineEnabled
+                ),
+                alternateCount: alternateCount
             ),
             temperature: configuration.temperature,
             topK: configuration.topK,
@@ -126,12 +132,18 @@ enum SuggestionRequestFactory {
             visualContextSummary: boundedVisualContextSummary,
             surfaceContext: surfaceContext,
             isMultiLineEnabled: settings.isMultiLineEnabled,
-            requestID: RequestID.generate()
+            requestID: RequestID.generate(),
+            suffixText: cloudWindow == nil ? nil : boundedSuffix(context.trailingText),
+            alternateCount: alternateCount
         )
 
         return SuggestionRequestBuildResult(
             request: request,
-            promptPreview: promptPreview(for: request, selectedEngine: settings.selectedEngine)
+            promptPreview: promptPreview(
+                for: request,
+                selectedEngine: settings.selectedEngine,
+                usesCloudEndpoint: settings.usesCloudEndpoint
+            )
         )
     }
 
@@ -145,8 +157,12 @@ enum SuggestionRequestFactory {
     static func truncatedPromptPrefix(
         from precedingText: String,
         configuration: SuggestionConfiguration,
-        engine: SuggestionEngineKind = .llamaOpenSource
+        engine: SuggestionEngineKind = .llamaOpenSource,
+        cloudWindow: CloudEndpointContextWindow? = nil
     ) -> String {
+        if let cloudWindow {
+            return cloudPromptPrefix(from: precedingText, window: cloudWindow)
+        }
         let maxCharacters: Int
         let maxWords: Int
         switch engine {
@@ -169,6 +185,49 @@ enum SuggestionRequestFactory {
             .joined(separator: " ")
 
         return trailingWords.isEmpty ? characterWindow : trailingWords
+    }
+
+    /// Alternates cost only output tokens (tens), so cloud requests always ask for two.
+    static let cloudAlternateCount = 2
+
+    static func cloudContextWindow(for settings: SuggestionSettingsSnapshot) -> CloudEndpointContextWindow? {
+        guard settings.usesCloudEndpoint else { return nil }
+        return settings.isLargeEndpointContextEnabled ? .large : .standard
+    }
+
+    /// Unlike the local window, the cloud window keeps line breaks and paragraph structure: an
+    /// instruction-tuned model reads an email's layout, while the base-model path collapses
+    /// whitespace to save KV cache.
+    private static func cloudPromptPrefix(from precedingText: String, window: CloudEndpointContextWindow) -> String {
+        let characterWindow = precedingText.suffix(window.maxPrefixCharacters)
+        var wordsSeen = 0
+        var isInsideWord = false
+        var index = characterWindow.endIndex
+        while index > characterWindow.startIndex {
+            let before = characterWindow.index(before: index)
+            let isWhitespace = characterWindow[before].isWhitespace
+            if isWhitespace, isInsideWord {
+                wordsSeen += 1
+                if wordsSeen == window.maxPrefixWords {
+                    return String(characterWindow[index...])
+                }
+            }
+            isInsideWord = !isWhitespace
+            index = before
+        }
+        return String(characterWindow)
+    }
+
+    private static func boundedSuffix(_ trailingText: String) -> String? {
+        let bounded = String(trailingText.prefix(CloudEndpointContextWindow.maxSuffixCharacters))
+        return bounded.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : bounded
+    }
+
+    /// Alternates ride in the same response, so the output budget grows with them, capped so a long
+    /// preset cannot turn one keystroke into a paragraph of tokens.
+    private static func cloudAwareMaxPredictionTokens(base: Int, alternateCount: Int) -> Int {
+        guard alternateCount > 0 else { return base }
+        return min(base * (1 + alternateCount), 200)
     }
 
     private static func activeUserName(
@@ -249,8 +308,13 @@ enum SuggestionRequestFactory {
 
     private static func promptPreview(
         for request: SuggestionRequest,
-        selectedEngine: SuggestionEngineKind
+        selectedEngine: SuggestionEngineKind,
+        usesCloudEndpoint: Bool
     ) -> String {
+        if usesCloudEndpoint {
+            let prompt = EndpointChatPromptRenderer.render(for: request)
+            return "[system]\n\(prompt.system)\n\n[user]\n\(prompt.user)"
+        }
         switch selectedEngine {
         case .appleIntelligence:
             return FoundationModelPromptRenderer.promptPreview(for: request)

@@ -56,4 +56,26 @@ final class DebouncePolicyTests: XCTestCase {
             220
         )
     }
+
+    func test_cloudEndpoint_usesShortPausesKeyedToGroqLatency() {
+        // #given a Groq-backed endpoint with no latency yet and with typical round trips
+        // #when the debounce is chosen
+        // #then it stays well under the local-endpoint pauses
+        XCTAssertEqual(
+            DebouncePolicy.milliseconds(lastGenerationLatencyMilliseconds: nil, fallback: 20, engine: .openAICompatible, isCloudEndpoint: true),
+            90
+        )
+        XCTAssertEqual(
+            DebouncePolicy.milliseconds(lastGenerationLatencyMilliseconds: 180, fallback: 20, engine: .openAICompatible, isCloudEndpoint: true),
+            60
+        )
+        XCTAssertEqual(
+            DebouncePolicy.milliseconds(lastGenerationLatencyMilliseconds: 450, fallback: 20, engine: .openAICompatible, isCloudEndpoint: true),
+            100
+        )
+        XCTAssertEqual(
+            DebouncePolicy.milliseconds(lastGenerationLatencyMilliseconds: 900, fallback: 20, engine: .openAICompatible, isCloudEndpoint: true),
+            160
+        )
+    }
 }
