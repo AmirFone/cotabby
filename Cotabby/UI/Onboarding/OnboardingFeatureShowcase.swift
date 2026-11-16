@@ -419,6 +419,7 @@ private struct DemoEmojiPopup: View {
                 Spacer(minLength: 0)
             }
             .font(.system(size: 12, weight: .medium, design: .monospaced))
+            .popupTextHalo()
             .padding(.horizontal, 8)
             .frame(height: 22)
 
@@ -445,10 +446,7 @@ private struct DemoEmojiRibbonCell: View {
         Text(glyph)
             .font(.system(size: 20))
             .frame(width: EmojiPickerMetrics.cellSize, height: EmojiPickerMetrics.cellSize)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(isSelected ? PopupTheme.selectionFill : Color.clear)
-            )
+            .popupSelectionChip(isSelected, cornerRadius: 8)
     }
 }
 

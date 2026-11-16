@@ -11,6 +11,72 @@ import Logging
 /// elsewhere. That keeps lifecycle ownership easy to follow.
 @MainActor
 final class CotabbyAppEnvironment {
+    /// What the app learns from a sentence the writer finished and left unchanged. Their own words
+    /// (names, jargon the dictionary lacks and the system checker accepts, or words they kept) are
+    /// learned from any sentence; phrasing only from sentences made entirely of dictionary words
+    /// that the proofreader would not change (`went their` is all real words).
+    private static func learn(
+        _ sentence: String,
+        vocabulary: PersonalVocabulary,
+        phrases: PersonalPhraseModel,
+        memory: PersonalCorrectionMemory,
+        coordinator: SuggestionCoordinator
+    ) {
+        guard PersonalPhraseModel.isLearningEnabledInDefaults else { return }
+        let corrector = coordinator.symSpellCorrector
+        let english = SpellingDictionaryLanguage.english.rawValue
+        vocabulary.learn(
+            sentence: sentence,
+            isDictionaryWord: { corrector.isDictionaryWord($0) },
+            isAcceptedSpelling: { memory.isKept($0) || !coordinator.spellChecker.isTypo($0, language: english) }
+        )
+        guard PersonalPhraseModel.isLearnable(sentence, isWord: { corrector.isDictionaryWord($0) }),
+              coordinator.isCleanForLearning(sentence) else { return }
+        phrases.learn(sentence: sentence)
+    }
+
+    /// The sentence model stage of the sentence pass, or nil when its file is not installed (the
+    /// pass then runs its local stage only). Loading the model (about 640 MB) starts here, in the
+    /// background, so the first finished sentence does not wait for it. The service is kept alive by
+    /// the closure, which the sentence controller holds for the life of the app.
+    private static func sentenceModelProofread(
+        suggestionCoordinator: SuggestionCoordinator
+    ) -> (@MainActor (FinishedSentence) async -> LocalProofreadResult?)? {
+        let sentenceModel = SentenceModelService(modelURL: SentenceModelService.defaultModelURL())
+        guard sentenceModel.isInstalled else { return nil }
+        sentenceModel.warmUp()
+        return { [weak suggestionCoordinator] finished in
+            guard let output = await sentenceModel.correct(finished.sentence) else { return nil }
+            return suggestionCoordinator?.proofread(finished, modelOutput: output)
+        }
+    }
+
+    /// Makes the toggle shortcut flip Cotabby and say so at the caret. Focus is not tracked while
+    /// Cotabby is off: the snapshot kept from before the switch-off is still the right place for the
+    /// "off" notice, but stale by the time it is switched back on, so the field is read again first.
+    /// The notice controller is kept alive by the closure, which the input monitor holds.
+    private static func answerToggleShortcut(
+        inputMonitor: InputMonitor,
+        settings: SuggestionSettingsModel,
+        focusModel: FocusTrackingModel
+    ) {
+        let notice = ToggleNoticeController(
+            panel: CandidateListPanelController(),
+            caretRect: { [weak focusModel] in focusModel?.snapshot.context?.caretRect }
+        )
+        inputMonitor.onGlobalToggleHotkey = { [weak settings, weak focusModel] in
+            guard let settings else { return }
+            settings.toggleGloballyEnabled()
+            let isOn = settings.isGloballyEnabled && !settings.isTemporarilyPaused
+            if isOn { focusModel?.refreshNow() }
+            notice.show(isOn: isOn, shortcutLabel: settings.globalToggleKeyLabel)
+        }
+    }
+
+    private static func describe(_ model: TreeEnsembleModel?) -> String {
+        model.map { "loaded (\($0.trees.count) trees, acts from \($0.threshold))" } ?? "missing or stale, using the hand rule"
+    }
+
     let permissionManager: PermissionManager
     let runtimeModel: RuntimeBootstrapModel
     let modelDownloadManager: ModelDownloadManager
@@ -87,9 +153,6 @@ final class CotabbyAppEnvironment {
         }
         inputMonitor.globalToggleKeyCodeProvider = { suggestionSettings.globalToggleKeyCode }
         inputMonitor.globalToggleKeyModifiersProvider = { suggestionSettings.globalToggleKeyModifiers }
-        inputMonitor.onGlobalToggleHotkey = { [weak suggestionSettings] in
-            suggestionSettings?.toggleGloballyEnabled()
-        }
         // Stop the deep AX walk when Cotabby is disabled for the focused app or while Calendar's
         // fragile date/time editor is active. The latter is interaction-scoped: Calendar text fields
         // still resolve normally, unlike the old app-wide suppression workaround for #544.
@@ -165,6 +228,10 @@ final class CotabbyAppEnvironment {
         // to start sampling, so constructing it eagerly here costs nothing.
         let systemMetricsStore = SystemMetricsStore()
         let suggestionInserter = SuggestionInserter(suppressionController: suppressionController)
+        // While a fix deletes and retypes text, the writer's own keys wait and are replayed after it.
+        suggestionInserter.onWillPostDeletingEdit = { [weak inputMonitor] in
+            inputMonitor?.holdTypingWhileEditsDrain()
+        }
         // Commit accepted text through an IME-safe path (Accessibility / paste) while a composing IME
         // is active; a synthetic keystroke would be re-absorbed into composition and the accept would
         // silently fail.
@@ -232,6 +299,9 @@ final class CotabbyAppEnvironment {
         let emojiUsageStore = EmojiUsageStore()
 
         let jevKeyModel = JevKeyModel()
+        let personalPhraseModel = PersonalPhraseModel()
+        let personalVocabulary = PersonalVocabulary(fileURL: PersonalVocabulary.defaultFileURL())
+        let correctionJournal = CorrectionJournal()
         let settingsCoordinator = SettingsCoordinator(
             appUpdateManager: appUpdateManager,
             permissionManager: permissionManager,
@@ -249,7 +319,12 @@ final class CotabbyAppEnvironment {
             onShowWelcome: { [weak welcomeCoordinator] in
                 welcomeCoordinator?.showWelcome()
             },
-            clearEmojiHistory: { emojiUsageStore.clear() }
+            clearEmojiHistory: { emojiUsageStore.clear() },
+            clearLearnedPhrases: {
+                personalPhraseModel.reset()
+                personalVocabulary.reset()
+            },
+            correctionJournal: correctionJournal
         )
 
         let interactionState = SuggestionInteractionState()
@@ -342,6 +417,11 @@ final class CotabbyAppEnvironment {
         candidateListController.onCommitted = { [weak suggestionCoordinator] in
             suggestionCoordinator?.schedulePredictionAfterHostPublishDelay()
         }
+        candidateListController.journal = correctionJournal
+        candidateListController.onDismissedByEscape = { [weak suggestionCoordinator] in
+            suggestionCoordinator?.noteSpellingBarDismissed()
+        }
+        suggestionCoordinator.correctionJournal = correctionJournal
         suggestionCoordinator.candidateOfferPresenter = candidateListController
         suggestionCoordinator.personalCorrectionMemory = personalCorrectionMemory
         suggestionCoordinator.bigramContextModel = BigramContextModel()
@@ -354,6 +434,7 @@ final class CotabbyAppEnvironment {
         }
         suggestionCoordinator.wordIntentRefiner = wordIntentRefiner
 
+        let modelProofread = Self.sentenceModelProofread(suggestionCoordinator: suggestionCoordinator)
         let sentenceCheckController = SentenceCheckController(
             panel: CandidateListPanelController(),
             focusModel: focusModel,
@@ -380,6 +461,7 @@ final class CotabbyAppEnvironment {
             localProofread: { [weak suggestionCoordinator] finished in
                 suggestionCoordinator?.proofreadLocally(finished)
             },
+            modelProofread: modelProofread,
             isLocalEnabled: {
                 let snapshot = suggestionSettings.snapshot
                 return snapshot.isGloballyEnabled && (snapshot.offerTypoCorrections || snapshot.automaticallyFixTypos)
@@ -392,12 +474,92 @@ final class CotabbyAppEnvironment {
         sentenceCheckController.onCommitted = { [weak suggestionCoordinator] in
             suggestionCoordinator?.schedulePredictionAfterHostPublishDelay()
         }
+        sentenceCheckController.onLocalFixOutcome = { changes, kept in
+            personalCorrectionMemory.record(changes: changes, kept: kept)
+            changes.forEach { correctionJournal.record(kept ? .sentenceFixKept : .sentenceFixUndone, typed: $0.typed, final: $0.fixed) }
+        }
+        // A word kept on the review card is not flagged again: a real word under the same
+        // "previous word + word" key the wrong-word checks read, a misspelling under the word itself.
+        sentenceCheckController.onReviewChoice = { typed, previous, chosen in
+            let kind = personalCorrectionMemory.recordReviewChoice(
+                typed: typed,
+                previous: previous,
+                chosen: chosen,
+                isRealWord: symSpellCorrector.isDictionaryWord(typed)
+            )
+            correctionJournal.record(kind == .accepted ? .picked : .keptAsTyped, typed: typed, final: chosen)
+        }
         suggestionCoordinator.sentenceFixPresenter = sentenceCheckController
+
+        // One memory-mapped n-gram table serves the word strip and sentence-aware spelling.
+        let nextWordModel = NextWordModel.bundled(prewarm: true)
+        suggestionCoordinator.nextWordModel = nextWordModel
+        suggestionCoordinator.autoFixModel = AutoFixFeatures.bundledModel()
+        suggestionCoordinator.wrongWordModel = WrongWordDetector.bundledModel()
+        // A model file trained on another feature list is rejected, and the hand rules take over
+        // silently; this line is how a stale file shows up in the logs.
+        let autoFixState = Self.describe(suggestionCoordinator.autoFixModel)
+        let wrongWordState = Self.describe(suggestionCoordinator.wrongWordModel)
+        CotabbyLogger.app.info("Spelling models: auto-fix \(autoFixState), wrong-word \(wrongWordState)")
+        let wordPredictionController = WordPredictionController(
+            panel: CandidateListPanelController(),
+            focusModel: focusModel,
+            inserter: suggestionInserter,
+            predict: WordPredictionController.makePredictor(
+                model: nextWordModel,
+                symSpellCorrector: symSpellCorrector,
+                phrases: personalPhraseModel
+            ),
+            isEnabled: {
+                suggestionSettings.snapshot.isGloballyEnabled && WordPredictionController.isEnabledInDefaults
+            },
+            learn: { sentence in
+                // A sentence the proofreader would still change (a wrong-word slip like `went their`
+                // is all dictionary words) must not be learned as the writer's phrasing.
+                Self.learn(
+                    sentence,
+                    vocabulary: personalVocabulary,
+                    phrases: personalPhraseModel,
+                    memory: personalCorrectionMemory,
+                    coordinator: suggestionCoordinator
+                )
+            },
+            isSpellingPending: { [weak suggestionCoordinator] in
+                suggestionCoordinator?.isSpellingPendingForLastKey ?? false
+            }
+        )
+        wordPredictionController.onCommitted = { [weak suggestionCoordinator] in
+            qualityMetricsStore.recordWordPredictionPicked()
+            suggestionCoordinator?.schedulePredictionAfterHostPublishDelay()
+        }
+        suggestionCoordinator.wordPredictionPresenter = wordPredictionController
+        candidateListController.onPickAddedSpace = { [weak wordPredictionController] expected in
+            wordPredictionController?.notePickAddedSpace(expectedText: expected)
+        }
+        suggestionCoordinator.personalPhraseModel = personalPhraseModel
+        suggestionCoordinator.personalVocabulary = personalVocabulary
+
+        Self.answerToggleShortcut(inputMonitor: inputMonitor, settings: suggestionSettings, focusModel: focusModel)
+        // Off means nothing of Cotabby's stays on screen, however it was switched off (shortcut,
+        // menu, Settings, or a timed pause). The panels belong to three controllers that otherwise
+        // only hide on a keystroke, and keystrokes stop reaching them the moment Cotabby is off.
+        // `@Published` hands the sink the new values before the properties change, so the closure
+        // reads its arguments, not the model.
+        Publishers.CombineLatest(suggestionSettings.$isGloballyEnabled, suggestionSettings.$pauseState)
+            .map { isEnabled, pause in isEnabled && pause?.isActive() != true }
+            .removeDuplicates()
+            .filter { !$0 }
+            .sink { [weak candidateListController, weak sentenceCheckController, weak wordPredictionController] _ in
+                candidateListController?.dismissChoices()
+                sentenceCheckController?.standDown()
+                wordPredictionController?.hidePredictions()
+            }
+            .store(in: &cancellables)
 
         let inlineCommandCoordinator = InlineCommandCoordinator(
             emoji: emojiPickerController,
             macro: macroController,
-            participants: [candidateListController, sentenceCheckController],
+            participants: [candidateListController, sentenceCheckController, wordPredictionController],
             inputMonitor: inputMonitor
         )
         suggestionCoordinator.emojiInputObserver = { [weak inlineCommandCoordinator] event in

@@ -965,6 +965,7 @@ extension SuggestionCoordinator {
     /// Clears ghost text and in-flight work so a Cotabby panel that is about to take Tab is the only
     /// thing at the caret.
     func standDownForInlinePanel() {
+        wordPredictionPresenter?.hidePredictions()
         cancelPredictionWork()
         clearSuggestion(clearDiagnostics: false)
         hideOverlay(reason: "Overlay hidden because a Cotabby panel is taking over the caret.")

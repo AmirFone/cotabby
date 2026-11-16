@@ -104,7 +104,6 @@ struct ShortcutsPaneView: View {
                 }
                 .settingsItem(.acceptEntireSuggestion)
 
-                // The opt-in toggle has no factory binding; Clear is its only reset action.
                 LabeledContent {
                     KeybindRow(
                         label: suggestionSettings.globalToggleKeyLabel,
@@ -117,9 +116,9 @@ struct ShortcutsPaneView: View {
                                 label: label
                             )
                         },
-                        onReset: nil,
+                        onReset: { suggestionSettings.resetGlobalToggleKey() },
                         resetLabel: "Reset",
-                        shouldShowReset: false,
+                        shouldShowReset: !suggestionSettings.isGlobalToggleKeyDefault,
                         onClear: { suggestionSettings.clearGlobalToggleKey() },
                         clearLabel: "Clear",
                         clearHelp: "Unbind this shortcut. No key will toggle Tabby on or off.",

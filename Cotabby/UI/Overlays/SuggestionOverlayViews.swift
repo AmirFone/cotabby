@@ -145,15 +145,16 @@ struct MirrorOverlayView: View {
     /// inline ghost, and the next-accept-word highlight is suppressed (the correction is one unit).
     let isCorrection: Bool
 
-    /// The card is now a committed-dark HUD in every host appearance, so the suggestion text is
-    /// always the light-on-dark value rather than branching on the system scheme (which would bake
-    /// dark-gray text onto the dark card over a light host). The correction green likewise uses the
-    /// dark-appropriate tone.
+    /// The card is glass that follows the system appearance, so both colors come from `PopupTheme`
+    /// and resolve when drawn: a fixed light gray would vanish on light glass, a fixed dark gray on
+    /// dark glass. The correction green is the theme's glass-tuned tone rather than
+    /// `SuggestionCorrectionStyle`, which is tuned for the host's opaque text field, not a
+    /// translucent card.
     private var ghostColor: Color {
         if isCorrection {
-            return SuggestionCorrectionStyle.color(for: .dark).opacity(opacity)
+            return PopupTheme.changedText.opacity(opacity)
         }
-        let baseColor = customColor ?? Color(red: 0.85, green: 0.85, blue: 0.85)
+        let baseColor = customColor ?? PopupTheme.secondaryText
         return baseColor.opacity(opacity)
     }
 
@@ -194,6 +195,7 @@ struct MirrorOverlayView: View {
             Text(styledSuggestion)
                 .lineLimit(1)
                 .truncationMode(.tail)
+                .popupTextHalo()
 
             if let keycapLabel {
                 GhostKeycap(label: keycapLabel)
@@ -202,9 +204,9 @@ struct MirrorOverlayView: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 4)
         // The panel itself is sized by MirrorOverlayLayout to the card dimensions, so the content
-        // fills the panel exactly and the shared chrome paints the committed-dark backdrop. The
-        // forced-dark scheme inside `popupHUDChrome` is what flips `styledSuggestion` and the keycap
-        // to their light variants, so the popup reads the same dark over a white host as a dark one.
+        // fills the panel exactly and the shared chrome paints the glass surface. The chrome follows
+        // the system appearance, and `styledSuggestion` and the keycap resolve their colors against
+        // that same appearance, so the text stays on the readable side of the glass in both modes.
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .popupHUDChrome()
         // Right-to-left hosts get the SwiftUI environment flip so the keycap lands on the leading

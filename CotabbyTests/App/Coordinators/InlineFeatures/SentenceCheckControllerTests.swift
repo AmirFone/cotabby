@@ -30,6 +30,46 @@ final class SentenceCheckControllerTests: XCTestCase {
         XCTAssertEqual(harness.panel.flashes, 1)
     }
 
+    func test_undoneLocalFix_isNotAppliedAgainAndIsLearned() {
+        // #given a sentence the pass fixes on its own
+        let harness = makeHarness(sentence: "I saw teh cat. ", proofread: { finished in
+            let fixed = finished.sentence.replacingOccurrences(of: "teh", with: "the")
+            return LocalProofreadResult(original: finished.sentence, autoCorrected: fixed, flags: [])
+        })
+        var outcomes: [(changes: [String], kept: Bool)] = []
+        harness.controller.onLocalFixOutcome = { changes, kept in
+            outcomes.append((changes.map { "\($0.typed)>\($0.fixed)" }, kept))
+        }
+        harness.controller.noteTypedText("I saw teh cat. ", caretRect: .zero, focusChangeSequence: 1)
+        flushMainQueue()
+        harness.controller.noteTypedText("I saw the cat. ", caretRect: .zero, focusChangeSequence: 1)
+
+        // #when Cmd+Z brings the original back
+        harness.controller.noteTypedText("I saw teh cat. ", caretRect: .zero, focusChangeSequence: 1)
+        flushMainQueue()
+
+        // #then it stays as written and the typed word is remembered as intended
+        XCTAssertEqual(harness.inserter.replacements.count, 1)
+        XCTAssertEqual(outcomes.first?.changes, ["teh>the"])
+        XCTAssertEqual(outcomes.first?.kept, false)
+    }
+
+    func test_typingPastALocalFix_confirmsIt() {
+        let harness = makeHarness(sentence: "I saw teh cat. ", proofread: { finished in
+            let fixed = finished.sentence.replacingOccurrences(of: "teh", with: "the")
+            return LocalProofreadResult(original: finished.sentence, autoCorrected: fixed, flags: [])
+        })
+        var kept: [Bool] = []
+        harness.controller.onLocalFixOutcome = { _, wasKept in kept.append(wasKept) }
+        harness.controller.noteTypedText("I saw teh cat. ", caretRect: .zero, focusChangeSequence: 1)
+        flushMainQueue()
+
+        harness.controller.noteTypedText("I saw the cat. ", caretRect: .zero, focusChangeSequence: 1)
+        harness.controller.noteTypedText("I saw the cat. It ran off", caretRect: .zero, focusChangeSequence: 1)
+
+        XCTAssertEqual(kept, [true])
+    }
+
     func test_review_tabTakesEachBestOptionThenAppliesOnce() {
         // #given two unsure words
         let harness = makeHarness(sentence: "I went their with adres book. ", proofread: Self.twoFlags)
@@ -57,6 +97,22 @@ final class SentenceCheckControllerTests: XCTestCase {
         flushMainQueue()
 
         XCTAssertEqual(harness.inserter.replacements.first?.text, "dress book. ")
+    }
+
+    func test_review_reportsEachChoiceWithTheWordBeforeIt() {
+        let harness = makeHarness(sentence: "I went their with adres book. ", proofread: Self.twoFlags)
+        var choices: [String] = []
+        harness.controller.onReviewChoice = { typed, previous, chosen in
+            choices.append("\(previous ?? "-") | \(typed) → \(chosen)")
+        }
+        harness.controller.noteTypedText(harness.focus.snapshot.context!.precedingText, caretRect: .zero, focusChangeSequence: 1)
+
+        // Escape keeps the first word, Tab takes the fix for the second.
+        _ = harness.controller.observe(Self.key(53))
+        _ = harness.controller.observe(Self.key(48))
+        flushMainQueue()
+
+        XCTAssertEqual(choices, ["went | their → their", "with | adres → address"])
     }
 
     func test_review_arrowsPickAnotherOption() {
@@ -124,6 +180,99 @@ final class SentenceCheckControllerTests: XCTestCase {
         ])
     }
 
+    // MARK: - Sentence model stage
+
+    func test_sentenceModelFix_isTypedInPlace() async {
+        // #given a sentence the local rules leave alone and the model corrects with certainty
+        let harness = makeHarness(sentence: "I drive a Tyoda to work. ", proofread: { _ in nil }, model: { finished in
+            LocalProofreadResult(original: finished.sentence, autoCorrected: "I drive a Toyota to work.", flags: [])
+        })
+
+        // #when the sentence is finished and the model answers
+        harness.controller.noteTypedText("I drive a Tyoda to work. ", caretRect: .zero, focusChangeSequence: 1)
+        await settleModelPass()
+
+        // #then the sentence is retyped from the first changed letter, with the usual flash
+        XCTAssertEqual(harness.inserter.replacements.map(\.text), ["oyota to work. "])
+        XCTAssertEqual(harness.panel.flashes, 1)
+    }
+
+    func test_sentenceModelAnswer_afterTheWriterTypedOn_isDropped() async {
+        // #given a model whose answer arrives after the writer started the next sentence
+        var harness: Harness!
+        harness = makeHarness(sentence: "I drive a Tyoda to work. ", proofread: { _ in nil }, model: { finished in
+            harness.focus.setPrecedingText("I drive a Tyoda to work. It")
+            return LocalProofreadResult(original: finished.sentence, autoCorrected: "I drive a Toyota to work.", flags: [])
+        })
+
+        // #when the sentence is finished
+        harness.controller.noteTypedText("I drive a Tyoda to work. ", caretRect: .zero, focusChangeSequence: 1)
+        await settleModelPass()
+
+        // #then nothing is typed over what the writer is doing now
+        XCTAssertTrue(harness.inserter.replacements.isEmpty)
+    }
+
+    func test_sentenceModel_readsEachSentenceOnce_includingItsOwnFix() async {
+        // #given a model that fixes the sentence
+        var asked: [String] = []
+        let harness = makeHarness(sentence: "I drive a Tyoda to work. ", proofread: { _ in nil }, model: { finished in
+            asked.append(finished.sentence)
+            return LocalProofreadResult(original: finished.sentence, autoCorrected: "I drive a Toyota to work.", flags: [])
+        })
+        harness.controller.noteTypedText("I drive a Tyoda to work. ", caretRect: .zero, focusChangeSequence: 1)
+        await settleModelPass()
+
+        // #when the field then reports the corrected sentence, and reports it again
+        harness.controller.noteTypedText("I drive a Toyota to work. ", caretRect: .zero, focusChangeSequence: 1)
+        harness.controller.noteTypedText("I drive a Toyota to work. ", caretRect: .zero, focusChangeSequence: 1)
+        await settleModelPass()
+
+        // #then the model was asked about the typed sentence only
+        XCTAssertEqual(asked, ["I drive a Tyoda to work."])
+    }
+
+    func test_sentenceModel_readsTheSentenceTheLocalPassLeftBehind() async {
+        // #given a local pass that fixes one word and a model that would fix another
+        var asked: [String] = []
+        let harness = makeHarness(sentence: "I saw teh Tyoda today. ", proofread: { finished in
+            let fixed = finished.sentence.replacingOccurrences(of: "teh", with: "the")
+            return fixed == finished.sentence ? nil : LocalProofreadResult(original: finished.sentence, autoCorrected: fixed, flags: [])
+        }, model: { finished in
+            asked.append(finished.sentence)
+            return nil
+        })
+
+        // #when the local fix lands and the field reports the corrected sentence
+        harness.controller.noteTypedText("I saw teh Tyoda today. ", caretRect: .zero, focusChangeSequence: 1)
+        await settleModelPass()
+        harness.focus.setPrecedingText("I saw the Tyoda today. ")
+        harness.controller.noteTypedText("I saw the Tyoda today. ", caretRect: .zero, focusChangeSequence: 1)
+        await settleModelPass()
+
+        // #then the model is asked about the locally corrected sentence, not the one it replaced
+        XCTAssertEqual(asked, ["I saw the Tyoda today."])
+    }
+
+    func test_sentenceModelUnsureWord_opensTheReviewCard() async {
+        // #given a model that is not sure enough to type its fix
+        let sentence = "I want to go their now."
+        let harness = makeHarness(sentence: sentence + " ", proofread: { _ in nil }, model: { finished in
+            let their = finished.sentence.range(of: "their")!
+            return LocalProofreadResult(original: finished.sentence, autoCorrected: finished.sentence, flags: [
+                SentenceFlag(range: their, typed: "their", options: ["there"])
+            ])
+        })
+
+        // #when the sentence is finished and the model answers
+        harness.controller.noteTypedText(sentence + " ", caretRect: .zero, focusChangeSequence: 1)
+        await settleModelPass()
+
+        // #then nothing is typed and the word is offered for review
+        XCTAssertTrue(harness.inserter.replacements.isEmpty)
+        XCTAssertEqual(harness.panel.reviews.count, 1)
+    }
+
     private struct Harness {
         let controller: SentenceCheckController
         let panel: ReviewRecordingPanel
@@ -133,7 +282,8 @@ final class SentenceCheckControllerTests: XCTestCase {
 
     private func makeHarness(
         sentence: String,
-        proofread: @escaping (FinishedSentence) -> LocalProofreadResult?
+        proofread: @escaping (FinishedSentence) -> LocalProofreadResult?,
+        model: (@MainActor (FinishedSentence) async -> LocalProofreadResult?)? = nil
     ) -> Harness {
         let suite = "SentenceCheckControllerTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
@@ -156,12 +306,24 @@ final class SentenceCheckControllerTests: XCTestCase {
             isWordAcceptKey: { $0.keyCode == 48 },
             qualityMetricsStore: metrics,
             localProofread: proofread,
+            modelProofread: model,
             isLocalEnabled: { true },
             appliesLocalFixes: { true }
         )
         controller.start()
         retained.append(contentsOf: [controller, panel, focus, inserter, metrics] as [AnyObject])
         return Harness(controller: controller, panel: panel, focus: focus, inserter: inserter)
+    }
+
+    /// Lets the controller's model task run to its end: it resumes on the main actor after the
+    /// model's answer, then queues the edit one more main-queue turn later.
+    private func settleModelPass() async {
+        for _ in 0..<4 {
+            await Task.yield()
+            await withCheckedContinuation { continuation in
+                DispatchQueue.main.async { continuation.resume() }
+            }
+        }
     }
 
     private func flushMainQueue() {
@@ -185,6 +347,7 @@ private final class ReviewRecordingPanel: CandidateListPanelPresenting {
     func show(offer: CandidateOffer, selectedIndex: Int, acceptKeyLabel: String) {}
     func setSelectedIndex(_ index: Int) {}
     func showFlash(typo: String, correction: String, caretRect: CGRect) {}
+    func showWordStrip(words: [String], selectedIndex: Int?, caretRect: CGRect) {}
     func showSentenceFlash(segments: [SentenceFixSegment], caretRect: CGRect) { flashes += 1 }
     func showSentenceReview(_ review: SentenceReviewPresentation, caretRect: CGRect, acceptKeyLabel: String) {
         reviews.append(review)
@@ -195,11 +358,20 @@ private final class ReviewRecordingPanel: CandidateListPanelPresenting {
 
 @MainActor
 private final class StaticFocus: SuggestionFocusProviding {
-    let snapshot: FocusSnapshot
+    private(set) var snapshot: FocusSnapshot
     var snapshotPublisher: AnyPublisher<FocusSnapshot, Never> { Empty().eraseToAnyPublisher() }
 
     init(precedingText: String) {
-        snapshot = FocusSnapshot(
+        snapshot = Self.snapshot(precedingText: precedingText)
+    }
+
+    /// The field after the writer typed more.
+    func setPrecedingText(_ precedingText: String) {
+        snapshot = Self.snapshot(precedingText: precedingText)
+    }
+
+    private static func snapshot(precedingText: String) -> FocusSnapshot {
+        FocusSnapshot(
             applicationName: "TestApp",
             bundleIdentifier: "com.test.app",
             capability: .supported,

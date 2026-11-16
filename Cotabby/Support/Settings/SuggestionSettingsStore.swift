@@ -30,6 +30,13 @@ struct SuggestionSettingsStore {
     /// `` ` `` is rarely used in prose so the binding doesn't fight normal typing.
     static let defaultFullAcceptanceKeyCode: CGKeyCode = 50
     static let defaultFullAcceptanceKeyLabel = "`"
+    /// Control+Option+C turns Cotabby off and on. A writer who is being corrected wrongly needs a
+    /// way out that does not involve the mouse, so the switch is bound out of the box. The combo is
+    /// three keys under the left hand, is free in macOS and the common editors, and avoids the
+    /// function row (media keys on most Macs unless Fn is held).
+    static let defaultGlobalToggleKeyCode: CGKeyCode = 8
+    static let defaultGlobalToggleKeyModifiers: ShortcutModifierMask = [.control, .option]
+    static let defaultGlobalToggleKeyLabel = "⌃⌥C"
 
     /// Floor kept above zero so ghost text can be faded but never made fully invisible (which would
     /// look like the suggestion engine is broken). 100% is the out-of-box default.
@@ -157,6 +164,9 @@ struct SuggestionSettingsStore {
     private static let globalToggleKeyCodeDefaultsKey = "cotabbyGlobalToggleKeyCode"
     private static let globalToggleKeyModifiersDefaultsKey = "cotabbyGlobalToggleKeyModifiers"
     private static let globalToggleKeyLabelDefaultsKey = "cotabbyGlobalToggleKeyLabel"
+    /// Set by the first save of the toggle shortcut made by a build that binds it by default; see
+    /// `load` for why the saved key code alone cannot tell "never chosen" from "cleared".
+    private static let globalToggleKeyChosenDefaultsKey = "cotabbyGlobalToggleKeyChosen"
     private static let acceptanceGranularityDefaultsKey = "cotabbyAcceptanceGranularity"
 
     private static let powerModelSwitchingEnabledDefaultsKey = "cotabbyPowerBasedModelSwitchingEnabled"
@@ -237,6 +247,7 @@ struct SuggestionSettingsStore {
         globalToggleKeyCodeDefaultsKey,
         globalToggleKeyModifiersDefaultsKey,
         globalToggleKeyLabelDefaultsKey,
+        globalToggleKeyChosenDefaultsKey,
         acceptanceGranularityDefaultsKey,
         powerModelSwitchingEnabledDefaultsKey,
         batteryEngineDefaultsKey,
@@ -505,17 +516,27 @@ struct SuggestionSettingsStore {
         let resolvedFullAcceptanceKeyLabel = userDefaults.string(forKey: Self.fullAcceptanceKeyLabelDefaultsKey)
             ?? Self.defaultFullAcceptanceKeyLabel
 
-        // Default is unbound. An absent UserDefaults entry must NOT fall back to a real key code —
-        // the hotkey is opt-in, and silently binding something would surprise existing users.
-        let resolvedGlobalToggleKeyCode = CGKeyCode(
-            userDefaults.object(forKey: Self.globalToggleKeyCodeDefaultsKey) as? Int
-                ?? Int(Self.disabledKeyCode)
-        )
-        let resolvedGlobalToggleKeyModifiers = ShortcutModifierMask(
-            rawValue: UInt32(userDefaults.object(forKey: Self.globalToggleKeyModifiersDefaultsKey) as? Int ?? 0)
-        )
-        let resolvedGlobalToggleKeyLabel = userDefaults.string(forKey: Self.globalToggleKeyLabelDefaultsKey)
-            ?? Self.disabledKeyLabel
+        // The toggle shortcut is bound by default, and a saved "none" has two meanings. Builds from
+        // before the default wrote "none" for every writer who simply never picked a shortcut
+        // (settings are saved as a whole), while in this build "none" is only ever saved after the
+        // writer pressed Clear. The marker written with every save from this build tells them
+        // apart: without it, "none" or nothing saved means never chosen and gets the default; a
+        // real key saved by an older build is the writer's own choice and is kept.
+        let storedGlobalToggleKeyCode = (userDefaults.object(forKey: Self.globalToggleKeyCodeDefaultsKey) as? Int)
+            .map { CGKeyCode($0) }
+        let neverChoseGlobalToggleKey = !userDefaults.bool(forKey: Self.globalToggleKeyChosenDefaultsKey)
+            && (storedGlobalToggleKeyCode ?? Self.disabledKeyCode) == Self.disabledKeyCode
+        let resolvedGlobalToggleKeyCode = neverChoseGlobalToggleKey
+            ? Self.defaultGlobalToggleKeyCode
+            : storedGlobalToggleKeyCode ?? Self.disabledKeyCode
+        let resolvedGlobalToggleKeyModifiers = neverChoseGlobalToggleKey
+            ? Self.defaultGlobalToggleKeyModifiers
+            : ShortcutModifierMask(
+                rawValue: UInt32(userDefaults.object(forKey: Self.globalToggleKeyModifiersDefaultsKey) as? Int ?? 0)
+            )
+        let resolvedGlobalToggleKeyLabel = neverChoseGlobalToggleKey
+            ? Self.defaultGlobalToggleKeyLabel
+            : userDefaults.string(forKey: Self.globalToggleKeyLabelDefaultsKey) ?? Self.disabledKeyLabel
         // Default `.word` preserves the pre-feature behavior for existing installs that have no
         // value persisted yet. Invalid persisted values fall back to `.word` rather than crashing
         // so a hand-edited UserDefault can't strand the user.
@@ -1019,6 +1040,7 @@ struct SuggestionSettingsStore {
         userDefaults.set(Int(keyCode), forKey: Self.globalToggleKeyCodeDefaultsKey)
         userDefaults.set(Int(modifiers.rawValue), forKey: Self.globalToggleKeyModifiersDefaultsKey)
         userDefaults.set(label, forKey: Self.globalToggleKeyLabelDefaultsKey)
+        userDefaults.set(true, forKey: Self.globalToggleKeyChosenDefaultsKey)
     }
 
     func saveAcceptanceGranularity(_ granularity: AcceptanceGranularity) {

@@ -137,8 +137,8 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var fullAcceptanceKeyCode: CGKeyCode
     @Published private(set) var fullAcceptanceKeyModifiers: ShortcutModifierMask
     @Published private(set) var fullAcceptanceKeyLabel: String
-    /// User-configurable hotkey that flips `isGloballyEnabled`. Defaults to unbound so the user has
-    /// to opt in; without a binding the listener tap for this hotkey is never installed.
+    /// User-configurable hotkey that flips `isGloballyEnabled`. Bound to Control+Option+C until the
+    /// writer changes or clears it; without a binding the listener tap for it is never installed.
     @Published private(set) var globalToggleKeyCode: CGKeyCode
     @Published private(set) var globalToggleKeyModifiers: ShortcutModifierMask
     @Published private(set) var globalToggleKeyLabel: String
@@ -1371,6 +1371,19 @@ final class SuggestionSettingsModel: ObservableObject {
 
     func clearGlobalToggleKey() {
         setGlobalToggleKey(keyCode: Self.disabledKeyCode, modifiers: [], label: Self.disabledKeyLabel)
+    }
+
+    var isGlobalToggleKeyDefault: Bool {
+        globalToggleKeyCode == SuggestionSettingsStore.defaultGlobalToggleKeyCode
+            && globalToggleKeyModifiers == SuggestionSettingsStore.defaultGlobalToggleKeyModifiers
+    }
+
+    func resetGlobalToggleKey() {
+        setGlobalToggleKey(
+            keyCode: SuggestionSettingsStore.defaultGlobalToggleKeyCode,
+            modifiers: SuggestionSettingsStore.defaultGlobalToggleKeyModifiers,
+            label: SuggestionSettingsStore.defaultGlobalToggleKeyLabel
+        )
     }
 
     // MARK: - Per-app shortcut overrides

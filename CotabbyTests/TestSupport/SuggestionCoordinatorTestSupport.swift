@@ -125,6 +125,8 @@ final class RigInserter: SuggestionInserting {
     var lastErrorMessage: String?
     var insertedChunks: [String] = []
     var replacements: [(deleteCount: Int, text: String)] = []
+    /// When each replacement was requested (uptime nanoseconds), for latency checks.
+    private(set) var replacementUptimes: [UInt64] = []
     var shouldInsert = true
 
     func insert(_ suggestion: String) -> Bool {
@@ -134,6 +136,7 @@ final class RigInserter: SuggestionInserting {
 
     func replace(deletingUTF16Count: Int, with text: String) -> Bool {
         replacements.append((deletingUTF16Count, text))
+        replacementUptimes.append(DispatchTime.now().uptimeNanoseconds)
         return shouldInsert
     }
 }
@@ -249,7 +252,8 @@ func makeCoordinatorRig(
     capability: FocusCapability = .supported,
     overlayState: OverlayState = .hidden(reason: "initial"),
     lowPowerModeEnabled: Bool = false,
-    settingsSnapshot: SuggestionSettingsSnapshot = CotabbyTestFixtures.settingsSnapshot(debounceMilliseconds: 1)
+    settingsSnapshot: SuggestionSettingsSnapshot = CotabbyTestFixtures.settingsSnapshot(debounceMilliseconds: 1),
+    symSpellCorrector: SymSpellCorrector = SymSpellCorrector(preloadLanguage: nil)
 ) -> CoordinatorRig {
     let focusSnapshot = FocusSnapshot(
         applicationName: snapshot.applicationName,
@@ -285,7 +289,7 @@ func makeCoordinatorRig(
         workController: SuggestionWorkController(),
         configuration: .standard,
         spellChecker: CurrentWordSpellChecker(),
-        symSpellCorrector: SymSpellCorrector(preloadLanguage: nil),
+        symSpellCorrector: symSpellCorrector,
         qualityMetricsStore: SuggestionQualityMetricsStore(
             userDefaults: UserDefaults(suiteName: "CotabbyTests.rig.quality.\(UUID().uuidString)") ?? .standard
         ),

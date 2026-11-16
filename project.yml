@@ -192,6 +192,7 @@ targets:
       - Cotabby/Services/Spelling/WordIntentRefiner.swift
       - Cotabby/Services/Spelling/JevWordIntentClient.swift
       - Cotabby/Services/Spelling/PersonalCorrectionMemory.swift
+      - Cotabby/Services/Spelling/PersonalVocabulary.swift
       - Cotabby/Support/Spelling/SymSpell.swift
       - Cotabby/Support/Spelling/SpellingCandidateRanker.swift
       - Cotabby/Support/Spelling/TypoGate.swift
@@ -200,10 +201,17 @@ targets:
       - Cotabby/Support/Spelling/RealWordErrorDetector.swift
       - Cotabby/Support/Spelling/KnownMisspellings.swift
       - Cotabby/Support/Spelling/PhoneticKey.swift
+      - Cotabby/Support/Spelling/AutoFixConfidence.swift
+      - Cotabby/Support/Spelling/WrongWordDetector.swift
+      - Cotabby/Support/Spelling/TreeEnsembleModel.swift
+      - Cotabby/Support/Spelling/CaseSlip.swift
       - Cotabby/Support/Spelling/SentenceCapitalization.swift
       - Cotabby/Support/Spelling/LocalSentenceProofreader.swift
       - Cotabby/Support/Spelling/SpellingLanguageResolver.swift
       - Cotabby/Models/Spelling/SpellingDictionaryCatalog.swift
+      - Cotabby/Services/Prediction/NextWordModel.swift
+      - Cotabby/Support/Prediction/NextWordPredictor.swift
+      - Cotabby/Services/Prediction/PersonalPhraseModel.swift
     dependencies:
       - package: swift-log
         product: Logging

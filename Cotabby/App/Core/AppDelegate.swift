@@ -39,6 +39,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let environment: CotabbyAppEnvironment
     private var cancellables = Set<AnyCancellable>()
     private var didStartServices = false
+    /// Present only under `-cotabby-e2e-commands <file>`: types into the live test host so the
+    /// end-to-end tests can run with real key events. See `E2EKeyDriver`.
+    private var e2eKeyDriver: E2EKeyDriver?
 
     override init() {
         CotabbyLogger.bootstrap()
@@ -152,6 +155,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         welcomeCoordinator.presentPermissionReminderIfNeeded()
         didStartServices = true
         CotabbyLogger.app.info("All services started")
+        e2eKeyDriver = E2EKeyDriver.startIfRequested()
 
         // A manual cold launch must remain recoverable after the user hides the only status item.
         // Login-item launches stay silent so hiding the icon does not make Settings appear after

@@ -58,7 +58,44 @@ enum RealWordErrorDetector {
         ["lite", "light"],
         ["thier", "their"],
         ["witch", "which"],
-        ["hole", "whole"]
+        ["hole", "whole"],
+        // Homophones judged by the n-gram sentence rule; one previous word could not tell these
+        // apart, three usually can.
+        ["no", "know"],
+        ["for", "four"],
+        ["one", "won"],
+        ["see", "sea"],
+        ["son", "sun"],
+        ["meet", "meat"],
+        ["our", "hour"],
+        ["ate", "eight"],
+        ["brake", "break"],
+        ["wood", "would"],
+        ["wait", "weight"],
+        ["allowed", "aloud"],
+        ["threw", "through"],
+        ["mail", "male"],
+        ["plain", "plane"],
+        ["tail", "tale"],
+        ["pair", "pear"],
+        ["flower", "flour"],
+        ["road", "rode"],
+        ["knight", "night"],
+        ["not", "knot"],
+        ["blew", "blue"],
+        ["made", "maid"],
+        ["sale", "sail"],
+        ["cell", "sell"],
+        ["dear", "deer"],
+        ["heal", "heel"],
+        ["hair", "hare"],
+        ["fair", "fare"],
+        ["bored", "board"],
+        ["scene", "seen"],
+        ["steal", "steel"],
+        ["course", "coarse"],
+        ["are", "our"],
+        ["of", "off"]
     ]
 
     private static let groupsByWord: [String: [String]] = {
@@ -75,6 +112,40 @@ enum RealWordErrorDetector {
     static let minimumRatio: Double = 12
     /// ...and the alternative's pairing must be at least this common, so rare phrases never trigger.
     static let minimumAlternativeCount: Int64 = 20_000_000
+
+    /// Sentence-rule thresholds, tuned with `cotabby-spell --accuracy`/`--clean` on Tatoeba sentences
+    /// with swapped confusables: recall 70.7% → 79.7%, false alarms on correct words 1.2% → 0.5%.
+    /// An alternative must be at least this much likelier than the typed word...
+    static let sentenceMinimumRatio = 8.0
+    /// ...and likely in its own right after the sentence so far.
+    static let sentenceMinimumScore = 0.01
+    /// The typed word's own likelihood is floored, since the pruned table omits rare continuations.
+    static let sentenceScoreFloor = 0.002
+    /// The typed word "fits" (vetoing a flag) when at least this fraction as likely as the best alternative.
+    static let sentenceVetoFraction = 0.5
+
+    /// Sentence-level check with the n-gram table (up to three words of context, contractions
+    /// intact). Returns the alternatives it flags, and whether it vetoes the typed word being
+    /// flagged at all because the sentence model finds it likely enough.
+    static func sentenceVerdict(word: String, score: (String) -> Double) -> (flagged: [SpellingCandidate], typedFits: Bool) {
+        let options = alternatives(for: word)
+        guard !options.isEmpty else { return ([], true) }
+        let typed = score(word.lowercased())
+        let floor = sentenceScoreFloor
+        var flagged: [SpellingCandidate] = []
+        var bestAlternative = 0.0
+        for option in options {
+            let value = score(option)
+            bestAlternative = max(bestAlternative, value)
+            if value >= sentenceMinimumScore, value >= sentenceMinimumRatio * max(typed, floor) {
+                flagged.append(SpellingCandidate(
+                    term: TypoCaseTransfer.applying(caseOf: word, to: option),
+                    score: min(0.8, 0.55 + 0.05 * log10(value / max(typed, floor)))
+                ))
+            }
+        }
+        return (flagged.sorted { $0.score > $1.score }, typed > 0 && typed >= sentenceVetoFraction * bestAlternative)
+    }
 
     static func alternatives(for word: String) -> [String] {
         groupsByWord[word.lowercased()] ?? []

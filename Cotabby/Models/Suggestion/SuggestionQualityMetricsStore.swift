@@ -30,6 +30,10 @@ final class SuggestionQualityMetricsStore: ObservableObject {
         var correctionsChosenFromList = 0
         /// Confident fixes Cotabby applied on its own at a Space.
         var correctionsAutoApplied = 0
+        /// Auto-fixes the writer undid (the typed spelling came back); the word is then left alone.
+        var correctionsAutoReverted = 0
+        /// Words typed by picking them from the next-word strip.
+        var wordPredictionsPicked = 0
         var alternatesOpened = 0
         /// Alternates chosen instead of the primary continuation.
         var alternatesPicked = 0
@@ -51,6 +55,8 @@ final class SuggestionQualityMetricsStore: ObservableObject {
             correctionsAccepted = try container.decodeIfPresent(Int.self, forKey: .correctionsAccepted) ?? 0
             correctionsChosenFromList = try container.decodeIfPresent(Int.self, forKey: .correctionsChosenFromList) ?? 0
             correctionsAutoApplied = try container.decodeIfPresent(Int.self, forKey: .correctionsAutoApplied) ?? 0
+            correctionsAutoReverted = try container.decodeIfPresent(Int.self, forKey: .correctionsAutoReverted) ?? 0
+            wordPredictionsPicked = try container.decodeIfPresent(Int.self, forKey: .wordPredictionsPicked) ?? 0
             alternatesOpened = try container.decodeIfPresent(Int.self, forKey: .alternatesOpened) ?? 0
             alternatesPicked = try container.decodeIfPresent(Int.self, forKey: .alternatesPicked) ?? 0
             sentenceFixesOffered = try container.decodeIfPresent(Int.self, forKey: .sentenceFixesOffered) ?? 0
@@ -114,6 +120,14 @@ final class SuggestionQualityMetricsStore: ObservableObject {
 
     func recordCorrectionAutoApplied() {
         mutate { $0.correctionsAutoApplied += 1 }
+    }
+
+    func recordCorrectionReverted() {
+        mutate { $0.correctionsAutoReverted += 1 }
+    }
+
+    func recordWordPredictionPicked() {
+        mutate { $0.wordPredictionsPicked += 1 }
     }
 
     func recordAlternatesOpened() {

@@ -13,6 +13,91 @@ final class InputMonitorTests: XCTestCase {
     /// process lifetime keeps the tests focused on routing behavior instead of deinit mechanics.
     @MainActor private static var retainedMonitors: [InputMonitor] = []
 
+    // MARK: - Holding the writer's keys during a deleting edit
+
+    func test_keyTypedDuringADeletingEdit_isHeldAndNotActedOnYet() throws {
+        try runOnMainActor {
+            // #given an edit of Cotabby's is still going out
+            let monitor = makeMonitor()
+            monitor.isHoldingTyping = true
+            var observed = 0
+            monitor.onEvent = { _ in observed += 1; return true }
+            let key = try Self.keyDown(34, timestamp: 1_001)
+
+            // #when the writer's key reaches the observer and then the active tap
+            _ = monitor.handleObserverTap(type: .keyDown, event: key)
+            let delivered = monitor.handleAcceptTap(type: .keyDown, event: key)
+
+            // #then the app has not acted on it and the host does not get it
+            XCTAssertEqual(observed, 0)
+            XCTAssertNil(delivered)
+        }
+    }
+
+    func test_replayedKey_isActedOnAndDelivered() throws {
+        try runOnMainActor {
+            // #given a key that was held and is now coming through again, while a hold is still on
+            let monitor = makeMonitor()
+            monitor.isHoldingTyping = true
+            var observed = 0
+            monitor.onEvent = { _ in observed += 1; return true }
+            let key = try Self.keyDown(34, timestamp: 1_002)
+            key.setIntegerValueField(.eventSourceUserData, value: InputMonitor.replayedEventUserData)
+
+            // #when it reaches both taps
+            _ = monitor.handleObserverTap(type: .keyDown, event: key)
+            let delivered = monitor.handleAcceptTap(type: .keyDown, event: key)
+
+            // #then it is treated as the writer's typing and reaches the host
+            XCTAssertEqual(observed, 1)
+            XCTAssertNotNil(delivered)
+        }
+    }
+
+    func test_keyTheAppAlreadyActedOn_isNotHeldWhenAHoldStartsRightAfter() throws {
+        try runOnMainActor {
+            // #given the observer acted on a key before any hold
+            let monitor = makeMonitor()
+            var observed = 0
+            monitor.onEvent = { _ in observed += 1; return true }
+            let key = try Self.keyDown(34, timestamp: 1_003)
+            _ = monitor.handleObserverTap(type: .keyDown, event: key)
+
+            // #when a hold starts before the active tap sees that same key
+            monitor.isHoldingTyping = true
+            let delivered = monitor.handleAcceptTap(type: .keyDown, event: key)
+
+            // #then it goes through once instead of being replayed and seen twice
+            XCTAssertEqual(observed, 1)
+            XCTAssertNotNil(delivered)
+        }
+    }
+
+    func test_keyHeldBeforeTheObserverSeesIt_isNotActedOn() throws {
+        try runOnMainActor {
+            // #given the active tap got the key first and held it
+            let monitor = makeMonitor()
+            monitor.isHoldingTyping = true
+            var observed = 0
+            monitor.onEvent = { _ in observed += 1; return true }
+            let key = try Self.keyDown(34, timestamp: 1_004)
+            XCTAssertNil(monitor.handleAcceptTap(type: .keyDown, event: key))
+
+            // #when the observer sees it afterwards, even with the hold already over
+            monitor.isHoldingTyping = false
+            _ = monitor.handleObserverTap(type: .keyDown, event: key)
+
+            // #then the app waits for the replay
+            XCTAssertEqual(observed, 0)
+        }
+    }
+
+    private static func keyDown(_ keyCode: CGKeyCode, timestamp: UInt64) throws -> CGEvent {
+        let event = try XCTUnwrap(CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: true))
+        event.timestamp = timestamp
+        return event
+    }
+
     func test_observerTapForwardsPointerLocationWithoutConsumingIt() {
         runOnMainActor {
             let monitor = makeMonitor()

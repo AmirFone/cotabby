@@ -73,6 +73,62 @@ final class SpellingCandidateRankerTests: XCTestCase {
         XCTAssertEqual(ranked.first?.term, "which")
     }
 
+    func test_rank_writersOwnPhrasingSettlesACloseCall() {
+        // #given two one-edit fixes where the corpus slightly prefers "dad"
+        let sources = SpellingCandidateSources(
+            fullWord: [
+                SymSpellSuggestion(term: "dad", distance: 1, count: 50_000_000),
+                SymSpellSuggestion(term: "day", distance: 1, count: 40_000_000)
+            ],
+            prefix: [],
+            isCommonWordPrefix: false
+        )
+
+        // #when the writer has written "my day" twice and never "my dad"
+        let ranked = SpellingCandidateRanker.rank(
+            word: "dady",
+            isMidWord: false,
+            sources: sources,
+            native: [],
+            personal: [:],
+            personalContextCount: { $0 == "day" ? 2 : 0 }
+        )
+
+        // #then their phrasing wins
+        XCTAssertEqual(ranked.first?.term, "day")
+    }
+
+    func test_rank_identicalSoundLiftsAFarSpellingOverANearOne() {
+        // #given "brat" one edit away and "brought" only reachable by sound
+        let sources = SpellingCandidateSources(
+            fullWord: [SymSpellSuggestion(term: "brat", distance: 1, count: 5_000_000)],
+            prefix: [],
+            isCommonWordPrefix: false,
+            phonetic: [SymSpellPhoneticMatch(term: "brought", similarity: 0.8, count: 60_000_000, soundsIdentical: true)]
+        )
+
+        // #when ranking the finished word
+        let ranked = SpellingCandidateRanker.rank(word: "brawt", isMidWord: false, sources: sources, native: [], personal: [:])
+
+        // #then the word it sounds exactly like wins
+        XCTAssertEqual(ranked.first?.term, "brought")
+    }
+
+    func test_adjacentSwap_recognizesUpToTwoNeighborPairs() {
+        XCTAssertTrue(SpellingCandidateRanker.isAdjacentSwap(typo: "teh", term: "the"))
+        XCTAssertTrue(SpellingCandidateRanker.isAdjacentSwap(typo: "recieve", term: "receive"))
+        XCTAssertTrue(SpellingCandidateRanker.isAdjacentSwap(typo: "tihkn", term: "think"))
+        XCTAssertFalse(SpellingCandidateRanker.isAdjacentSwap(typo: "teh", term: "tea"))
+        XCTAssertFalse(SpellingCandidateRanker.isAdjacentSwap(typo: "abcdef", term: "badcfe"), "three swaps is too many")
+    }
+
+    func test_doubledLetterRestoration_recognizesOnlyOneDoubledLetter() {
+        XCTAssertTrue(SpellingCandidateRanker.isDoubledLetterRestoration(typo: "hapy", term: "happy"))
+        XCTAssertTrue(SpellingCandidateRanker.isDoubledLetterRestoration(typo: "stoped", term: "stopped"))
+        XCTAssertFalse(SpellingCandidateRanker.isDoubledLetterRestoration(typo: "hapy", term: "harpy"))
+        XCTAssertFalse(SpellingCandidateRanker.isDoubledLetterRestoration(typo: "sory", term: "story"))
+    }
+
     func test_rank_midWordUsesPrefixMatchesAndFavorsSwaps() {
         let sources = SpellingCandidateSources(
             fullWord: [],

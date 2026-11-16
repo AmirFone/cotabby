@@ -160,6 +160,37 @@ final class ShortcutConflictTests: XCTestCase {
 
     // MARK: - Helpers
 
+    // MARK: - Default toggle shortcut
+
+    func test_toggleShortcut_resetRestoresTheDefaultAfterClearing() {
+        // #given a writer who cleared the toggle shortcut
+        let model = makeModel()
+        model.clearGlobalToggleKey()
+        XCTAssertFalse(model.isGlobalToggleKeyDefault)
+
+        // #when they press Reset
+        model.resetGlobalToggleKey()
+
+        // #then Control+Option+C is bound again
+        XCTAssertTrue(model.isGlobalToggleKeyDefault)
+        XCTAssertEqual(model.globalToggleKeyLabel, "⌃⌥C")
+    }
+
+    func test_toggleShortcut_defaultIsTakenForOtherActions() {
+        // #given the out-of-the-box bindings
+        let model = makeModel()
+
+        // #when another action is recorded on the toggle's default combo
+        let conflict = model.conflictingShortcutName(
+            keyCode: SuggestionSettingsStore.defaultGlobalToggleKeyCode,
+            modifiers: SuggestionSettingsStore.defaultGlobalToggleKeyModifiers,
+            excluding: .acceptWord
+        )
+
+        // #then the recorder is told the toggle owns it
+        XCTAssertEqual(conflict, ShortcutAction.toggleTabby.displayName)
+    }
+
     private func makeModel() -> SuggestionSettingsModel {
         let suiteName = "cotabby.test.shortcutConflict.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

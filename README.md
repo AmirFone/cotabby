@@ -1,3 +1,5 @@
+> **This is a fork** of [FuJacob/cotabby](https://github.com/FuJacob/cotabby) that adds spelling help for dyslexic writers: on-the-spot fixes, a spelling bar, a next-word strip, and a sentence model. What it adds and how to install it without Xcode is in [FORK.md](FORK.md); downloads are on this fork's [releases page](https://github.com/AmirFone/cotabby/releases). Everything below is upstream's README.
+
 
 <p align="center">
   <a href="https://cotabby.app" target="_blank">

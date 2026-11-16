@@ -29,6 +29,8 @@ struct SettingsContainerView: View {
 
     let onShowWelcome: () -> Void
     let clearEmojiHistory: () -> Void
+    let clearLearnedPhrases: () -> Void
+    let correctionJournal: CorrectionJournal
     let onQuit: () -> Void
 
     @AppStorage("cotabbySettingsSelectedCategoryV2")
@@ -142,7 +144,12 @@ struct SettingsContainerView: View {
                 huggingFaceSearchService: huggingFaceSearchService
             )
         case .writing:
-            WritingPaneView(suggestionSettings: suggestionSettings, jevKeyModel: jevKeyModel)
+            WritingPaneView(
+                suggestionSettings: suggestionSettings,
+                jevKeyModel: jevKeyModel,
+                clearLearnedPhrases: clearLearnedPhrases,
+                correctionJournal: correctionJournal
+            )
         case .context:
             ContextPaneView(suggestionSettings: suggestionSettings)
         case .shortcuts:

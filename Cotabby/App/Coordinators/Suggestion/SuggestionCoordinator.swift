@@ -72,6 +72,49 @@ final class SuggestionCoordinator: ObservableObject {
     var bigramContextModel: BigramContextModel?
     /// Optional Jev decisions for spelling choices the local evidence cannot settle.
     var wordIntentRefiner: WordIntentRefiner?
+    /// The bundled n-gram table, used as sentence context when ranking spelling fixes. Nil in tests.
+    var nextWordModel: NextWordModel?
+    /// Spelling work done ahead of the host publishing a word-ending key (see `prepareTypoGate`).
+    struct PreparedTypoGate {
+        let precedingText: String
+        let textAfter: String
+        let inputs: TypoGateInputs
+    }
+
+    var preparedTypoGate: PreparedTypoGate?
+    /// The work prepared for the last typed key ends in a fix, the bar, or a suppression. Read by
+    /// the word strip, which then leaves that key alone.
+    var isSpellingPendingForLastKey = false
+    /// When the last typed key reached `handleInputEvent`, so the timings count from the key itself
+    /// and include the spelling work done there. Consumed by the publish wait.
+    var pendingKeystrokeUptimeNanoseconds: UInt64?
+    /// The text before the caret the last time the spelling gate looked at the field. A key whose
+    /// character is already at the end of the field *beyond* this text was published by the host
+    /// before Cotabby's key callback ran (see `prepareSpellingAtKeystroke`).
+    var lastGatedPrecedingText: String?
+    /// The field already showed the last typed key when its callback ran. Consumed by the publish wait.
+    var fieldAlreadyShowsLastKey = false
+    /// The word the writer closed the spelling bar on with Escape; left alone until the caret moves on.
+    var dismissedTypo: DismissedTypo?
+    /// When the last typing key was seen, for the "fixed N ms after the key" debug log.
+    var lastTypingKeystrokeUptimeNanoseconds: UInt64 = 0
+    /// The trained judge of which spelling fix to put first and whether to apply it unasked; set by
+    /// the app environment, nil in tests and when the bundled file does not match this build.
+    var autoFixModel: TreeEnsembleModel?
+    /// The trained judge of correctly spelled wrong words for the sentence pass.
+    var wrongWordModel: TreeEnsembleModel?
+    /// The writer's learned phrases, also used as spelling context. Nil in tests.
+    var personalPhraseModel: PersonalPhraseModel?
+    /// The writer's own words (names, jargon) as correction targets; set by the app environment.
+    var personalVocabulary: PersonalVocabulary?
+    /// Auto-fixes waiting for the writer's reaction; only kept fixes teach the personal history.
+    var autoFixOutcomes = AutoFixOutcomeTracker()
+    /// Watches for the writer retyping a misspelled word themselves.
+    var selfCorrections = SelfCorrectionDetector()
+    /// Local record of spelling outcomes (see `CorrectionJournal`). Nil in tests.
+    var correctionJournal: CorrectionJournal?
+    /// The next-word strip. Nil in tests and when word predictions are unavailable.
+    var wordPredictionPresenter: (any WordPredictionPresenting)?
     /// Proofreads finished sentences on cloud endpoints. Nil in tests and when unavailable.
     var sentenceFixPresenter: (any SentenceFixPresenting)?
 
@@ -83,6 +126,8 @@ final class SuggestionCoordinator: ObservableObject {
     static let totalTabAcceptedWordCountDefaultsKey = "cotabbyTotalAcceptedWordCount"
     /// Long enough for the host to publish the typed space to Accessibility.
     static let typeThroughSentenceCheckDelaySeconds: TimeInterval = 0.12
+    /// Field changes this soon after Cotabby's own keys are the app's edits, not the writer's.
+    static let ownEditQuietSeconds: TimeInterval = 1.0
 
     // Combine subscriptions are the coordinator's remaining direct mutable bookkeeping.
     // Async work and active-session storage now live in dedicated collaborators below.

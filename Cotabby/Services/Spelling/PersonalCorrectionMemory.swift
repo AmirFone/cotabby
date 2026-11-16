@@ -64,6 +64,41 @@ final class PersonalCorrectionMemory {
         userDefaults.set(kept, forKey: Self.keptDefaultsKey)
     }
 
+    /// Settled automatic fixes: kept ones count as accepted, undone ones mark the typed word as
+    /// intended.
+    func record(changes: [(typed: String, fixed: String)], kept: Bool) {
+        for change in changes {
+            if kept {
+                recordAccepted(typo: change.typed, replacement: change.fixed)
+            } else {
+                recordKept(change.typed)
+            }
+        }
+    }
+
+    enum ReviewOutcome {
+        case accepted
+        case kept
+    }
+
+    /// One decision on the sentence review card. A chosen replacement counts like a picked fix. A
+    /// kept word stops being flagged: a real word under "previous word + word" (the key the
+    /// wrong-word checks read, so `their house` is remembered without silencing every `their`), a
+    /// misspelling under the word itself.
+    @discardableResult
+    func recordReviewChoice(typed: String, previous: String?, chosen: String, isRealWord: Bool) -> ReviewOutcome {
+        guard chosen.lowercased() == typed.lowercased() else {
+            recordAccepted(typo: typed, replacement: chosen)
+            return .accepted
+        }
+        if let previous, isRealWord {
+            recordKept("\(previous) \(typed)")
+        } else {
+            recordKept(typed)
+        }
+        return .kept
+    }
+
     func isKept(_ key: String) -> Bool {
         kept.contains(key.lowercased())
     }

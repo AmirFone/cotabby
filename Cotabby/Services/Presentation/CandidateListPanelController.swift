@@ -1,4 +1,5 @@
 import AppKit
+import Logging
 import SwiftUI
 
 /// File overview:
@@ -22,6 +23,13 @@ final class CandidateListPanelController: CandidateListPanelPresenting {
     private var localMouseMonitor: Any?
     private var globalMouseMonitor: Any?
     private var flashHideWorkItem: DispatchWorkItem?
+    /// Where the panel should go at the end of this main-thread turn (see `place`).
+    private var pendingPlacement: Placement?
+
+    private struct Placement {
+        let caretRect: CGRect
+        let preferBelow: Bool
+    }
 
     private lazy var panel: CandidateListPanel = {
         let panel = CandidateListPanel(
@@ -43,9 +51,15 @@ final class CandidateListPanelController: CandidateListPanelPresenting {
     }()
 
     private lazy var hostingView: CandidateListHostingView = {
-        CandidateListHostingView(rootView: CandidateListView(model: model) { [weak self] index in
+        let view = CandidateListHostingView(rootView: CandidateListView(model: model) { [weak self] index in
             self?.onSelectIndex?(index)
         })
+        // By default a hosting view also keeps its window's minimum and maximum size in step with
+        // the content, resizing the window itself on every content change. `flushPlacement` already
+        // sizes the panel, and that second resize was a second blocking round trip to the window
+        // server per update. Keeping only the intrinsic size leaves `fittingSize` working.
+        view.sizingOptions = [.intrinsicContentSize]
+        return view
     }()
 
     func show(offer: CandidateOffer, selectedIndex: Int, acceptKeyLabel: String) {
@@ -66,6 +80,15 @@ final class CandidateListPanelController: CandidateListPanelPresenting {
         installClickMonitorsIfNeeded()
     }
 
+    func showWordStrip(words: [String], selectedIndex: Int?, caretRect: CGRect) {
+        flashHideWorkItem?.cancel()
+        model.content = .words(words)
+        model.selectedIndex = selectedIndex ?? -1
+        panel.ignoresMouseEvents = false
+        place(near: caretRect)
+        installClickMonitorsIfNeeded()
+    }
+
     func setSelectedIndex(_ index: Int) {
         model.selectedIndex = index
     }
@@ -74,7 +97,7 @@ final class CandidateListPanelController: CandidateListPanelPresenting {
         model.content = .flash(typo: typo, correction: correction)
         panel.ignoresMouseEvents = true
         removeClickMonitors()
-        place(near: caretRect)
+        place(near: caretRect, preferBelow: true)
         let hide = DispatchWorkItem { [weak self] in self?.hide() }
         flashHideWorkItem?.cancel()
         flashHideWorkItem = hide
@@ -86,7 +109,7 @@ final class CandidateListPanelController: CandidateListPanelPresenting {
         model.acceptKeyLabel = ""
         panel.ignoresMouseEvents = true
         removeClickMonitors()
-        place(near: caretRect)
+        place(near: caretRect, preferBelow: true)
         let hide = DispatchWorkItem { [weak self] in self?.hide() }
         flashHideWorkItem?.cancel()
         flashHideWorkItem = hide
@@ -116,9 +139,13 @@ final class CandidateListPanelController: CandidateListPanelPresenting {
         flashHideWorkItem?.cancel()
         flashHideWorkItem = nil
         removeClickMonitors()
+        pendingPlacement = nil
         guard isVisible else { return }
         isVisible = false
-        panel.orderOut(nil)
+        // Never ordered front when it was hidden in the same turn it was asked to show.
+        if panel.isVisible {
+            panel.orderOut(nil)
+        }
     }
 
     private static func header(for offer: CandidateOffer) -> String? {
@@ -128,20 +155,53 @@ final class CandidateListPanelController: CandidateListPanelPresenting {
         }
     }
 
-    private func place(near caretRect: CGRect) {
+    /// Flashes go below the line: the word strip and the bars live above it, and a confirmation
+    /// hidden under the strip would never be read.
+    /// Asks for the panel to be sized and positioned at the caret. The window work itself (layout,
+    /// frame change, ordering front) runs one main-thread turn later, and only once per turn.
+    ///
+    /// Why not right away: callers reach this from inside a keystroke or a focus update, the same
+    /// turn in which a spelling fix may be typed. Measured live, moving this window blocks for up to
+    /// 40 ms while the window server catches up, and a fix that waited behind it landed after the
+    /// writer's next key. Deferring by one turn puts the fix first; the panel still appears within
+    /// the same frame.
+    private func place(near caretRect: CGRect, preferBelow: Bool = false) {
+        let isFlushScheduled = pendingPlacement != nil
+        pendingPlacement = Placement(caretRect: caretRect, preferBelow: preferBelow)
+        isVisible = true
+        guard !isFlushScheduled else { return }
+        DispatchQueue.main.async { [weak self] in self?.flushPlacement() }
+    }
+
+    private func flushPlacement() {
+        guard let placement = pendingPlacement else { return }
+        pendingPlacement = nil
+        // Hidden again before the turn ended: nothing to show.
+        guard isVisible else { return }
+        let started = DispatchTime.now().uptimeNanoseconds
+        defer {
+            let milliseconds = Double(DispatchTime.now().uptimeNanoseconds - started) / 1_000_000
+            CotabbyLogger.app.trace("Panel placed in \(String(format: "%.1f", milliseconds)) ms")
+        }
         if panel.contentView !== hostingView {
             panel.contentView = hostingView
         }
         hostingView.layoutSubtreeIfNeeded()
         let size = hostingView.fittingSize
         let frame = CandidateListPanelLayout.frame(
-            caretRect: caretRect,
+            caretRect: placement.caretRect,
             contentSize: size,
-            visibleFrame: visibleFrame(for: caretRect)
-        )
-        panel.setFrame(frame.integral, display: true)
-        panel.orderFrontRegardless()
-        isVisible = true
+            visibleFrame: visibleFrame(for: placement.caretRect),
+            preferBelow: placement.preferBelow
+        ).integral
+        // A focus update often repeats the caret position it already had; skipping the unchanged
+        // frame and the redundant ordering avoids a window-server round trip per keystroke.
+        if panel.frame != frame {
+            panel.setFrame(frame, display: true)
+        }
+        if !panel.isVisible {
+            panel.orderFrontRegardless()
+        }
     }
 
     private func visibleFrame(for caretRect: CGRect) -> CGRect {
@@ -198,7 +258,7 @@ private final class CandidateListPanel: NSPanel {
 enum CandidateListPanelLayout {
     static let caretGap: CGFloat = 6
 
-    static func frame(caretRect: CGRect, contentSize: CGSize, visibleFrame: CGRect) -> CGRect {
+    static func frame(caretRect: CGRect, contentSize: CGSize, visibleFrame: CGRect, preferBelow: Bool = false) -> CGRect {
         var originX = caretRect.minX - 12
         if originX + contentSize.width > visibleFrame.maxX {
             originX = visibleFrame.maxX - contentSize.width
@@ -207,9 +267,11 @@ enum CandidateListPanelLayout {
 
         let aboveOriginY = caretRect.maxY + caretGap
         let belowOriginY = caretRect.minY - caretGap - contentSize.height
-        let originY = aboveOriginY + contentSize.height <= visibleFrame.maxY
-            ? aboveOriginY
-            : max(belowOriginY, visibleFrame.minY)
+        let fitsAbove = aboveOriginY + contentSize.height <= visibleFrame.maxY
+        let fitsBelow = belowOriginY >= visibleFrame.minY
+        let originY = (preferBelow && fitsBelow) || !fitsAbove
+            ? max(belowOriginY, visibleFrame.minY)
+            : aboveOriginY
         return CGRect(x: originX, y: originY, width: contentSize.width, height: contentSize.height)
     }
 }

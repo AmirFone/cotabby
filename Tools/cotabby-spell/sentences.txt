@@ -11,6 +11,7 @@ I'm sure it works.	=	i'm sure it works.
 It broke because the cable failed.	=	It broke becuase the cable failed.
 I don't think so.	=	I dont think so.
 =	I went there yesterday.	I went their yesterday.
+=	We need to buy a car.	We need to by a car.
 =	It is different from the old one.	It is different form the old one.
 =	=	Put it over there please.
 =	=	Their house is big.

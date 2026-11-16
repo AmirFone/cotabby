@@ -324,6 +324,9 @@ protocol CandidateListPanelPresenting: AnyObject {
 
     func show(offer: CandidateOffer, selectedIndex: Int, acceptKeyLabel: String)
     func setSelectedIndex(_ index: Int)
+    /// The next-word strip; `selectedIndex` is nil until the writer presses Tab. Clicking a word
+    /// reports its index through `onSelectIndex`.
+    func showWordStrip(words: [String], selectedIndex: Int?, caretRect: CGRect)
     func showFlash(typo: String, correction: String, caretRect: CGRect)
     func showSentenceFix(segments: [SentenceFixSegment], caretRect: CGRect, acceptKeyLabel: String)
     /// Briefly shows fixes that were already applied; not clickable, hides itself.
@@ -344,6 +347,16 @@ protocol InlineCaptureParticipant: AnyObject {
     func stop()
     func observe(_ event: CapturedInputEvent) -> Bool
     func decideCaptureKey(_ keyEvent: InputMonitorKeyEvent) -> InputMonitorAcceptTapDecision
+}
+
+/// The suggestion coordinator's handle on the next-word strip. The coordinator only reports the text
+/// before the caret after each keystroke settles; the presenter predicts, shows, and owns the keys.
+@MainActor
+protocol WordPredictionPresenting: AnyObject {
+    /// True while the strip is on: it owns Tab, so ghost text is not generated.
+    var replacesGhostText: Bool { get }
+    func noteTypedText(_ precedingText: String, caretRect: CGRect, focusChangeSequence: UInt64)
+    func hidePredictions()
 }
 
 /// The suggestion coordinator's handle on the per-sentence proofreading card.

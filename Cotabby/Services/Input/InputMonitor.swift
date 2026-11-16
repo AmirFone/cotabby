@@ -47,6 +47,11 @@ enum InputMonitorAcceptTapDecision: Equatable {
 ///   This is the only path that consumes events, so it also owns acceptance side effects. Keeping
 ///   insertion and consumption in the same callback prevents the coordinator from hiding the overlay
 ///   before the tap has decided what to do with the original key.
+///
+/// The same active tap also holds the writer's keys back for the fraction of a second Cotabby spends
+/// deleting and retyping text (see `holdTypingWhileEditsDrain`), then replays them in order. A fix
+/// is a run of backspaces counted against the text as it was; a real key landing in the middle of
+/// that run shifts every backspace after it onto the wrong character.
 @MainActor
 final class InputMonitor {
     var onEvent: ((CapturedInputEvent) -> Bool)?
@@ -128,6 +133,31 @@ final class InputMonitor {
     /// "emoji capture open" state directly to exercise observer routing without installing real taps.
     /// Production only mutates this through `setCaptureInterceptionActive(_:)`.
     var captureInterceptionActive = false
+
+    /// True while one of Cotabby's deleting edits is still going out and the writer's own key-downs
+    /// are being collected instead of delivered. Internal so tests can stage it without real taps.
+    var isHoldingTyping = false
+    private var heldKeyDowns: [CGEvent] = []
+    private var isReplayingHeldKeys = false
+    private var holdStartedUptime: TimeInterval = 0
+    /// The two taps see the same key-down in separate callbacks, and the hold can start or end
+    /// between them. These sets are their handshake, keyed by the event's timestamp: the observer
+    /// notes each key it left for the active tap to hold, the active tap notes each key it held
+    /// before the observer saw it, and whichever comes second clears the note. A key is then never
+    /// both acted on now and replayed later.
+    private var keyDownsLeftForHolding: Set<UInt64> = []
+    private var keyDownsAlreadyHeld: Set<UInt64> = []
+    /// The last key-down the observer acted on. If a hold starts before the active tap sees that
+    /// same key, the key is let through: replaying it would make the app see it twice.
+    private var lastActedOnKeyDownTimestamp: UInt64?
+    /// Marks a replayed key-down. Unlike the synthetic marker this one means "the writer typed this":
+    /// both taps treat a replayed key exactly like a fresh one, except that it is never held again.
+    nonisolated static let replayedEventUserData: Int64 = 0x436F_7461_6262_7A
+    /// Past this the hold is released whatever the state, so a bug here can delay typing but never
+    /// swallow it. The longest allowed rewrite takes about half a second to post.
+    private static let maximumHoldSeconds: TimeInterval = 1.5
+    /// Pause between the last key of Cotabby's edit and the first replayed key.
+    private static let holdReleaseMarginSeconds: TimeInterval = 0.012
 
     init(
         permissionProvider: @escaping @MainActor () -> Bool,
@@ -218,7 +248,7 @@ final class InputMonitor {
     /// When the tap exists solely for emoji capture, the observer must keep routing the accept key
     /// (Tab) to the coordinator so the emoji controller — not the suggestion accept path — acts on it.
     private func updateAcceptTapState() {
-        let wantsTap = permissionProvider() && (suggestionInterceptionActive || captureInterceptionActive)
+        let wantsTap = permissionProvider() && (suggestionInterceptionActive || captureInterceptionActive || isHoldingTyping)
         // Only a visible suggestion claims the accept key at the observer layer. When the tap exists
         // solely for emoji capture, the observer must keep routing the accept key (Tab) to the
         // coordinator so the emoji controller — not the suggestion accept path — acts on it. Setting
@@ -247,7 +277,7 @@ final class InputMonitor {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             guard let self else { return }
             let stillWanted = self.permissionProvider()
-                && (self.suggestionInterceptionActive || self.captureInterceptionActive)
+                && (self.suggestionInterceptionActive || self.captureInterceptionActive || self.isHoldingTyping)
             guard !stillWanted else { return }
             let keyboardQuiet = ProcessInfo.processInfo.systemUptime - self.lastKeyDownUptime >= Self.acceptTapIdleTeardownSeconds
             guard SyntheticEventPoster.secondsUntilDrained == 0, keyboardQuiet else {
@@ -256,6 +286,86 @@ final class InputMonitor {
             }
             self.destroyAcceptTap()
         }
+    }
+
+    // MARK: - Holding typing during a deleting edit
+
+    /// Called just before Cotabby posts an edit that deletes text. From now until that edit has gone
+    /// out, the writer's key-downs are collected by the active tap and replayed right after, in the
+    /// order they were pressed. The active tap is installed for exactly that long, the same narrow
+    /// way it is for a visible suggestion.
+    func holdTypingWhileEditsDrain() {
+        guard permissionProvider() else { return }
+        if !isHoldingTyping {
+            isHoldingTyping = true
+            holdStartedUptime = ProcessInfo.processInfo.systemUptime
+            updateAcceptTapState()
+        }
+        // One turn later the edit has been queued, so its length is known.
+        DispatchQueue.main.async { [weak self] in self?.scheduleHoldRelease() }
+    }
+
+    private func scheduleHoldRelease() {
+        let delay = SyntheticEventPoster.secondsUntilDrained + Self.holdReleaseMarginSeconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            self?.releaseHeldTypingIfDrained()
+        }
+    }
+
+    /// Replays what was held once Cotabby's own keys are out. Keys pressed while a replay is going
+    /// out are held too and go out in the next round, so the order the writer typed in is kept.
+    private func releaseHeldTypingIfDrained() {
+        guard isHoldingTyping, !isReplayingHeldKeys else { return }
+        let isOverdue = ProcessInfo.processInfo.systemUptime - holdStartedUptime > Self.maximumHoldSeconds
+        // Also wait for any key the observer left for the active tap that has not arrived there yet.
+        guard isOverdue || (SyntheticEventPoster.secondsUntilDrained == 0 && keyDownsLeftForHolding.isEmpty) else {
+            scheduleHoldRelease()
+            return
+        }
+        guard !heldKeyDowns.isEmpty else {
+            isHoldingTyping = false
+            keyDownsLeftForHolding.removeAll()
+            keyDownsAlreadyHeld.removeAll()
+            updateAcceptTapState()
+            return
+        }
+        let batch = heldKeyDowns
+        heldKeyDowns = []
+        isReplayingHeldKeys = true
+        CotabbyLogger.app.debug("Replaying \(batch.count) key(s) typed during an edit")
+        HeldKeyReplayer.post(batch) { [weak self] in
+            self?.isReplayingHeldKeys = false
+            self?.releaseHeldTypingIfDrained()
+        }
+    }
+
+    private func isReplayed(_ event: CGEvent) -> Bool {
+        event.getIntegerValueField(.eventSourceUserData) == Self.replayedEventUserData
+    }
+
+    /// Observer side of the handshake: true when this key-down belongs to the active tap (it was
+    /// held already, or it will be), so the observer must not act on it now.
+    private func isLeftForHolding(_ event: CGEvent) -> Bool {
+        guard !isReplayed(event) else { return false }
+        if keyDownsAlreadyHeld.remove(event.timestamp) != nil { return true }
+        guard isHoldingTyping else { return false }
+        keyDownsLeftForHolding.insert(event.timestamp)
+        return true
+    }
+
+    /// Active-tap side: keeps a copy of the writer's key-down for replay and reports whether the
+    /// original should be swallowed. A key the observer already acted on is let through instead.
+    private func hold(_ event: CGEvent) -> Bool {
+        guard !isReplayed(event) else { return false }
+        let wasLeftByObserver = keyDownsLeftForHolding.remove(event.timestamp) != nil
+        let wasActedOn = !wasLeftByObserver && event.timestamp == lastActedOnKeyDownTimestamp
+        guard wasLeftByObserver || (isHoldingTyping && !wasActedOn), let copy = event.copy() else { return false }
+        if !wasLeftByObserver {
+            keyDownsAlreadyHeld.insert(event.timestamp)
+        }
+        copy.setIntegerValueField(.eventSourceUserData, value: Self.replayedEventUserData)
+        heldKeyDowns.append(copy)
+        return true
     }
 
     private func installObserverTapIfNeeded() {
@@ -506,6 +616,13 @@ final class InputMonitor {
                 return Unmanaged.passUnretained(event)
             }
 
+            // A key the active tap is holding back has not been typed yet as far as the app is
+            // concerned; it is acted on when it comes through again as a replayed key.
+            if isLeftForHolding(event) {
+                return Unmanaged.passUnretained(event)
+            }
+            lastActedOnKeyDownTimestamp = event.timestamp
+
             if suppressionController.consumeIfNeeded() {
                 onSuppressedSyntheticInput?()
                 return Unmanaged.passUnretained(event)
@@ -579,6 +696,10 @@ final class InputMonitor {
             // swallow our own inserted text. Pass synthetic events straight through.
             if suppressionController.isSynthetic(event) {
                 return Unmanaged.passUnretained(event)
+            }
+
+            if hold(event) {
+                return nil
             }
 
             guard shouldProcessEventsProvider() else {

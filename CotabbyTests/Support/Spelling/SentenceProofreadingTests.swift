@@ -56,12 +56,14 @@ final class SentenceProofreadingTests: XCTestCase {
     private func proofread(
         _ sentence: String,
         typos: [String: (String, Bool)] = [:],
-        pairs: [String: Int64] = [:]
+        pairs: [String: Int64] = [:],
+        sentenceScores: [String: Double]? = nil
     ) -> LocalProofreadResult {
         LocalSentenceProofreader.proofread(sentence, checks: LocalSentenceProofreader.Checks(
             isTypo: { typos[$0] != nil },
             fix: { word, _ in typos[word].map { (options: [$0.0], isCertain: $0.1) } },
-            pairCount: { first, second in pairs["\(first) \(second)"] ?? 0 }
+            pairCount: { first, second in pairs["\(first) \(second)"] ?? 0 },
+            sentenceScore: sentenceScores.map { scores in { _, word in scores[word.lowercased()] ?? 0 } }
         ))
     }
 
@@ -103,5 +105,23 @@ final class SentenceProofreadingTests: XCTestCase {
 
     func test_proofread_leavesTheLastWordToTheWordGate() {
         XCTAssertFalse(proofread("I like teh", typos: ["teh": ("the", true)]).hasAutoFixes)
+    }
+
+    func test_proofread_wordThatFitsTheSentenceIsNotFlaggedWhateverThePairsSay() {
+        // #given pair counts that dislike "it's" and a sentence model that finds it likely
+        let result = proofread(
+            "It's hard to master English.",
+            pairs: ["its hard": 30_000_000],
+            sentenceScores: ["it's": 0.3, "its": 0.01]
+        )
+
+        // #then the correct contraction is left alone
+        XCTAssertFalse(result.hasSuggestions)
+    }
+
+    func test_proofread_capitalizedUnknownWordMidSentenceIsAName() {
+        let result = proofread("Yesterday Koko learned new words.", typos: ["Koko": ("Kook", true)])
+
+        XCTAssertEqual(result.autoCorrected, "Yesterday Koko learned new words.")
     }
 }

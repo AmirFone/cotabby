@@ -4,11 +4,15 @@ import Foundation
 import Logging
 
 /// File overview:
-/// Proofreads each sentence right after the writer finishes it, in two stages:
+/// Proofreads each sentence right after the writer finishes it, in up to three stages:
 ///
 /// - **Local, instant** (`LocalSentenceProofreader`): certain fixes (doubled words, punctuation
 ///   spacing, leftover typos with an unambiguous fix) are applied at once with a brief green flash;
 ///   likely wrong words are shown on a card with a dotted underline for the writer to review.
+/// - **Sentence model, on-device, when installed** (`SentenceModelService`): a small language model
+///   rereads the sentence (about 30 to 90 ms) and its answer goes through the same two outcomes.
+///   Words it is sure of are typed in place, words it is less sure of go on the review card. It
+///   catches what the local rules cannot: misspelled names and terms, and wrong real words.
 /// - **Groq, optional**: when a cloud endpoint is selected, the (locally fixed) sentence is then sent
 ///   for a grammar check and any fix is offered as the same card.
 ///
@@ -80,6 +84,9 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
     private let isWordAcceptKey: (InputMonitorKeyEvent) -> Bool
     private let qualityMetricsStore: SuggestionQualityMetricsStore
     private let localProofread: (FinishedSentence) -> LocalProofreadResult?
+    /// The sentence model's verdict on a sentence, already gated into "apply" and "review"; nil
+    /// when no model is installed. `async` because the model runs off the main thread.
+    private let modelProofread: (@MainActor (FinishedSentence) async -> LocalProofreadResult?)?
     private let isLocalEnabled: () -> Bool
     private let appliesLocalFixes: () -> Bool
 
@@ -87,12 +94,24 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
     private var pendingDecision: PendingDecision?
     private var checkedSentences: Set<String> = []
     private var locallyCheckedSentences: Set<String> = []
+    private var modelCheckedSentences: Set<String> = []
+    /// The model's check of the sentence that was finished last. A newer sentence cancels it: its
+    /// fixes could no longer be typed in place once the writer has moved on.
+    private var modelTask: Task<Void, Never>?
+    /// Sentences whose local fixes the writer undid; never fixed again in this field.
+    private var rejectedSentences: Set<String> = []
+    private var fixOutcomes = SentenceFixOutcomeTracker()
     private var checkedFocusChangeSequence: UInt64?
 
     var onCaptureStateChanged: (() -> Void)?
     /// Lets the suggestion coordinator clear ghost text so Tab has exactly one meaning.
     var onWillShowFix: (() -> Void)?
     var onCommitted: (() -> Void)?
+    /// Word-level spelling changes from local fixes the writer kept (`true`) or undid (`false`).
+    var onLocalFixOutcome: ((_ changes: [(typed: String, fixed: String)], _ kept: Bool) -> Void)?
+    /// One decision on the review card: the flagged word, the word before it, and what the writer
+    /// chose (the typed word itself when they kept it). Lets a kept word stop being flagged.
+    var onReviewChoice: ((_ typed: String, _ previous: String?, _ chosen: String) -> Void)?
 
     init(
         panel: any CandidateListPanelPresenting,
@@ -108,10 +127,12 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
         isWordAcceptKey: @escaping (InputMonitorKeyEvent) -> Bool,
         qualityMetricsStore: SuggestionQualityMetricsStore,
         localProofread: @escaping (FinishedSentence) -> LocalProofreadResult? = { _ in nil },
+        modelProofread: (@MainActor (FinishedSentence) async -> LocalProofreadResult?)? = nil,
         isLocalEnabled: @escaping () -> Bool = { false },
         appliesLocalFixes: @escaping () -> Bool = { false }
     ) {
         self.localProofread = localProofread
+        self.modelProofread = modelProofread
         self.isLocalEnabled = isLocalEnabled
         self.appliesLocalFixes = appliesLocalFixes
         self.panel = panel
@@ -158,7 +179,14 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
     }
 
     func stop() {
+        standDown()
+    }
+
+    /// Drops whatever is waiting, running, or on screen. Called when Cotabby is switched off, where
+    /// a card left up would keep offering a fix the writer just asked not to get.
+    func standDown() {
         cancelWaiting()
+        modelTask?.cancel()
         hideCard()
     }
 
@@ -173,11 +201,15 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
             checkedFocusChangeSequence = focusChangeSequence
             checkedSentences = []
             locallyCheckedSentences = []
+            modelCheckedSentences = []
+            rejectedSentences = []
         }
+        settleLocalFixOutcomes(precedingText)
         // A sentence that is no longer in the field (deleted, or the field was cleared after sending)
         // may be typed again and deserves a fresh check.
         checkedSentences = checkedSentences.filter { precedingText.contains($0) }
         locallyCheckedSentences = locallyCheckedSentences.filter { precedingText.contains($0) }
+        modelCheckedSentences = modelCheckedSentences.filter { precedingText.contains($0) }
         guard let finished = FinishedSentenceExtractor.extract(from: precedingText) else {
             cancelWaiting()
             return
@@ -189,6 +221,10 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
             cancelWaiting()
             return
         }
+        // The local pass had nothing (more) to do with this sentence; the model reads it next. When the
+        // local pass just typed its fixes, this method runs again for the corrected sentence and the
+        // model starts from that.
+        startModelPass(on: finished, caretRect: caretRect, focusChangeSequence: focusChangeSequence)
         guard isEnabled() else {
             cancelWaiting()
             return
@@ -210,7 +246,9 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
     /// Runs the on-device pass once per sentence. Returns true when it acted (applied fixes or showed
     /// a card), in which case the cloud check waits for the corrected sentence.
     private func runLocalPass(on finished: FinishedSentence, caretRect: CGRect, focusChangeSequence: UInt64) -> Bool {
-        guard isLocalEnabled(), locallyCheckedSentences.insert(finished.sentence).inserted else { return false }
+        guard isLocalEnabled(),
+              !rejectedSentences.contains(finished.sentence),
+              locallyCheckedSentences.insert(finished.sentence).inserted else { return false }
         guard let result = localProofread(finished), result.hasAutoFixes || result.hasSuggestions else {
             CotabbyLogger.suggestion.debug("Sentence pass: nothing to fix in \(finished.sentence.count)-character sentence")
             return false
@@ -218,6 +256,19 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
         CotabbyLogger.suggestion.debug(
             "Sentence pass: \(result.hasAutoFixes ? "auto-fixes" : "no auto-fixes"), \(result.flags.count) word(s) to review"
         )
+        return act(on: result, for: finished, caretRect: caretRect, focusChangeSequence: focusChangeSequence)
+    }
+
+    /// Carries out one stage's verdict: certain fixes are typed in place (when automatic fixing is
+    /// on) and flashed, unsure words open the review card. Shared by the local pass and the sentence
+    /// model so a fix is applied, confirmed, and undone the same way whichever stage found it.
+    /// Returns true when something was shown or queued to be typed.
+    private func act(
+        on result: LocalProofreadResult,
+        for finished: FinishedSentence,
+        caretRect: CGRect,
+        focusChangeSequence: UInt64
+    ) -> Bool {
         guard result.hasAutoFixes, appliesLocalFixes() else {
             if result.hasAutoFixes {
                 // Automatic fixing is off: the certain fixes are offered too, as one card.
@@ -246,6 +297,7 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
             trailingWhitespace: finished.trailingWhitespace,
             precedingContext: finished.precedingContext
         )
+        // The local rules have nothing to add to a sentence either stage just corrected.
         locallyCheckedSentences.insert(result.autoCorrected)
         // Deferred one turn, like every synthetic edit issued from inside a keystroke's handling.
         DispatchQueue.main.async { [weak self] in
@@ -262,6 +314,7 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
                 return
             }
             self.qualityMetricsStore.recordSentenceFixAccepted()
+            self.fixOutcomes.noteApplied(original: finished.sentence, corrected: result.autoCorrected)
             self.focusModel.refreshNow()
             if result.hasSuggestions {
                 self.startReview(
@@ -279,6 +332,64 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
             self.onCommitted?()
         }
         return true
+    }
+
+    // MARK: - Sentence model
+
+    /// Asks the sentence model about a sentence once, without waiting for a typing pause: its fixes
+    /// are typed in place, which only works while the caret still sits right after the sentence.
+    /// The answer is dropped when the writer has typed on, switched fields, or a card is showing.
+    private func startModelPass(on finished: FinishedSentence, caretRect: CGRect, focusChangeSequence: UInt64) {
+        guard let modelProofread, isLocalEnabled(), !isShowingFix,
+              !rejectedSentences.contains(finished.sentence),
+              modelCheckedSentences.insert(finished.sentence).inserted else { return }
+        modelTask?.cancel()
+        let started = DispatchTime.now().uptimeNanoseconds
+        // `Task` starts work that can wait (`await`) without blocking the main thread; it inherits
+        // this class's main-actor isolation, so everything after the `await` is back on the main thread.
+        modelTask = Task { [weak self] in
+            let result = await modelProofread(finished)
+            let milliseconds = (DispatchTime.now().uptimeNanoseconds - started) / 1_000_000
+            guard let self, !Task.isCancelled else { return }
+            guard let result, result.hasAutoFixes || result.hasSuggestions else {
+                CotabbyLogger.suggestion.debug("Sentence model: nothing to fix (\(milliseconds) ms)")
+                return
+            }
+            self.focusModel.refreshNow()
+            guard !self.isShowingFix, self.isStillCurrent(finished, focusChangeSequence: focusChangeSequence) else {
+                CotabbyLogger.suggestion.debug("Sentence model: answer came after the writer moved on (\(milliseconds) ms)")
+                return
+            }
+            let verdict = result.hasAutoFixes ? "fixes to type" : "no certain fixes"
+            CotabbyLogger.suggestion.debug(
+                "Sentence model: \(verdict), \(result.flags.count) word(s) to review (\(milliseconds) ms)"
+            )
+            // The model does not reread its own answer. (It does read what the local pass corrected:
+            // that pass cannot see a misspelled name or a wrong real word.)
+            self.modelCheckedSentences.insert(result.autoCorrected)
+            _ = self.act(
+                on: result,
+                for: finished,
+                caretRect: self.focusModel.snapshot.context?.caretRect ?? caretRect,
+                focusChangeSequence: focusChangeSequence
+            )
+        }
+    }
+
+    /// An undone local fix (the original sentence is back, e.g. after Cmd+Z) must not be applied
+    /// again, or the writer could never undo it; its spelling changes teach the history either way.
+    private func settleLocalFixOutcomes(_ precedingText: String) {
+        for outcome in fixOutcomes.observe(precedingText) {
+            switch outcome {
+            case let .confirmed(original, corrected):
+                onLocalFixOutcome?(SentenceFixOutcomeTracker.wordChanges(original: original, corrected: corrected), true)
+            case let .reverted(original, corrected):
+                rejectedSentences.insert(original)
+                qualityMetricsStore.recordCorrectionReverted()
+                onLocalFixOutcome?(SentenceFixOutcomeTracker.wordChanges(original: original, corrected: corrected), false)
+                CotabbyLogger.suggestion.debug("Sentence pass: fixes undone, leaving the sentence as written")
+            }
+        }
     }
 
     // MARK: - Review
@@ -322,8 +433,13 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
     /// the whole sentence once the last word is decided.
     private func choose(_ index: Int) {
         guard case .reviewing(var review) = phase else { return }
-        let options = [review.flags[review.current].typed] + review.flags[review.current].options
-        review.choices.append(options[min(max(index, 0), options.count - 1)])
+        let flag = review.flags[review.current]
+        let options = [flag.typed] + flag.options
+        let chosen = options[min(max(index, 0), options.count - 1)]
+        review.choices.append(chosen)
+        let previous = WordToken.tokens(in: review.finished.sentence)
+            .last { $0.range.upperBound <= flag.range.lowerBound }?.text
+        onReviewChoice?(flag.typed, previous, chosen)
         review.current += 1
         review.selected = 1
         guard review.current == review.flags.count else {
@@ -335,17 +451,20 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
         let finished = review.finished
         let corrected = review.flags.applying(choices: review.choices, to: finished.sentence)
         guard corrected != finished.sentence else { return }
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            self.focusModel.refreshNow()
-            guard let precedingText = self.focusModel.snapshot.context?.precedingText,
-                  let plan = SentenceRewritePlanner.plan(precedingText: precedingText, finished: finished, corrected: corrected),
-                  self.inserter.replace(deletingUTF16Count: plan.deletingUTF16Count, with: plan.replacementText) else {
-                return
+        // The last choice may have been Option+digit; wait for Option to lift (see `ModifierRelease`).
+        DispatchQueue.main.async {
+            ModifierRelease.perform { [weak self] in
+                guard let self else { return }
+                self.focusModel.refreshNow()
+                guard let precedingText = self.focusModel.snapshot.context?.precedingText,
+                      let plan = SentenceRewritePlanner.plan(precedingText: precedingText, finished: finished, corrected: corrected),
+                      self.inserter.replace(deletingUTF16Count: plan.deletingUTF16Count, with: plan.replacementText) else {
+                    return
+                }
+                self.qualityMetricsStore.recordSentenceFixAccepted()
+                self.focusModel.refreshNow()
+                self.onCommitted?()
             }
-            self.qualityMetricsStore.recordSentenceFixAccepted()
-            self.focusModel.refreshNow()
-            self.onCommitted?()
         }
     }
 
@@ -403,6 +522,7 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
         }
 
         guard !Task.isCancelled,
+              !isShowingFix,
               let result,
               result.edits.allSatisfy({ $0.confidence >= Self.minimumEditConfidence }),
               isStillCurrent(finished, focusChangeSequence: focusChangeSequence),

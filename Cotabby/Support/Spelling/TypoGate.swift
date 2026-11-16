@@ -34,15 +34,38 @@ enum TypoGate {
         let offerTypoCorrections: Bool
         let automaticallyFixTypos: Bool
         /// Auto-apply needs a top score at least this high...
-        var autoApplyMinimumScore = 1.12
+        var autoApplyMinimumScore = Settings.baseAutoApplyMinimumScore
         /// ...and at least this far ahead of the runner-up, so "wich" (which/with) never auto-fixes.
-        var autoApplyMinimumMargin = 0.22
+        var autoApplyMinimumMargin = 0.4
         /// Below this gap between the top two, the writer picks from a list instead of a green ghost.
         var choiceListMaximumMargin = 0.15
         /// A top score under this is too unsure to present as a single suggestion.
         var singleOfferMinimumScore = 0.5
+        /// With a trained model (`AutoFixConfidenceModel`), auto-apply instead needs this probability
+        /// that the top fix is the intended word. Nil keeps the score-and-margin rule.
+        var autoApplyMinimumConfidence: Double?
         /// Mid-word lists wait for enough letters to mean something.
         var midWordMinimumLength = 3
+
+        static let baseAutoApplyMinimumScore = 1.12
+
+        /// The auto-fix bar, raised for a writer who undoes auto-fixes: each undone fix already stops
+        /// that one word from being fixed again, and a high undo rate says the engine's confident
+        /// guesses are wrong for this writer more generally, so fewer should be applied unasked. Needs
+        /// 20 auto-fixes before it moves, so a couple of early undos cannot swing it.
+        /// The same adjustment for the trained model's probability threshold: a writer who undoes one
+        /// auto-fix in ten needs the model about seven points surer, capped so some fixes always apply.
+        static func adaptedAutoApplyMinimumConfidence(base: Double, autoApplied: Int, reverted: Int) -> Double {
+            guard autoApplied >= 20 else { return base }
+            let undoRate = Double(reverted) / Double(autoApplied)
+            return min(0.98, base + min(0.15, max(0, undoRate - 0.03)))
+        }
+
+        static func adaptedAutoApplyMinimumScore(autoApplied: Int, reverted: Int) -> Double {
+            guard autoApplied >= 20 else { return baseAutoApplyMinimumScore }
+            let undoRate = Double(reverted) / Double(autoApplied)
+            return baseAutoApplyMinimumScore + min(0.6, max(0, undoRate - 0.03) * 4)
+        }
     }
 
     /// Resolves the gate decision for the trailing word of `precedingText`.
@@ -62,7 +85,8 @@ enum TypoGate {
         isTypo: (String) -> Bool,
         isWordInProgress: (String) -> Bool,
         candidates: (_ word: String, _ isMidWord: Bool) -> [SpellingCandidate],
-        realWordCandidates: (_ word: String) -> [SpellingCandidate] = { _ in [] }
+        realWordCandidates: (_ word: String) -> [SpellingCandidate] = { _ in [] },
+        autoFixConfidence: (_ word: String) -> Double? = { _ in nil }
     ) -> TypoGateDecision {
         guard settings.suppressCompletionsOnTypo,
               let current = CurrentWordExtractor.extractTrailingWord(from: precedingText) else {
@@ -87,7 +111,7 @@ enum TypoGate {
 
         let margin = ranked.count > 1 ? top.score - ranked[1].score : top.score
         if settings.automaticallyFixTypos, !isMidWord, current.trailingSpaceCount == 1,
-           top.score >= settings.autoApplyMinimumScore, margin >= settings.autoApplyMinimumMargin {
+           isCertain(top: top, margin: margin, confidence: autoFixConfidence(word), settings: settings) {
             return .applyCorrection(word: word, correctedWord: top.term)
         }
         guard settings.offerTypoCorrections else { return .suppress }
@@ -98,6 +122,15 @@ enum TypoGate {
             return .offerRankedCorrection(word: word, candidates: ranked)
         }
         return .offerCorrection(word: word, correctedWord: top.term)
+    }
+
+    /// Whether the top fix may be applied without asking. A model probability decides when there is
+    /// one; otherwise the score must be high and well ahead of the runner-up.
+    static func isCertain(top: SpellingCandidate, margin: Double, confidence: Double?, settings: Settings) -> Bool {
+        if let confidence, let minimum = settings.autoApplyMinimumConfidence {
+            return confidence >= minimum
+        }
+        return top.score >= settings.autoApplyMinimumScore && margin >= settings.autoApplyMinimumMargin
     }
 
     static func resolve(

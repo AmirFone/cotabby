@@ -40,6 +40,7 @@ struct EmojiPickerView: View {
         }
         .font(.system(size: 12, weight: .medium, design: .monospaced))
         .lineLimit(1)
+        .popupTextHalo()
         .padding(.horizontal, EmojiPickerMetrics.horizontalInset)
         .frame(height: EmojiPickerMetrics.queryRowHeight)
     }
@@ -93,7 +94,7 @@ struct EmojiPickerView: View {
     }
 }
 
-/// One ribbon glyph. The selected cell gets a soft white chip (the calm Spotlight-style highlight);
+/// One ribbon glyph. The selected cell sits on the shared raised glass key (`popupSelectionChip`);
 /// the rest are bare so the row reads as a clean line of emoji.
 private struct EmojiRibbonCell: View {
     let glyph: String
@@ -103,9 +104,6 @@ private struct EmojiRibbonCell: View {
         Text(glyph)
             .font(.system(size: 20))
             .frame(width: EmojiPickerMetrics.cellSize, height: EmojiPickerMetrics.cellSize)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(isSelected ? PopupTheme.selectionFill : Color.clear)
-            )
+            .popupSelectionChip(isSelected, cornerRadius: 8)
     }
 }

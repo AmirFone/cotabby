@@ -39,8 +39,8 @@ final class CandidateListController: CandidateOfferPresenting, InlineCapturePart
         static let right: CGKeyCode = 124
         static let down: CGKeyCode = 125
         static let up: CGKeyCode = 126
-        /// Option+1/2/3 pick a slot directly, left to right.
-        static let digits: [CGKeyCode] = [18, 19, 20]
+        /// Option+1…4 pick a slot directly, left to right.
+        static let digits: [CGKeyCode] = [18, 19, 20, 21]
     }
 
     /// A list left alone this long closes itself so it never lingers over the writer's work.
@@ -69,6 +69,13 @@ final class CandidateListController: CandidateOfferPresenting, InlineCapturePart
     var onCaptureStateChanged: (() -> Void)?
     /// Invoked after a committed choice has been typed, so the suggestion pipeline re-reads the field.
     var onCommitted: (() -> Void)?
+    /// Invoked when the writer closes the spelling bar with Escape, which means "leave this word alone".
+    var onDismissedByEscape: (() -> Void)?
+    /// Records picks and kept words for tuning (see `CorrectionJournal`). Nil in tests.
+    var journal: CorrectionJournal?
+    /// Told the field's expected text when a pick typed the word's space itself, so the word strip can
+    /// keep a following period or Space from fighting it.
+    var onPickAddedSpace: ((_ expectedText: String) -> Void)?
 
     init(
         panel: any CandidateListPanelPresenting,
@@ -200,7 +207,7 @@ final class CandidateListController: CandidateOfferPresenting, InlineCapturePart
 
     private func observeWhileShowing(_ event: CapturedInputEvent, offer: CandidateOffer) -> Bool {
         let modifiers = ShortcutModifierMask(eventFlags: event.flags)
-        if modifiers.contains(.command) || modifiers.contains(.control) {
+        if Self.belongsToTheApp(keyCode: event.keyCode, modifiers: modifiers) {
             teardown()
             return false
         }
@@ -224,6 +231,7 @@ final class CandidateListController: CandidateOfferPresenting, InlineCapturePart
         case KeyCode.returnKey, KeyCode.keypadEnter:
             return handleReturn(event, offer: offer)
         case KeyCode.escape:
+            if offer.isSpellingBar { onDismissedByEscape?() }
             teardown()
             record(consume: true, for: event)
             return true
@@ -233,6 +241,14 @@ final class CandidateListController: CandidateOfferPresenting, InlineCapturePart
             armIdleTimeout()
             return false
         }
+    }
+
+    /// Keys the bar never takes: any shortcut with Command or Control, and Shift- or Option-arrows,
+    /// which select text and jump by word.
+    private static func belongsToTheApp(keyCode: CGKeyCode, modifiers: ShortcutModifierMask) -> Bool {
+        if modifiers.contains(.command) || modifiers.contains(.control) { return true }
+        let isArrow = [KeyCode.up, KeyCode.down, KeyCode.left, KeyCode.right].contains(keyCode)
+        return isArrow && (modifiers.contains(.shift) || modifiers.contains(.option))
     }
 
     private func handleReturn(_ event: CapturedInputEvent, offer: CandidateOffer) -> Bool {
@@ -257,7 +273,7 @@ final class CandidateListController: CandidateOfferPresenting, InlineCapturePart
         return true
     }
 
-    /// Option+1/2/3: pick that slot without moving the highlight first.
+    /// Option+1…4: pick that slot without moving the highlight first.
     private func commitSlot(for event: CapturedInputEvent, offer: CandidateOffer) -> Bool {
         guard let slot = KeyCode.digits.firstIndex(of: event.keyCode), offer.candidates.indices.contains(slot) else {
             return false
@@ -292,8 +308,12 @@ final class CandidateListController: CandidateOfferPresenting, InlineCapturePart
         teardown()
         // Posting synthetic keystrokes from inside the tap callback for the key being handled is what
         // made emoji commits flaky; defer one runloop turn exactly like `EmojiPickerController`.
+        // Option+number picks must also wait for Option to be released, or the typed fix arrives as
+        // Option+letters (see `ModifierRelease`).
         DispatchQueue.main.async { [weak self] in
-            self?.type(choice: choice, from: offer, pickedRunnerUp: pickedRunnerUp)
+            ModifierRelease.perform {
+                self?.type(choice: choice, from: offer, pickedRunnerUp: pickedRunnerUp)
+            }
         }
     }
 
@@ -315,10 +335,15 @@ final class CandidateListController: CandidateOfferPresenting, InlineCapturePart
             }
             // A word picked from the list is finished, so a mid-word pick also types the space the
             // writer would otherwise have to add.
-            let text = plan.replacementText.hasSuffix(" ") ? plan.replacementText : plan.replacementText + " "
+            let addsSpace = !plan.replacementText.hasSuffix(" ")
+            let text = addsSpace ? plan.replacementText + " " : plan.replacementText
             guard inserter.replace(deletingUTF16Count: plan.deletingUTF16Count, with: text) else { return }
+            if addsSpace {
+                onPickAddedSpace?(String(precedingText.utf16.dropLast(plan.deletingUTF16Count)).map { $0 + text } ?? "")
+            }
             correctionMemory.recordAccepted(typo: typo, replacement: choice)
             qualityMetricsStore.recordCorrectionAccepted(fromList: true)
+            journal?.record(.picked, typed: typo, final: choice)
         case .continuation:
             guard inserter.insert(choice) else { return }
             if pickedRunnerUp {
@@ -333,6 +358,7 @@ final class CandidateListController: CandidateOfferPresenting, InlineCapturePart
     /// it, and stop flagging it.
     private func keep(typo: String, offer: CandidateOffer, precedingText: String) {
         correctionMemory.recordKept(offer.keepKey ?? typo)
+        journal?.record(.keptAsTyped, typed: typo, final: typo)
         if precedingText.hasSuffix(typo) {
             _ = inserter.insert(" ")
         }
@@ -377,6 +403,8 @@ final class CandidateListController: CandidateOfferPresenting, InlineCapturePart
                 teardown()
                 return
             }
+            // Most focus updates repeat the caret position; only a move needs the panel placed again.
+            guard context.caretRect != offer.caretRect else { return }
             var moved = offer
             moved.caretRect = context.caretRect
             phase = .showing(moved)

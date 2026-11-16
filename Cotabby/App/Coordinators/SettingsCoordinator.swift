@@ -26,6 +26,8 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
     private let jevKeyModel: JevKeyModel
     private let onShowWelcome: () -> Void
     private let clearEmojiHistory: () -> Void
+    private let clearLearnedPhrases: () -> Void
+    private let correctionJournal: CorrectionJournal
 
     private var settingsWindowController: NSWindowController?
 
@@ -51,7 +53,9 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         systemMetricsStore: SystemMetricsStore,
         jevKeyModel: JevKeyModel,
         onShowWelcome: @escaping () -> Void,
-        clearEmojiHistory: @escaping () -> Void
+        clearEmojiHistory: @escaping () -> Void,
+        clearLearnedPhrases: @escaping () -> Void,
+        correctionJournal: CorrectionJournal
     ) {
         self.appUpdateManager = appUpdateManager
         self.permissionManager = permissionManager
@@ -68,6 +72,8 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         self.jevKeyModel = jevKeyModel
         self.onShowWelcome = onShowWelcome
         self.clearEmojiHistory = clearEmojiHistory
+        self.clearLearnedPhrases = clearLearnedPhrases
+        self.correctionJournal = correctionJournal
     }
 
     /// Shows the settings window, reusing the existing instance if it is already open.
@@ -98,6 +104,8 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
                     jevKeyModel: jevKeyModel,
                     onShowWelcome: onShowWelcome,
                     clearEmojiHistory: clearEmojiHistory,
+                    clearLearnedPhrases: clearLearnedPhrases,
+                    correctionJournal: correctionJournal,
                     onQuit: { NSApplication.shared.terminate(nil) }
                 )
             )

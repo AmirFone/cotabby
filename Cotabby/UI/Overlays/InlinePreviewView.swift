@@ -25,6 +25,7 @@ struct InlinePreviewView: View {
                 .font(.system(size: 13, weight: .medium, design: .rounded))
                 .foregroundStyle(PopupTheme.primaryText)
                 .lineLimit(1)
+                .popupTextHalo()
             if let label = model.acceptKeyLabel {
                 InlinePreviewKeycap(label: label)
             }
@@ -50,7 +51,7 @@ private struct InlinePreviewKeycap: View {
             .padding(.vertical, 2)
             .background(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(Color.white.opacity(0.10))
+                    .fill(Color.primary.opacity(0.08))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)

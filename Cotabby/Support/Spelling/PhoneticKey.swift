@@ -139,4 +139,43 @@ nonisolated enum PhoneticKey {
         }
         return result
     }
+
+    // MARK: - Vowel-aware key
+
+    /// Spelling-to-sound rewrites for `vowelKey`, applied in order, longest patterns first. Uppercase
+    /// output letters are sound symbols and are never rewritten again.
+    private static let vowelKeyRewrites: [(String, String)] = [
+        // Letter groups that make one sound, including the silent-gh families.
+        ("tion", "SHN"), ("sion", "SHN"), ("ture", "CHR"), ("ough", "O"), ("augh", "O"), ("eigh", "A"),
+        ("igh", "I"), ("sch", "SK"), ("tch", "CH"), ("dge", "J"), ("ch", "CH"), ("sh", "SH"), ("ph", "F"), ("ck", "K"),
+        ("qu", "KW"), ("wh", "W"), ("wr", "R"), ("kn", "N"), ("gn", "N"),
+        // Vowel sounds, whatever spells them.
+        ("ew", "U"), ("oo", "U"), ("ue", "U"), ("ui", "U"), ("ee", "E"), ("ea", "E"), ("ie", "E"), ("ey", "E"),
+        ("ai", "A"), ("ay", "A"), ("ei", "A"), ("oa", "O"), ("ow", "O"), ("aw", "O"), ("au", "O"), ("ou", "O"),
+        // An r after a vowel mostly colors it; "dorter" and "daughter" sound alike.
+        ("or", "O"), ("er", "R"), ("ur", "R"), ("ir", "R"), ("ar", "AR"),
+        ("ce", "SE"), ("ci", "SI"), ("cy", "SI"), ("ge", "JE"), ("gi", "JI"),
+        ("c", "K"), ("q", "K"), ("x", "KS"), ("z", "S"), ("y", "I")
+    ]
+
+    /// How a word sounds, vowels included: `brawt` and `brought` both read BROT, while `brat` reads
+    /// BRAT. The consonant-only `keys(for:)` casts a wide net; this key is the narrow, strong signal
+    /// that a sound-it-out spelling means one particular word. Rules cover common English
+    /// spelling-to-sound patterns (silent gh, vowel teams, silent final e, "ture"), not a word list.
+    static func vowelKey(for word: String) -> String {
+        var text = word.lowercased().filter { $0.isLetter && $0.isASCII }
+        guard text.count >= 3 else { return "" }
+        if text.hasPrefix("h"), let second = text.dropFirst().first, "aeiou".contains(second) {
+            text.removeFirst()
+        }
+        for (pattern, sound) in vowelKeyRewrites {
+            text = text.replacingOccurrences(of: pattern, with: sound)
+        }
+        // A silent final e after a consonant: "wate" and "weight" both end in T.
+        if text.last == "e" || text.last == "E", text.count > 2, let beforeLast = text.dropLast().last,
+           !"aeiouAEIOU".contains(beforeLast) {
+            text.removeLast()
+        }
+        return String(collapse(Array(text.uppercased())))
+    }
 }

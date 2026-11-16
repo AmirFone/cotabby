@@ -23,6 +23,11 @@ final class SuggestionInserter {
     /// the accept silently fails. Defaults to "no IME" so tests and previews need no wiring.
     var isComposingIMEActiveProvider: @MainActor () -> Bool = { false }
 
+    /// Called just before an edit that deletes text is posted. Wired to
+    /// `InputMonitor.holdTypingWhileEditsDrain` in `CotabbyAppEnvironment`, so a key the writer
+    /// presses while the backspaces are going out cannot land between them.
+    var onWillPostDeletingEdit: (@MainActor () -> Void)?
+
     /// In-flight state for the opt-in paste path. The user's real clipboard is snapshotted once and
     /// restored after the paste lands. While a restore is pending, a second paste must NOT re-snapshot
     /// (the pasteboard then holds OUR completion, which would leak back to the user), so overlapping
@@ -181,6 +186,9 @@ final class SuggestionInserter {
             suppressionController.markSynthetic(event)
         }
         suppressionController.registerSyntheticInsertion(expectedKeyDownCount: plan.totalKeyDownCount)
+        if plan.backspaceCount > 0 {
+            onWillPostDeletingEdit?()
+        }
         SyntheticEventPoster.post(events)
 
         lastErrorMessage = nil
@@ -365,6 +373,39 @@ extension SuggestionInserter: EmojiTextInserting {}
 /// allowed sentence rewrite (120 keys) about half a second, all on a background queue so the main
 /// thread stays free. Routing every synthetic key through the same queue keeps a replace and a
 /// following insert in order.
+/// Types the writer's own keys back in after `InputMonitor` held them during a deleting edit.
+///
+/// Separate from `SyntheticEventPoster` on purpose: that one keeps the clock for "Cotabby's own keys
+/// are still going out", which other code reads to tell the app's edits from the writer's. These
+/// keys are the writer's. They carry `InputMonitor.replayedEventUserData` (set when they were
+/// held), are paced the same way, and each gets a matching key-up, because the taps only ever see
+/// key-downs and the original key-up went to the host long ago.
+nonisolated enum HeldKeyReplayer {
+    private static let queue = DispatchQueue(label: "com.cotabby.held-keys", qos: .userInteractive)
+
+    private struct Batch: @unchecked Sendable {
+        let keyDowns: [CGEvent]
+    }
+
+    /// Posts the held key-downs in order, then calls `completion` on the main actor.
+    static func post(_ keyDowns: [CGEvent], completion: @escaping @MainActor () -> Void) {
+        let batch = Batch(keyDowns: keyDowns)
+        queue.async {
+            for keyDown in batch.keyDowns {
+                keyDown.post(tap: .cghidEventTap)
+                let keyCode = CGKeyCode(keyDown.getIntegerValueField(.keyboardEventKeycode))
+                if let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: false) {
+                    keyUp.flags = keyDown.flags
+                    keyUp.setIntegerValueField(.eventSourceUserData, value: InputMonitor.replayedEventUserData)
+                    keyUp.post(tap: .cghidEventTap)
+                }
+                usleep(SyntheticEventPoster.gapAfterKeyUpMicroseconds)
+            }
+            DispatchQueue.main.async { completion() }
+        }
+    }
+}
+
 nonisolated enum SyntheticEventPoster {
     static let gapAfterKeyUpMicroseconds: UInt32 = 4_000
 
@@ -397,6 +438,15 @@ nonisolated enum SyntheticEventPoster {
         lock.withLock {
             let now = DispatchTime.now().uptimeNanoseconds
             return drainedAt.uptimeNanoseconds > now ? Double(drainedAt.uptimeNanoseconds - now) / 1_000_000_000 : 0
+        }
+    }
+
+    /// Seconds since Cotabby's last queued key was posted (0 while keys are still going out), so
+    /// learning code can tell the writer's own edits from the app's.
+    static var secondsSinceDrained: TimeInterval {
+        lock.withLock {
+            let now = DispatchTime.now().uptimeNanoseconds
+            return now > drainedAt.uptimeNanoseconds ? Double(now - drainedAt.uptimeNanoseconds) / 1_000_000_000 : 0
         }
     }
 

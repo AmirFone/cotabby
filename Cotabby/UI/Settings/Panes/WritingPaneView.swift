@@ -7,6 +7,12 @@ import SwiftUI
 struct WritingPaneView: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
     @ObservedObject var jevKeyModel: JevKeyModel
+    let clearLearnedPhrases: () -> Void
+    let correctionJournal: CorrectionJournal
+    @AppStorage(CorrectionJournal.enabledDefaultsKey) private var keepsJournal = true
+    @AppStorage(WordPredictionController.enabledDefaultsKey) private var wordPredictionsEnabled = true
+    @AppStorage(PersonalPhraseModel.learningDefaultsKey) private var learnsPhrases = true
+    @State private var clearedLearnedPhrases = false
     @StateObject private var systemAutocorrect = SystemAutocorrectModel()
     @State private var jevKeyDraft = ""
 
@@ -82,6 +88,51 @@ struct WritingPaneView: View {
             // master/dependent idiom in this app (see `EmojiPaneView`). The earlier flat layout put
             // all three toggles at the same visual level, so it was not obvious the gate governed the
             // other two.
+            Section("Word Predictions") {
+                Toggle(isOn: $wordPredictionsEnabled) {
+                    SettingsRowLabel(
+                        title: "Show Next-Word Predictions",
+                        description: "A strip of up to five likely words appears above the caret as you type. Tab " +
+                            "types the first word and the next word is predicted right away, so you can build a " +
+                            "sentence by pressing Tab. Option-2 to 5 type the others. Return and Escape work as usual. " +
+                            "While this is on it replaces ghost-text suggestions, and a misspelled word's fix bar " +
+                            "comes first. Runs entirely on this Mac.",
+                        systemImage: "text.word.spacing"
+                    )
+                }
+                Toggle(isOn: $learnsPhrases) {
+                    SettingsRowLabel(
+                        title: "Learn From My Sentences",
+                        description: "Remembers word sequences from sentences you finish so your own phrasing is " +
+                            "predicted first. Stored only on this Mac. Sentences with unknown words are skipped.",
+                        systemImage: "brain"
+                    )
+                }
+                .disabled(!wordPredictionsEnabled)
+                Toggle(isOn: $keepsJournal) {
+                    SettingsRowLabel(
+                        title: "Keep a Correction Journal",
+                        description: "Records only misspelled words and what they became (auto-fixed, picked, undone, or " +
+                            "fixed by you), never other text or password fields, so fixes can be tuned to your " +
+                            "mistakes. Words you fix yourself are learned and fixed for you next time. Stored only on this Mac.",
+                        systemImage: "book.closed"
+                    )
+                }
+                HStack {
+                    Button("Show Journal in Finder") {
+                        if let url = correctionJournal.fileURL {
+                            NSWorkspace.shared.activateFileViewerSelecting([url])
+                        }
+                    }
+                    Button("Clear Journal") { correctionJournal.clear() }
+                }
+                Button(clearedLearnedPhrases ? "Cleared" : "Clear Learned Phrases") {
+                    clearLearnedPhrases()
+                    clearedLearnedPhrases = true
+                }
+                .disabled(clearedLearnedPhrases)
+            }
+
             Section("Typos") {
                 Toggle(isOn: suppressCompletionsOnTypoBinding) {
                     SettingsRowLabel(
@@ -108,9 +159,9 @@ struct WritingPaneView: View {
                     Toggle(isOn: automaticallyFixTyposBinding) {
                         SettingsRowLabel(
                             title: "Automatically Fix Confident Typos",
-                            description: "After you press Space, fixes a word when Cotabby is sure. Otherwise a three-slot bar " +
-                                "opens above the word: your word, the best fix, a runner-up. Tab takes the highlighted " +
-                                "slot, arrows move, Option-1/2/3 pick directly.",
+                            description: "After you press Space, fixes a word when Cotabby is sure. Otherwise a bar opens " +
+                                "above the word: your word, then up to three fixes. Tab takes the best fix, Option-1 to 4 " +
+                                "pick any slot, arrows move the highlight.",
                             systemImage: "checkmark.circle"
                         )
                     }

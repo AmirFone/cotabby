@@ -55,6 +55,21 @@ struct SymSpellPhoneticMatch: Equatable {
     let term: String
     let similarity: Double
     let count: Int64
+    /// Same `PhoneticKey.vowelKey`: sounds the same vowels included, not just the same consonants.
+    var soundsIdentical = false
+    /// The sound keys are one slip apart rather than equal (`apsolootly` ~ absolutely): a weaker
+    /// match, found only for finished words.
+    var isApproximate = false
+}
+
+/// A way to read a non-word as two common words typed without the space (`nextdoor` → next door).
+struct SymSpellSplit: Equatable {
+    let first: String
+    let second: String
+    /// Corpus count of the rarer half.
+    let minimumCount: Int64
+    /// How often `second` follows `first` (bigram list); filled in by `TypoGateInputs`.
+    var pairCount: Int64 = 0
 }
 
 /// `nonisolated` so the index can be built and queried off the main actor (the project defaults to
@@ -83,6 +98,16 @@ nonisolated final class SymSpell {
     /// Phonetic key -> common word indices (see `PhoneticKey`). Only the common vocabulary is indexed:
     /// a sound-alike guess should land on a word people actually write, not a rare near-miss.
     private var phoneticBuckets: [String: [Int32]] = [:]
+    /// `PhoneticKey.vowelKey` -> common word indices; the narrow "sounds exactly like" index.
+    private var vowelKeyBuckets: [String: [Int32]] = [:]
+    /// A phonetic key, or that key with one sound removed -> common word indices. Two keys that share
+    /// an entry are at most one substituted, swapped, added, or dropped sound apart, which is how a
+    /// sounded-out spelling with one wrong sound (`comfterbul`) still reaches its word.
+    private var nearPhoneticBuckets: [String: [Int32]] = [:]
+    /// Short keys have huge neighborhoods (most three-sound words are one sound from each other).
+    static let minimumApproximateKeyLength = 4
+    /// An approximate sound match must also look this much like the typed word.
+    static let minimumApproximateSimilarity = 0.72
 
     static let commonVocabularySize = 30_000
 
@@ -112,11 +137,58 @@ nonisolated final class SymSpell {
 
     private func buildPhoneticIndex() {
         phoneticBuckets = [:]
+        vowelKeyBuckets = [:]
+        nearPhoneticBuckets = [:]
         for (index, word) in wordsList.enumerated() where (words[word] ?? 0) >= commonWordCountFloor {
             for key in PhoneticKey.keys(for: word) {
                 phoneticBuckets[key, default: []].append(Int32(index))
+                guard key.count >= Self.minimumApproximateKeyLength else { continue }
+                for variant in Self.keyWithEachSoundRemoved(key) {
+                    nearPhoneticBuckets[variant, default: []].append(Int32(index))
+                }
+            }
+            let vowelKey = PhoneticKey.vowelKey(for: word)
+            if !vowelKey.isEmpty {
+                vowelKeyBuckets[vowelKey, default: []].append(Int32(index))
             }
         }
+    }
+
+    /// `key` and every version of it with one sound removed.
+    private static func keyWithEachSoundRemoved(_ key: String) -> Set<String> {
+        let sounds = Array(key)
+        var variants: Set<String> = [key]
+        for index in sounds.indices {
+            var shorter = sounds
+            shorter.remove(at: index)
+            variants.insert(String(shorter))
+        }
+        return variants
+    }
+
+    /// Common words whose sound is one slip from `input`'s and whose spelling is still close, most
+    /// similar first. Excludes exact sound matches, which `phoneticMatches` already returns.
+    func approximatePhoneticMatches(for input: String, limit: Int = 6) -> [SymSpellPhoneticMatch] {
+        let lowered = input.lowercased()
+        let letters = Array(lowered)
+        let keys = PhoneticKey.keys(for: lowered).filter { $0.count >= Self.minimumApproximateKeyLength }
+        var seen = Set<Int32>()
+        for key in keys {
+            for index in phoneticBuckets[key] ?? [] { seen.insert(index) }
+        }
+        var matches: [SymSpellPhoneticMatch] = []
+        for key in keys {
+            for variant in Self.keyWithEachSoundRemoved(key) {
+                for index in nearPhoneticBuckets[variant] ?? [] where seen.insert(index).inserted {
+                    let term = wordsList[Int(index)]
+                    guard term != lowered, abs(term.count - letters.count) <= 3 else { continue }
+                    let similarity = Self.jaroWinkler(letters, Array(term))
+                    guard similarity >= Self.minimumApproximateSimilarity else { continue }
+                    matches.append(SymSpellPhoneticMatch(term: term, similarity: similarity, count: words[term] ?? 0, isApproximate: true))
+                }
+            }
+        }
+        return Array(matches.sorted { $0.similarity > $1.similarity }.prefix(limit))
     }
 
     /// Common words that sound like `input`, most similar spelling first. `similarity` is Jaro-Winkler
@@ -136,7 +208,24 @@ nonisolated final class SymSpell {
                 ))
             }
         }
-        return Array(matches.sorted { $0.similarity > $1.similarity }.prefix(limit))
+        let vowelKey = PhoneticKey.vowelKey(for: lowered)
+        let identical = Set((vowelKeyBuckets[vowelKey] ?? []).map { wordsList[Int($0)] })
+        for index in vowelKeyBuckets[vowelKey] ?? [] where seen.insert(index).inserted {
+            let term = wordsList[Int(index)]
+            guard term != lowered else { continue }
+            matches.append(SymSpellPhoneticMatch(
+                term: term,
+                similarity: Self.jaroWinkler(Array(lowered), Array(term)),
+                count: words[term] ?? 0
+            ))
+        }
+        for position in matches.indices where identical.contains(matches[position].term) {
+            matches[position].soundsIdentical = true
+        }
+        // Identical-sounding words first, so the cut never drops the strongest sound evidence.
+        return Array(matches.sorted {
+            $0.soundsIdentical != $1.soundsIdentical ? $0.soundsIdentical : $0.similarity > $1.similarity
+        }.prefix(limit))
     }
 
     static func jaroWinkler(_ lhs: [Character], _ rhs: [Character]) -> Double {
@@ -170,8 +259,14 @@ nonisolated final class SymSpell {
         return jaro + Double(prefix) * 0.1 * (1 - jaro)
     }
 
+    /// A word seen again keeps the larger count, so a correction list appended after the main
+    /// dictionary (`frequency_overrides_en.txt`) can raise words the corpus undercounts.
     func createDictionaryEntry(key: String, count: Int64) {
-        guard count > 0, words[key] == nil else { return }
+        guard count > 0 else { return }
+        if let existing = words[key] {
+            words[key] = max(existing, count)
+            return
+        }
         words[key] = count
         let index = Int32(wordsList.count)
         wordsList.append(key)
@@ -228,7 +323,21 @@ nonisolated final class SymSpell {
             return [SymSpellSuggestion(term: input, distance: 0, count: count)]
         }
         if maxED == 0 { return [] }
+        return search(input, inputChars: inputChars, maxED: maxED)
+    }
 
+    /// Dictionary words within `maxEditDistance` of `input` other than `input` itself, best first.
+    /// Unlike `lookup`, a word that is in the dictionary still gets its neighbors, which is what the
+    /// wrong-word check needs: `form` is a word, and so is `from`, one swap away.
+    func neighbors(of input: String, maxEditDistance: Int) -> [SymSpellSuggestion] {
+        let maxED = min(maxEditDistance, maxDictionaryEditDistance)
+        let inputChars = Array(input)
+        guard maxED > 0, inputChars.count - maxED <= maxDictionaryWordLength else { return [] }
+        return search(input, inputChars: inputChars, maxED: maxED)
+    }
+
+    private func search(_ input: String, inputChars: [Character], maxED: Int) -> [SymSpellSuggestion] {
+        let inputLen = inputChars.count
         var suggestions: [SymSpellSuggestion] = []
         var consideredSuggestions = Set<String>([input])
         var consideredDeletes = Set<String>()
@@ -310,6 +419,56 @@ nonisolated final class SymSpell {
                 candidates.append(deleted)
             }
         }
+    }
+
+    func contains(_ word: String) -> Bool {
+        words[word] != nil
+    }
+
+    /// Every way to cut `input` into two common words of at least two letters each.
+    func splits(of input: String) -> [SymSpellSplit] {
+        let letters = Array(input)
+        guard letters.count >= 4 else { return [] }
+        var found: [SymSpellSplit] = []
+        for cut in 2...(letters.count - 2) {
+            guard let first = words[String(letters[..<cut])], first >= commonWordCountFloor,
+                  let second = words[String(letters[cut...])], second >= commonWordCountFloor else { continue }
+            found.append(SymSpellSplit(
+                first: String(letters[..<cut]),
+                second: String(letters[cut...]),
+                minimumCount: min(first, second)
+            ))
+        }
+        return found
+    }
+
+    /// How often `word` (lowercased) occurs in the corpus; 0 when it is not a dictionary word.
+    func count(of word: String) -> Int64 {
+        words[word] ?? 0
+    }
+
+    /// Common words that sound exactly like `word`, vowels included (`mussel` ~ muscle).
+    func soundsIdentical(to word: String) -> [SymSpellSuggestion] {
+        let key = PhoneticKey.vowelKey(for: word)
+        guard !key.isEmpty else { return [] }
+        return (vowelKeyBuckets[key] ?? []).compactMap { index in
+            let term = wordsList[Int(index)]
+            return term == word ? nil : SymSpellSuggestion(term: term, distance: -1, count: words[term] ?? 0)
+        }
+    }
+
+    /// Dictionary words that start with `prefix` (lowercased), most frequent first. The bundled
+    /// dictionary is sorted by frequency, so a bucket in load order is already ranked.
+    func completions(of prefix: String, limit: Int) -> [String] {
+        guard let first = prefix.first, let bucket = initialBuckets[first] else { return [] }
+        var result: [String] = []
+        for index in bucket {
+            let term = wordsList[Int(index)]
+            guard term != prefix, term.hasPrefix(prefix) else { continue }
+            result.append(term)
+            if result.count == limit { break }
+        }
+        return result
     }
 
     // MARK: - Prefix matching

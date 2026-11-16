@@ -52,6 +52,20 @@ nonisolated enum LocalSentenceProofreader {
         let fix: (_ word: String, _ textBefore: String) -> (options: [String], isCertain: Bool)?
         /// Bigram count, nil when unavailable.
         let pairCount: (_ first: String, _ second: String) -> Int64?
+        /// N-gram likelihood of a word after the text before it (see
+        /// `NextWordPredictor.contextScore`); vetoes wrong-word flags on words that fit the sentence.
+        var sentenceScore: ((_ textBefore: String, _ word: String) -> Double)?
+        /// The trained wrong-word check (`WrongWordDetector.suspects`): what a correctly spelled word
+        /// was probably meant to be, best first; empty when it fits. Nil uses the listed confusables.
+        var wrongWord: ((_ word: String, _ place: WordPlace) -> [String])?
+    }
+
+    /// Where a word sits in its sentence, for the wrong-word check.
+    struct WordPlace {
+        let textBefore: String
+        let previous: String?
+        let next: String?
+        let afterNext: String?
     }
 
     /// Repeats that are real English (`had had`, `that that`, `bye bye`) are never collapsed.
@@ -78,6 +92,7 @@ nonisolated enum LocalSentenceProofreader {
             if token.text == "i" || token.text.hasPrefix("i'") {
                 replacements.append((token.range, "I" + token.text.dropFirst()))
             } else if checks.isTypo(token.text),
+                      !isLikelyName(token.text, textBefore: String(text[..<token.range.lowerBound])),
                       let fix = checks.fix(token.text, String(text[..<token.range.lowerBound])),
                       fix.isCertain, let best = fix.options.first {
                 replacements.append((token.range, best))
@@ -91,11 +106,29 @@ nonisolated enum LocalSentenceProofreader {
         let tokens = WordToken.tokens(in: text)
         var flags: [SentenceFlag] = []
         for (position, token) in tokens.enumerated() where position < tokens.count - 1 {
+            let textBefore = String(text[..<token.range.lowerBound])
             if checks.isTypo(token.text) {
+                // Capitalized mid-sentence is almost always a name the dictionary does not know.
+                if isLikelyName(token.text, textBefore: textBefore) { continue }
                 guard let fix = checks.fix(token.text, String(text[..<token.range.lowerBound])),
                       !fix.options.isEmpty else { continue }
                 flags.append(SentenceFlag(range: token.range, typed: token.text, options: Array(fix.options.prefix(2))))
-            } else if let alternative = realWordAlternative(
+            } else if let wrongWord = checks.wrongWord {
+                guard token.text != "I", !isLikelyName(token.text, textBefore: textBefore) else { continue }
+                let options = wrongWord(token.text, WordPlace(
+                    textBefore: textBefore,
+                    previous: position > 0 ? tokens[position - 1].text : nil,
+                    next: tokens[position + 1].text,
+                    afterNext: position + 2 < tokens.count ? tokens[position + 2].text : nil
+                ))
+                guard !options.isEmpty else { continue }
+                flags.append(SentenceFlag(
+                    range: token.range,
+                    typed: token.text,
+                    options: options.map { TypoCaseTransfer.applying(caseOf: token.text, to: $0) }
+                ))
+            } else if !fitsSentence(token.text, textBefore: textBefore, checks: checks),
+                      let alternative = realWordAlternative(
                 token.text,
                 previous: position > 0 ? tokens[position - 1].text : nil,
                 next: tokens[position + 1].text,
@@ -106,6 +139,20 @@ nonisolated enum LocalSentenceProofreader {
             }
         }
         return flags
+    }
+
+    /// The sentence model's veto: a word it finds likely after the text before it is left alone,
+    /// whatever the pair counts say (they split contractions, so `It's hard` looked wrong).
+    private static func fitsSentence(_ word: String, textBefore: String, checks: Checks) -> Bool {
+        guard let score = checks.sentenceScore, !RealWordErrorDetector.alternatives(for: word).isEmpty else { return false }
+        return RealWordErrorDetector.sentenceVerdict(word: word, score: { score(textBefore, $0) }).typedFits
+    }
+
+    private static func isLikelyName(_ word: String, textBefore: String) -> Bool {
+        guard word.first?.isUppercase == true, word != "I" else { return false }
+        let before = textBefore.trimmingCharacters(in: .whitespaces)
+        guard let last = before.last else { return false }
+        return !".!?\"“(".contains(last)
     }
 
     /// Every word except the last, which the word-level gate already handles at the caret.
@@ -125,6 +172,12 @@ nonisolated enum LocalSentenceProofreader {
         result = result.replacingOccurrences(of: "(?<=\\p{L}) +(?=[,;:!?.](\\s|$))", with: "", options: .regularExpression)
         // A space after a comma or semicolon between words: `hello,world` → `hello, world`.
         result = result.replacingOccurrences(of: "(?<=\\p{L})([,;])(?=\\p{L})", with: "$1 ", options: .regularExpression)
+        // `could of` is `could have` written as it sounds. `of course` is the one real phrase.
+        result = result.replacingOccurrences(
+            of: "\\b(could|should|would|might|must)(n't)? of\\b(?! course)",
+            with: "$1$2 have",
+            options: [.regularExpression, .caseInsensitive]
+        )
         return collapseDoubledWords(result)
     }
 

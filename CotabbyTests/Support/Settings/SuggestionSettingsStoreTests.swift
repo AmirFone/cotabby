@@ -98,14 +98,82 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         XCTAssertEqual(data.acceptanceKeyCode, SuggestionSettingsStore.defaultAcceptanceKeyCode)
     }
 
-    func test_load_globalToggleAbsentDefaultsToDisabledSentinel() async {
+    func test_load_globalToggleNeverSet_isBoundToTheDefaultShortcut() async {
+        // #given a writer who never opened the Shortcuts pane
         let defaults = makeIsolatedDefaults()
 
+        // #when settings load
         let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
 
-        // The global-toggle hotkey is opt-in; an absent entry must NOT bind a real key.
+        // #then Control+Option+C switches Cotabby off and on
+        XCTAssertEqual(data.globalToggleKeyCode, SuggestionSettingsStore.defaultGlobalToggleKeyCode)
+        XCTAssertEqual(data.globalToggleKeyModifiers, [.control, .option])
+        XCTAssertEqual(data.globalToggleKeyLabel, "⌃⌥C")
+    }
+
+    func test_load_globalToggleNoneSavedByAnOlderBuild_isBoundToTheDefaultShortcut() async {
+        // #given settings written by a build without a default shortcut, which saved "none" for
+        // every writer who never picked one
+        let defaults = makeIsolatedDefaults()
+        defaults.set(Int(SuggestionSettingsStore.disabledKeyCode), forKey: "cotabbyGlobalToggleKeyCode")
+        defaults.set(0, forKey: "cotabbyGlobalToggleKeyModifiers")
+        defaults.set(SuggestionSettingsStore.disabledKeyLabel, forKey: "cotabbyGlobalToggleKeyLabel")
+
+        // #when this build loads them
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        // #then the writer gets the default shortcut
+        XCTAssertEqual(data.globalToggleKeyCode, SuggestionSettingsStore.defaultGlobalToggleKeyCode)
+        XCTAssertEqual(data.globalToggleKeyModifiers, [.control, .option])
+        XCTAssertEqual(data.globalToggleKeyLabel, "⌃⌥C")
+    }
+
+    func test_load_globalToggleKeySavedByAnOlderBuild_isKept() async {
+        // #given a writer who had bound their own shortcut in a build without a default
+        let defaults = makeIsolatedDefaults()
+        defaults.set(5, forKey: "cotabbyGlobalToggleKeyCode")
+        defaults.set(Int(ShortcutModifierMask.option.rawValue), forKey: "cotabbyGlobalToggleKeyModifiers")
+        defaults.set("⌥G", forKey: "cotabbyGlobalToggleKeyLabel")
+
+        // #when this build loads them
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        // #then their shortcut is untouched
+        XCTAssertEqual(data.globalToggleKeyCode, 5)
+        XCTAssertEqual(data.globalToggleKeyModifiers, [.option])
+        XCTAssertEqual(data.globalToggleKeyLabel, "⌥G")
+    }
+
+    func test_load_globalToggleCleared_staysUnbound() async {
+        // #given a writer who cleared the shortcut
+        let defaults = makeIsolatedDefaults()
+        let store = SuggestionSettingsStore(userDefaults: defaults)
+        store.saveGlobalToggleKey(
+            keyCode: SuggestionSettingsStore.disabledKeyCode,
+            modifiers: [],
+            label: SuggestionSettingsStore.disabledKeyLabel
+        )
+
+        // #when settings load again
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        // #then the default does not come back
         XCTAssertEqual(data.globalToggleKeyCode, SuggestionSettingsStore.disabledKeyCode)
+        XCTAssertTrue(data.globalToggleKeyModifiers.isEmpty)
         XCTAssertEqual(data.globalToggleKeyLabel, SuggestionSettingsStore.disabledKeyLabel)
+    }
+
+    func test_load_globalToggleBareKey_keepsNoModifiers() async {
+        // #given a writer who bound a bare key (saved with no modifiers)
+        let defaults = makeIsolatedDefaults()
+        SuggestionSettingsStore(userDefaults: defaults).saveGlobalToggleKey(keyCode: 47, modifiers: [], label: ".")
+
+        // #when settings load again
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        // #then the default's modifiers are not mixed into their binding
+        XCTAssertEqual(data.globalToggleKeyCode, 47)
+        XCTAssertTrue(data.globalToggleKeyModifiers.isEmpty)
     }
 
     // MARK: - Custom rules: absent seeds defaults, present is honored

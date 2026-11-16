@@ -61,11 +61,15 @@ bar-has:question/bar-has:questions	the questoi|
 !auto	the enviro|
 
 ## Real-word slips (spelled right, wrong word): offered, never applied
-realword:there	I went their |
+# With only the words before it, `went their` could still become `went their way`; the sentence pass
+# catches it once the rest is typed (sentences.txt).
+proceed	I went their |
+proceed	we need to by |
 realword:there	I want to go their |
+realword:know	I want to no |
+realword:were	we where |
 realword:from	It is different form |
 realword:than	more then |
-realword:buy	we need to by |
 realword:knew	I new |
 realword:your	thank you for you're |
 realword:here	come over hear |
@@ -195,7 +199,8 @@ auto:the	I saw teh, |
 auto:because	It broke becuase. |
 bar:the	I saw teh,|
 auto:don't	I dont! |
-realword:there	I went their. |
+proceed	I went their. |
+realword:there	I want to go their. |
 proceed	I said hello, |
 auto:Etc	etc. |
 

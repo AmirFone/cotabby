@@ -120,6 +120,70 @@ nonisolated struct SentenceFixSegment: Equatable, Sendable {
     var isSuggestion = false
 }
 
+/// What happened to a sentence the local pass fixed on its own, read from the field afterwards.
+/// Mirrors `AutoFixOutcomeTracker` for single words: typing on confirms the fixes, the original
+/// sentence coming back (Cmd+Z) rejects them.
+nonisolated struct SentenceFixOutcomeTracker {
+    enum Outcome: Equatable {
+        case confirmed(original: String, corrected: String)
+        case reverted(original: String, corrected: String)
+    }
+
+    private struct Pending {
+        let original: String
+        let corrected: String
+        /// Field length once the corrected sentence was first seen; nil until then.
+        var settledLength: Int?
+    }
+
+    /// Characters the writer must type past a fixed sentence before its fixes count as accepted.
+    static let confirmationCharacters = 8
+
+    private var pending: [Pending] = []
+
+    mutating func noteApplied(original: String, corrected: String) {
+        pending.append(Pending(original: original, corrected: corrected))
+        if pending.count > 4 { pending.removeFirst() }
+    }
+
+    mutating func observe(_ precedingText: String) -> [Outcome] {
+        var outcomes: [Outcome] = []
+        pending = pending.compactMap { item in
+            var item = item
+            let hasCorrected = precedingText.contains(item.corrected)
+            if precedingText.contains(item.original), !hasCorrected {
+                outcomes.append(.reverted(original: item.original, corrected: item.corrected))
+                return nil
+            }
+            guard hasCorrected else {
+                return item.settledLength == nil ? item : nil
+            }
+            let settled = item.settledLength ?? precedingText.count
+            if precedingText.count >= settled + Self.confirmationCharacters {
+                outcomes.append(.confirmed(original: item.original, corrected: item.corrected))
+                return nil
+            }
+            item.settledLength = settled
+            return item
+        }
+        return outcomes
+    }
+
+    /// Word-for-word spelling changes between two versions of a sentence, lowercased and without
+    /// surrounding punctuation. Capitalization and punctuation fixes are not spelling, so they are
+    /// left out. Only same-length sentences pair up; a fix that merged or split words is skipped.
+    static func wordChanges(original: String, corrected: String) -> [(typed: String, fixed: String)] {
+        let before = original.split(whereSeparator: \.isWhitespace).map(normalized)
+        let after = corrected.split(whereSeparator: \.isWhitespace).map(normalized)
+        guard before.count == after.count else { return [] }
+        return zip(before, after).filter { $0 != $1 && !$0.isEmpty && !$1.isEmpty }
+    }
+
+    private static func normalized(_ word: Substring) -> String {
+        word.trimmingCharacters(in: .punctuationCharacters).lowercased()
+    }
+}
+
 nonisolated enum SentenceWordDiff {
     /// Longest-common-subsequence diff over words; sentences are capped at 40 words, so the table
     /// stays tiny.

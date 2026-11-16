@@ -90,6 +90,29 @@ final class CandidateListControllerTests: XCTestCase {
         XCTAssertFalse(harness.controller.isCapturing)
     }
 
+    func test_escapeOnTheSpellingBar_reportsTheDismissal() {
+        let harness = makeHarness(precedingText: "I think wich ")
+        var dismissals = 0
+        harness.controller.onDismissedByEscape = { dismissals += 1 }
+        harness.controller.presentChoices(harness.spellingOffer(typo: "wich", candidates: ["which", "with"]))
+
+        _ = harness.controller.observe(Self.key(53))
+
+        XCTAssertEqual(dismissals, 1)
+    }
+
+    func test_shiftArrow_closesTheBarAndReachesTheApp() {
+        let harness = makeHarness(precedingText: "I think wich ")
+        harness.controller.presentChoices(harness.spellingOffer(typo: "wich", candidates: ["which", "with"]))
+
+        let handled = harness.controller.observe(
+            CapturedInputEvent(kind: .navigation, keyCode: 123, characters: "", flags: .maskShift)
+        )
+
+        XCTAssertFalse(handled)
+        XCTAssertFalse(harness.controller.isCapturing)
+    }
+
     func test_armedAlternates_openOnlyOnDownAndInsertWholeChoice() {
         let harness = makeHarness(precedingText: "Can we meet ")
         harness.controller.armChoices(CandidateOffer(
@@ -121,6 +144,21 @@ final class CandidateListControllerTests: XCTestCase {
         XCTAssertFalse(harness.controller.observe(Self.key(48)))
         XCTAssertFalse(harness.controller.observe(Self.key(125)), "Down after disarming must move the caret")
         XCTAssertTrue(harness.panel.isHidden)
+    }
+
+    func test_focusUpdateWithTheCaretInPlace_doesNotPlaceTheBarAgain() {
+        // #given a bar that has followed the caret once
+        let harness = makeHarness(precedingText: "I think wich")
+        harness.controller.presentChoices(harness.spellingOffer(typo: "wich", candidates: ["wich", "which", "with"]))
+        harness.focus.publish(precedingText: "I think wich", focusChangeSequence: 1)
+        let showsAfterTheMove = harness.panel.showCount
+
+        // #when the same caret position is published again (most focus updates are repeats)
+        harness.focus.publish(precedingText: "I think wich", focusChangeSequence: 1)
+
+        // #then the panel is not asked to place itself again
+        XCTAssertEqual(harness.panel.showCount, showsAfterTheMove)
+        XCTAssertFalse(harness.panel.isHidden)
     }
 
     func test_focusChangeClosesTheList() {
@@ -287,8 +325,10 @@ private final class RecordingCandidatePanel: CandidateListPanelPresenting {
     var onClickOutside: (() -> Void)?
     private(set) var isHidden = true
     private(set) var selectedIndex = 0
+    private(set) var showCount = 0
 
     func show(offer: CandidateOffer, selectedIndex: Int, acceptKeyLabel: String) {
+        showCount += 1
         isHidden = false
         self.selectedIndex = selectedIndex
     }
@@ -298,6 +338,8 @@ private final class RecordingCandidatePanel: CandidateListPanelPresenting {
     }
 
     func showFlash(typo: String, correction: String, caretRect: CGRect) {}
+
+    func showWordStrip(words: [String], selectedIndex: Int?, caretRect: CGRect) {}
 
     func showSentenceFlash(segments: [SentenceFixSegment], caretRect: CGRect) {}
 

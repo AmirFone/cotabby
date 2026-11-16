@@ -82,7 +82,17 @@ nonisolated final class SymSpellCorrector: @unchecked Sendable {
         let fullWord = symSpell.lookup(lowered).filter { $0.distance > 0 }
         let phonetic = symSpell.phoneticMatches(for: lowered)
         guard includePrefixMatches else {
-            return SpellingCandidateSources(fullWord: fullWord, prefix: [], isCommonWordPrefix: false, phonetic: phonetic)
+            // A finished word that sounds one slip away from a common word: only worth the extra
+            // lookup once the word is complete, and only when it is not already an exact sound match.
+            let known = Set(phonetic.map(\.term))
+            let approximate = symSpell.approximatePhoneticMatches(for: lowered).filter { !known.contains($0.term) }
+            return SpellingCandidateSources(
+                fullWord: fullWord,
+                prefix: [],
+                isCommonWordPrefix: false,
+                phonetic: phonetic + approximate,
+                splits: symSpell.splits(of: lowered)
+            )
         }
         let prefixDistance = lowered.count >= 5 ? 2 : 1
         return SpellingCandidateSources(
@@ -91,6 +101,34 @@ nonisolated final class SymSpellCorrector: @unchecked Sendable {
             isCommonWordPrefix: symSpell.isCommonWordPrefix(lowered),
             phonetic: phonetic
         )
+    }
+
+    /// Dictionary words starting with `prefix`, most frequent first; empty while the index loads.
+    func completions(of prefix: String, language: SpellingDictionaryLanguage = .english, limit: Int) -> [String] {
+        cachedIndexOrRequestLoad(for: language)?.completions(of: prefix.lowercased(), limit: limit) ?? []
+    }
+
+    /// Words whose beginning is within one slip of `prefix` (two from five letters), most frequent
+    /// first: completions that forgive a misspelling in what has been typed so far.
+    func fuzzyCompletions(of prefix: String, language: SpellingDictionaryLanguage = .english, limit: Int) -> [String] {
+        let lowered = prefix.lowercased()
+        guard let symSpell = cachedIndexOrRequestLoad(for: language) else { return [] }
+        return symSpell.prefixMatches(for: lowered, maxEditDistance: lowered.count >= 5 ? 2 : 1, limit: limit).map(\.term)
+    }
+
+    /// The dictionary lookups the wrong-word check needs, or nil while the index is still loading.
+    func wrongWordSources(language: SpellingDictionaryLanguage = .english) -> WrongWordDetector.Sources? {
+        guard let symSpell = cachedIndexOrRequestLoad(for: language) else { return nil }
+        return WrongWordDetector.Sources(
+            count: { symSpell.count(of: $0) },
+            neighbors: { symSpell.neighbors(of: $0, maxEditDistance: 1) },
+            soundAlikes: { symSpell.soundsIdentical(to: $0) },
+            commonCountFloor: symSpell.commonWordCountFloor
+        )
+    }
+
+    func isDictionaryWord(_ word: String, language: SpellingDictionaryLanguage = .english) -> Bool {
+        cachedIndexOrRequestLoad(for: language)?.contains(word.lowercased()) ?? false
     }
 
     /// Test seam: synchronously publishes a small in-memory dictionary without touching the bundle.
@@ -193,10 +231,18 @@ nonisolated final class SymSpellCorrector: @unchecked Sendable {
     }
 
     private static func bundledContents(for language: SpellingDictionaryLanguage) -> String? {
-        guard let url = resourceURL(for: language) else {
+        guard let url = resourceURL(for: language), let contents = try? String(contentsOf: url, encoding: .utf8) else {
             return nil
         }
-        return try? String(contentsOf: url, encoding: .utf8)
+        return language == .english ? contents + "\n" + englishOverrides() : contents
+    }
+
+    /// Counts for everyday words the Google-derived frequency list undercounts or lacks: it splits
+    /// `cannot` into `can not` (88k uses against 200M+ for `think`) and predates `instagram`.
+    /// Without this, `connot` became `cont`.
+    static func englishOverrides(in bundle: Bundle = .main) -> String {
+        guard let url = bundle.url(forResource: "frequency_overrides_en", withExtension: "txt") else { return "" }
+        return (try? String(contentsOf: url, encoding: .utf8)) ?? ""
     }
 
     /// Xcode may flatten resources or preserve their source folder, so probe both bundle layouts.
