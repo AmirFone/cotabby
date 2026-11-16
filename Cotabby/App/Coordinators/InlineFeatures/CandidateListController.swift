@@ -358,7 +358,7 @@ final class CandidateListController: CandidateOfferPresenting, InlineCapturePart
     /// it, and stop flagging it.
     private func keep(typo: String, offer: CandidateOffer, precedingText: String) {
         correctionMemory.recordKept(offer.keepKey ?? typo)
-        journal?.record(.keptAsTyped, typed: typo, final: typo)
+        journal?.record(.keptAsTyped, typed: typo, final: typo, offered: offer.candidates.first { $0 != typo })
         if precedingText.hasSuffix(typo) {
             _ = inserter.insert(" ")
         }

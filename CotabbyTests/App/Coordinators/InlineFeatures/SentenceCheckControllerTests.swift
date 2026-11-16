@@ -37,7 +37,8 @@ final class SentenceCheckControllerTests: XCTestCase {
             return LocalProofreadResult(original: finished.sentence, autoCorrected: fixed, flags: [])
         })
         var outcomes: [(changes: [String], kept: Bool)] = []
-        harness.controller.onLocalFixOutcome = { changes, kept in
+        harness.controller.onLocalFixOutcome = { original, corrected, kept in
+            let changes = SentenceFixOutcomeTracker.wordChanges(original: original, corrected: corrected)
             outcomes.append((changes.map { "\($0.typed)>\($0.fixed)" }, kept))
         }
         harness.controller.noteTypedText("I saw teh cat. ", caretRect: .zero, focusChangeSequence: 1)
@@ -60,7 +61,7 @@ final class SentenceCheckControllerTests: XCTestCase {
             return LocalProofreadResult(original: finished.sentence, autoCorrected: fixed, flags: [])
         })
         var kept: [Bool] = []
-        harness.controller.onLocalFixOutcome = { _, wasKept in kept.append(wasKept) }
+        harness.controller.onLocalFixOutcome = { _, _, wasKept in kept.append(wasKept) }
         harness.controller.noteTypedText("I saw teh cat. ", caretRect: .zero, focusChangeSequence: 1)
         flushMainQueue()
 

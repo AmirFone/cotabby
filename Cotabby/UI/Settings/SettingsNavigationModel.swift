@@ -33,6 +33,11 @@ final class SettingsNavigationModel: ObservableObject {
         selection = category
     }
 
+    /// Posted with a `SettingsItem` id as its object to show that setting in an open Settings
+    /// window, the way a search result does. The window's navigation state lives inside the SwiftUI
+    /// view, so code outside it (the end-to-end test driver's `settings` command) asks this way.
+    static let revealRequest = Notification.Name("cotabbyRevealSettingsItem")
+
     /// Search navigation: selects the item's pane and pulses the row. The pane's scaffold watches
     /// `highlightedItem` to perform the scroll.
     func reveal(_ item: SettingsItem) {

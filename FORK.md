@@ -32,6 +32,45 @@ The app is named "Cotabby Dev" and keeps its own settings and permissions, so it
 - **Learns you:** fixes you pick rank higher next time.
 - **Learns your words:** a name or term the dictionary lacks, once you have written it twice, becomes a correction target in your capitals (`lindqvsit` → Lindqvist instead of Lundqvist). Stored locally; "Clear Learned Phrases" clears it.
 
+## Training data (opt-in)
+
+Settings → Writing → **Training Data** has a switch, **Save Training Examples**, that is off until you
+turn it on. With it on, each sentence you finish is saved with what became of the fixes in it, so a
+spelling model can be trained on your own writing. **Export…** writes one JSON object per line
+(wrapped and reordered here for reading; in the file the keys are sorted):
+
+```json
+{"scope":"sentence","day":"2026-11-15","typed":"I drive a Tyoda Corola to work.","final":"I drive a Toyota Corolla to work.",
+ "accepted":[{"typed":"Tyoda","fix":"Toyota","how":"sentenceFix"},{"typed":"Corola","fix":"Corolla","how":"sentenceFix"}],"rejected":[]}
+```
+
+- `typed` is the sentence as you first typed it (the model's input) and `final` what you ended up with
+  (its target). A sentence nothing was done to has the two equal, which teaches a model what to leave alone.
+- `accepted` lists changes you kept: `autoFix` (fixed for you, you typed on), `picked` (chosen from the
+  bar or card), `selfCorrected` (you retyped it), `sentenceFix` (fixed when the sentence was finished).
+- `rejected` lists what you turned down: an `autoFix` or `sentenceFix` you undid, or a fix that was
+  `offered` and you kept your word. These are the "do not change this" examples.
+- `scope` is `word` for a fix that could not be placed in a saved sentence (`typed` and `final` are then
+  the word itself).
+
+This is a training record, not a keystroke log, and the code is written to keep it that way
+(`Services/Spelling/TrainingLog.swift`):
+
+- Nothing is saved until the switch is on.
+- Only finished sentences and spelling decisions: no keys or shortcuts, nothing you typed and deleted,
+  no app or window names, a calendar date but no time of day.
+- Only where Cotabby is working: never password fields, nothing while Cotabby is off, paused, or
+  disabled for the app in front. Sentences with a web address, an email address, or code are skipped,
+  as are fragments under three words and blocks over 400 characters.
+- One file on this Mac, readable only by your user (`~/Library/Application Support/Cotabby/training-log.jsonl`),
+  never uploaded. It leaves the Mac only through Export, to a place you pick.
+- **Show in Finder** and **Delete All** are next to the switch. The file is capped at 20 MB (the older
+  half is dropped past that).
+
+The examples are joined from small events at export time (`Support/Spelling/TrainingExamples.swift`),
+because the events for one sentence do not arrive in order: a sentence fix is confirmed only when you
+type on, and an undo replaces a sentence that was already saved.
+
 ## Engine
 
 - 82k-word dictionary with SymSpell (edit distance 2), preloaded in memory at launch.
@@ -235,6 +274,9 @@ Tools/install-dev.sh
 Tools/e2e/live-smoke.sh                       # everything, about three minutes
 E2E_ONLY=speed Tools/e2e/live-smoke.sh        # key-to-fix timings only (E2E_PACE=<ms per key>)
 E2E_ONLY=toggle Tools/e2e/live-smoke.sh       # the on/off shortcut only
+E2E_ONLY=training Tools/e2e/live-smoke.sh     # the opt-in training record (on for that run only)
+# A picture of Settings at one setting, taken by the app of its own window only:
+E2E_ONLY=settings E2E_SETTING=trainingData E2E_SETTINGS_HEIGHT=2200 E2E_SHOT=/tmp/settings.png Tools/e2e/live-smoke.sh
 # A picture of the test window with a panel up, taken by the app itself (it holds Screen Recording):
 # the word strip by default, or whatever E2E_SHOT_TEXT brings up; E2E_HOST_LOOK=light|dark sets the
 # window behind it.

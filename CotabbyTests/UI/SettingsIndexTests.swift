@@ -38,6 +38,7 @@ final class SettingsIndexTests: XCTestCase {
             ("vscode", .suggestInIntegratedTerminals),
             ("typo", .automaticallyFixTypos),
             ("model status", .modelStatus),
+            ("export training", .trainingData),
             ("battery", .batteryModel),
             ("plugged", .pluggedInModel),
             ("groq", .endpointProvider),

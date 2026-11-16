@@ -107,8 +107,9 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
     /// Lets the suggestion coordinator clear ghost text so Tab has exactly one meaning.
     var onWillShowFix: (() -> Void)?
     var onCommitted: (() -> Void)?
-    /// Word-level spelling changes from local fixes the writer kept (`true`) or undid (`false`).
-    var onLocalFixOutcome: ((_ changes: [(typed: String, fixed: String)], _ kept: Bool) -> Void)?
+    /// A sentence fix the writer kept (`true`, they typed on) or undid (`false`), with the sentence
+    /// before and after it.
+    var onLocalFixOutcome: ((_ original: String, _ corrected: String, _ kept: Bool) -> Void)?
     /// One decision on the review card: the flagged word, the word before it, and what the writer
     /// chose (the typed word itself when they kept it). Lets a kept word stop being flagged.
     var onReviewChoice: ((_ typed: String, _ previous: String?, _ chosen: String) -> Void)?
@@ -382,11 +383,11 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
         for outcome in fixOutcomes.observe(precedingText) {
             switch outcome {
             case let .confirmed(original, corrected):
-                onLocalFixOutcome?(SentenceFixOutcomeTracker.wordChanges(original: original, corrected: corrected), true)
+                onLocalFixOutcome?(original, corrected, true)
             case let .reverted(original, corrected):
                 rejectedSentences.insert(original)
                 qualityMetricsStore.recordCorrectionReverted()
-                onLocalFixOutcome?(SentenceFixOutcomeTracker.wordChanges(original: original, corrected: corrected), false)
+                onLocalFixOutcome?(original, corrected, false)
                 CotabbyLogger.suggestion.debug("Sentence pass: fixes undone, leaving the sentence as written")
             }
         }

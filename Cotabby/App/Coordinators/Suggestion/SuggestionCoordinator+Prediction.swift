@@ -721,7 +721,7 @@ extension SuggestionCoordinator {
             case .reverted:
                 personalCorrectionMemory?.recordKept(outcome.typo)
                 qualityMetricsStore.recordCorrectionReverted()
-                correctionJournal?.record(.autoFixUndone, typed: outcome.typo, final: outcome.typo)
+                correctionJournal?.record(.autoFixUndone, typed: outcome.typo, final: outcome.typo, offered: outcome.fix)
             }
             CotabbyLogger.suggestion.debug("Auto-fix \(outcome.typo) -> \(outcome.fix) \(outcome.kind)")
         }

@@ -99,6 +99,10 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
     var onCaptureStateChanged: (() -> Void)?
     /// Invoked after a picked word has been typed, so the suggestion pipeline re-reads the field.
     var onCommitted: (() -> Void)?
+    /// A sentence the writer finished and left standing (it was still in the field, unchanged, after
+    /// `learnDelay`, so any fix made to it had already landed), or a chat line sent with Return.
+    /// The opt-in training record listens here.
+    var onSentenceSettled: ((String) -> Void)?
 
     init(
         panel: any CandidateListPanelPresenting,
@@ -414,9 +418,13 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
         let sentence = body[start...].trimmingCharacters(in: .whitespaces)
         guard !sentence.isEmpty, sentence != lastLearnedSentence else { return }
         lastLearnedSentence = sentence
+        // The sentence as the sentence pass sees it (punctuation kept, abbreviation-aware), so a
+        // listener can match it against that pass's fixes. Nil for text the pass leaves alone.
+        let finished = FinishedSentenceExtractor.extract(from: text)?.sentence
         DispatchQueue.main.asyncAfter(deadline: .now() + learnDelay) { [weak self] in
             guard let self, self.focusModel.snapshot.context?.precedingText.contains(sentence) == true else { return }
             self.learn(sentence)
+            if let finished { self.onSentenceSettled?(finished) }
         }
     }
 
@@ -429,6 +437,7 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
         guard sentence.split(separator: " ").count >= 3, sentence != lastLearnedSentence else { return }
         lastLearnedSentence = sentence
         learn(sentence)
+        onSentenceSettled?(sentence)
     }
 
     /// Where Tab already means something the writer relies on, the strip leaves it alone and every

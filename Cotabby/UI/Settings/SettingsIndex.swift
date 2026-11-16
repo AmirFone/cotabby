@@ -50,6 +50,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case spellingDictionaries
     case automaticallyFixTypos
     case sentenceCheck
+    case trainingData
     // Context
     case extendedContext
     case contextLivePreview
@@ -137,6 +138,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .spellingDictionaries: return "Spelling Dictionaries"
         case .automaticallyFixTypos: return "Automatically Fix Typos"
         case .sentenceCheck: return "Check Finished Sentences"
+        case .trainingData: return "Save Training Examples"
         case .endpointContextSize: return "Groq Large Context"
         case .endpointRateBudget: return "Groq Plan"
         case .extendedContext: return "Extended Context"
@@ -217,6 +219,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .spellingDictionaries: return "character.book.closed"
         case .automaticallyFixTypos: return "checkmark.circle"
         case .sentenceCheck: return "text.badge.checkmark"
+        case .trainingData: return "graduationcap"
         case .endpointContextSize: return "text.alignleft"
         case .endpointRateBudget: return "gauge.with.dots.needle.33percent"
         case .extendedContext: return "doc.text"
@@ -274,7 +277,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
             return .emoji
         case .length, .acceptPunctuation, .addSpaceAfterAccept, .name, .languages, .customRules,
              .hideSuggestionsOnTypo, .offerTypoCorrections, .spellingDictionaries, .automaticallyFixTypos,
-             .sentenceCheck:
+             .sentenceCheck, .trainingData:
             return .writing
         case .extendedContext, .contextLivePreview:
             return .context
@@ -336,6 +339,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .spellingDictionaries: return "Dictionaries used to detect typos."
         case .automaticallyFixTypos: return "Replace a misspelled word right after you press Space."
         case .sentenceCheck: return "Proofread each finished sentence and offer the fix as one card."
+        case .trainingData: return "Opt in to save sentences and fixes for training a model on your writing."
         case .endpointContextSize: return "Send more of the document to Groq for better suggestions."
         case .endpointRateBudget: return "Pace requests to your Groq Developer or Free limits."
         case .extendedContext: return "A glossary or notes sent with every suggestion."
@@ -490,6 +494,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .sentenceCheck:
             return ["sentence", "grammar", "proofread", "their there", "dyslexia", "check",
                     "fix sentence", "groq"]
+        case .trainingData:
+            return ["training", "export", "data", "examples", "personal model", "fine-tune", "privacy",
+                    "history", "delete", "log"]
         case .endpointContextSize:
             return ["context", "large context", "window", "characters", "groq", "tokens"]
         case .endpointRateBudget:

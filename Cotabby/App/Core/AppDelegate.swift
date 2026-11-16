@@ -156,6 +156,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         didStartServices = true
         CotabbyLogger.app.info("All services started")
         e2eKeyDriver = E2EKeyDriver.startIfRequested()
+        e2eKeyDriver?.onShowSettings = { [weak self] in self?.settingsCoordinator.showSettings() }
 
         // A manual cold launch must remain recoverable after the user hides the only status item.
         // Login-item launches stay silent so hiding the icon does not make Settings appear after

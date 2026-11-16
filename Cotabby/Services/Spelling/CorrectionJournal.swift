@@ -31,6 +31,10 @@ final class CorrectionJournal {
 
     let fileURL: URL?
     private let isEnabled: () -> Bool
+    /// Told of every event, whether or not the journal is switched on: the training record
+    /// (`TrainingLog`) listens here and has a switch of its own. `offered` is the fix the writer
+    /// turned down; it is passed on and not written to the journal, whose format stays as it was.
+    var onRecord: ((_ kind: Kind, _ typed: String, _ final: String, _ offered: String?) -> Void)?
 
     init(fileURL: URL? = CorrectionJournal.defaultFileURL(), isEnabled: @escaping () -> Bool = CorrectionJournal.isEnabledInDefaults) {
         self.fileURL = fileURL
@@ -49,7 +53,8 @@ final class CorrectionJournal {
         UserDefaults.standard.object(forKey: enabledDefaultsKey) as? Bool ?? true
     }
 
-    func record(_ kind: Kind, typed: String, final: String, previousWord: String? = nil) {
+    func record(_ kind: Kind, typed: String, final: String, previousWord: String? = nil, offered: String? = nil) {
+        onRecord?(kind, typed, final, offered)
         guard isEnabled(), let fileURL, !typed.isEmpty else { return }
         var entry: [String: String] = [
             "time": ISO8601DateFormatter().string(from: Date()),

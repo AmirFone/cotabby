@@ -67,7 +67,10 @@ nonisolated enum FinishedSentenceExtractor {
         return body.startIndex
     }
 
-    private static func looksMachineReadable(_ sentence: String) -> Bool {
+    /// Text with a web address, an email address, or code in it. Internal because the training
+    /// record uses the same test for lines that never pass through `extract` (a chat line sent with
+    /// Return): such text is neither prose to train on nor something to keep a copy of.
+    static func looksMachineReadable(_ sentence: String) -> Bool {
         let lowered = sentence.lowercased()
         if lowered.contains("http") || lowered.contains("www.") || lowered.contains("://") { return true }
         if sentence.contains(where: { "{}<>`=|\\".contains($0) }) { return true }

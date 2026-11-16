@@ -1,3 +1,4 @@
+import Logging
 import SwiftUI
 
 /// File overview:
@@ -31,6 +32,7 @@ struct SettingsContainerView: View {
     let clearEmojiHistory: () -> Void
     let clearLearnedPhrases: () -> Void
     let correctionJournal: CorrectionJournal
+    let trainingLog: TrainingLog
     let onQuit: () -> Void
 
     @AppStorage("cotabbySettingsSelectedCategoryV2")
@@ -62,6 +64,12 @@ struct SettingsContainerView: View {
                 .navigationTitle(navigation.selection == .home ? "Cotabby Settings" : navigation.selection.label)
         }
         .environment(\.settingsHighlightedItem, navigation.highlightedItem)
+        .onReceive(NotificationCenter.default.publisher(for: SettingsNavigationModel.revealRequest)) { request in
+            guard let id = request.object as? String,
+                  let item = SettingsItem.allCases.first(where: { $0.id == id }) else { return }
+            CotabbyLogger.app.debug("Settings: revealing \(id) on request")
+            navigation.reveal(item)
+        }
         // Window-level Cmd-F: jump to the search surface from any pane. The button renders
         // nothing; it exists to host the keyboard shortcut inside this window's responder chain.
         .background(
@@ -148,7 +156,8 @@ struct SettingsContainerView: View {
                 suggestionSettings: suggestionSettings,
                 jevKeyModel: jevKeyModel,
                 clearLearnedPhrases: clearLearnedPhrases,
-                correctionJournal: correctionJournal
+                correctionJournal: correctionJournal,
+                trainingLog: trainingLog
             )
         case .context:
             ContextPaneView(suggestionSettings: suggestionSettings)

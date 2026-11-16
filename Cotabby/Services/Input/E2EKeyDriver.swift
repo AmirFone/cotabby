@@ -24,6 +24,9 @@ import Logging
 ///   key<TAB>code[<TAB>mods]  one key by virtual key code; mods = comma list of cmd, option, shift
 ///   pace<TAB>milliseconds    pause between typed characters (default 45)
 ///   shot<TAB>file.png        picture of the test host's window and anything floating over it
+///   settings<TAB>item<TAB>file.png[<TAB>height]   opens Settings at a setting (a `SettingsItem`
+///                            id), saves a picture of that window only, and closes it again; with
+///                            a height the window is that tall for the picture, to show a long pane
 ///
 /// Owned by `AppDelegate` for the life of the app. Runs on its own queue because a real keyboard
 /// does not wait for the app's main thread either; that keeps the measured timings honest.
@@ -39,6 +42,8 @@ nonisolated final class E2EKeyDriver: @unchecked Sendable {
     private var pending = ""
     private var paceMicroseconds: UInt32 = 45_000
     private var timer: DispatchSourceTimer?
+    /// Opens the Settings window. Set by `AppDelegate`, which owns the settings coordinator.
+    @MainActor var onShowSettings: (() -> Void)?
 
     /// The frontmost app's bundle id. Written on the main thread from workspace notifications and
     /// read on the driver queue, hence the lock.
@@ -131,6 +136,10 @@ nonisolated final class E2EKeyDriver: @unchecked Sendable {
         case "shot":
             guard parts.count > 1 else { return true }
             return captureHostWindow(to: parts[1])
+        case "settings":
+            guard parts.count > 2 else { return true }
+            captureSettings(revealing: parts[1], to: parts[2], height: parts.count > 3 ? Double(parts[3]) : nil)
+            return true
         default:
             return true
         }
@@ -200,6 +209,46 @@ nonisolated final class E2EKeyDriver: @unchecked Sendable {
             CotabbyLogger.app.error("E2E shot: could not run screencapture: \(error.localizedDescription)")
         }
         return true
+    }
+
+    /// Saves a picture of the Settings window at one setting, so a change to a pane can be checked
+    /// by eye from a test run. `screencapture -l` takes one window by its id, so nothing else on the
+    /// screen is in the file, and it captures the whole window even where it hangs off the screen:
+    /// that is what `height` relies on to show a pane longer than the display. The frame is put
+    /// back before the window closes, because the window saves its frame for next time. The waits
+    /// are for the window to open and lay out; this is a test tool and not on any typing path, so
+    /// plain sleeps on the driver's queue are fine.
+    private func captureSettings(revealing item: String, to path: String, height: Double?) {
+        DispatchQueue.main.sync { self.onShowSettings?() }
+        usleep(900_000)
+        let opened: (number: Int, frame: CGRect)? = DispatchQueue.main.sync {
+            NotificationCenter.default.post(name: SettingsNavigationModel.revealRequest, object: item)
+            guard let window = NSApp.keyWindow ?? NSApp.mainWindow else { return nil }
+            let frame = window.frame
+            if let height {
+                window.setFrame(CGRect(x: frame.minX, y: frame.maxY - height, width: frame.width, height: height), display: true)
+            }
+            return (window.windowNumber, frame)
+        }
+        guard let opened else {
+            CotabbyLogger.app.error("E2E settings shot: the Settings window did not open")
+            return
+        }
+        usleep(1_500_000)
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+        process.arguments = ["-x", "-o", "-l", "\(opened.number)", path]
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            CotabbyLogger.app.error("E2E settings shot: could not run screencapture: \(error.localizedDescription)")
+        }
+        DispatchQueue.main.sync {
+            let window = NSApp.window(withWindowNumber: opened.number)
+            window?.setFrame(opened.frame, display: false)
+            window?.close()
+        }
     }
 
     private func acknowledge(_ answer: String) {

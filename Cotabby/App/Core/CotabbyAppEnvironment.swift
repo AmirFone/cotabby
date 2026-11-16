@@ -302,6 +302,12 @@ final class CotabbyAppEnvironment {
         let personalPhraseModel = PersonalPhraseModel()
         let personalVocabulary = PersonalVocabulary(fileURL: PersonalVocabulary.defaultFileURL())
         let correctionJournal = CorrectionJournal()
+        // The opt-in training record hears of every word event through the journal, so the call
+        // sites that already report to the journal need no second line.
+        let trainingLog = TrainingLog()
+        correctionJournal.onRecord = { kind, typed, final, offered in
+            trainingLog.noteWord(kind, typed: typed, final: final, offered: offered)
+        }
         let settingsCoordinator = SettingsCoordinator(
             appUpdateManager: appUpdateManager,
             permissionManager: permissionManager,
@@ -324,7 +330,8 @@ final class CotabbyAppEnvironment {
                 personalPhraseModel.reset()
                 personalVocabulary.reset()
             },
-            correctionJournal: correctionJournal
+            correctionJournal: correctionJournal,
+            trainingLog: trainingLog
         )
 
         let interactionState = SuggestionInteractionState()
@@ -474,7 +481,9 @@ final class CotabbyAppEnvironment {
         sentenceCheckController.onCommitted = { [weak suggestionCoordinator] in
             suggestionCoordinator?.schedulePredictionAfterHostPublishDelay()
         }
-        sentenceCheckController.onLocalFixOutcome = { changes, kept in
+        sentenceCheckController.onLocalFixOutcome = { original, corrected, kept in
+            trainingLog.noteSentenceFix(original: original, corrected: corrected, kept: kept)
+            let changes = SentenceFixOutcomeTracker.wordChanges(original: original, corrected: corrected)
             personalCorrectionMemory.record(changes: changes, kept: kept)
             changes.forEach { correctionJournal.record(kept ? .sentenceFixKept : .sentenceFixUndone, typed: $0.typed, final: $0.fixed) }
         }
@@ -528,6 +537,7 @@ final class CotabbyAppEnvironment {
                 suggestionCoordinator?.isSpellingPendingForLastKey ?? false
             }
         )
+        wordPredictionController.onSentenceSettled = { trainingLog.noteSentence($0) }
         wordPredictionController.onCommitted = { [weak suggestionCoordinator] in
             qualityMetricsStore.recordWordPredictionPicked()
             suggestionCoordinator?.schedulePredictionAfterHostPublishDelay()

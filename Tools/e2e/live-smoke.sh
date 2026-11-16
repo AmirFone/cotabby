@@ -10,6 +10,9 @@
 #   E2E_ONLY=review         repeat only the review-card scenario
 #   E2E_ONLY=model          the sentence model's cases only
 #   E2E_ONLY=toggle         the on/off shortcut only
+#   E2E_ONLY=training       the opt-in training record (switched on for this run only)
+#   E2E_ONLY=settings       picture of Settings at one setting (E2E_SETTING=<id> E2E_SHOT=<file.png>,
+#                           E2E_SETTINGS_HEIGHT=<points> makes the window that tall for a long pane)
 #   E2E_ONLY=flow           typing on past a sentence the model fixes (E2E_PACE=<ms per key>)
 #   E2E_ONLY=shot           screenshot of the word strip with the highlight moved (E2E_SHOT=<file.png>)
 #   E2E_ONLY=speed          only time fixes: misspelled words typed at E2E_PACE ms per key (default 45)
@@ -34,23 +37,32 @@ defaults export "$DOMAIN" "$SNAPSHOT"
 # relaunched; relaunching first would reload (and later re-save) what the test taught it.
 PHRASES="$HOME/Library/Application Support/Cotabby/personal_phrases.json"
 JOURNAL="$HOME/Library/Application Support/Cotabby/correction-journal.jsonl"
+TRAINING="$HOME/Library/Application Support/Cotabby/training-log.jsonl"
 [ -f "$PHRASES" ] && cp "$PHRASES" "$SNAPSHOT.phrases"
 [ -f "$JOURNAL" ] && cp "$JOURNAL" "$SNAPSHOT.journal"
+[ -f "$TRAINING" ] && cp "$TRAINING" "$SNAPSHOT.training"
 restore_file() { # live, snapshot
   if [ -f "$2" ]; then cp "$2" "$1"; elif [ -f "$1" ]; then mv "$1" ~/.Trash/; fi
 }
 restore_history() {
   pkill -f "Cotabby Dev.app/Contents/MacOS"; sleep 1.5
-  for key in cotabbyPersonalCorrections cotabbyKeptWords cotabbyLowPowerModeAutoDisableEnabled cotabbyQualityMetricsCounters cotabbyGloballyEnabled; do
+  for key in cotabbyPersonalCorrections cotabbyKeptWords cotabbyLowPowerModeAutoDisableEnabled cotabbyQualityMetricsCounters cotabbyGloballyEnabled cotabbyTrainingLogEnabled; do
     defaults delete "$DOMAIN" "$key" 2>/dev/null
     /usr/libexec/PlistBuddy -x -c "Print :$key" "$SNAPSHOT" > "$SNAPSHOT.$key" 2>/dev/null \
       && defaults write "$DOMAIN" "$key" "$(sed -n '/<plist/,/<\/plist>/p' "$SNAPSHOT.$key")"
   done
   restore_file "$PHRASES" "$SNAPSHOT.phrases"
   restore_file "$JOURNAL" "$SNAPSHOT.journal"
+  restore_file "$TRAINING" "$SNAPSHOT.training"
   open "/Applications/Cotabby Dev.app"
 }
 pkill -f "Cotabby Dev.app/Contents/MacOS"; sleep 1
+# The training record is opt-in; the test switches it on for its own run only (the writer's switch
+# and file are restored afterwards) and starts from an empty file so it checks only what it typed.
+if [ "${E2E_ONLY:-}" = training ]; then
+  defaults write "$DOMAIN" cotabbyTrainingLogEnabled -bool true
+  [ -f "$TRAINING" ] && mv "$TRAINING" "$HOME/.Trash/training-log-e2e-$(date +%s).jsonl"
+fi
 if [ "${E2E_FORCE_GENERATION:-0}" = 1 ]; then defaults write "$DOMAIN" cotabbyLowPowerModeAutoDisableEnabled -bool false; fi
 if [ "${E2E_ONLY:-}" = speed ] || [ -n "${E2E_NO_OVERLAY:-}" ]; then
   # Timing run (E2E_NO_OVERLAY=1 gives any other mode the same launch): the debug flag also draws a developer overlay on every keystroke, which costs more
@@ -348,6 +360,48 @@ flow_cases() {
 
 if [ "${E2E_ONLY:-}" = flow ]; then
   flow_cases
+  echo "$pass passed, $fail failed  (log: $LOG)"; [ $fail -eq 0 ]; exit
+fi
+
+# E2E_ONLY=settings E2E_SETTING=<SettingsItem id> E2E_SHOT=<file.png>
+if [ "${E2E_ONLY:-}" = settings ]; then
+  send "$(printf 'settings\t%s\t%s\t%s' "${E2E_SETTING:-trainingData}" "${E2E_SHOT:-/tmp/cotabby-settings.png}" "${E2E_SETTINGS_HEIGHT:-}")"
+  sleep 1; echo "SHOT  ${E2E_SHOT:-/tmp/cotabby-settings.png}  (log: $LOG)"; exit 0
+fi
+
+# The training record, switched on for this run: a finished sentence and the fix made in it are
+# written to the file, and nothing is written about a sentence typed while Cotabby is off.
+training_cases() {
+  clear_doc; type_text "I saw teh cat today. "; sleep 2.5
+  if grep -q '"event":"sentence".*"text":"I saw the cat today."' "$TRAINING" 2>/dev/null; then
+    echo "PASS  training: the finished sentence is saved"; pass=$((pass+1))
+  else echo "FAIL  training: sentence not in the file: $(cat "$TRAINING" 2>/dev/null)"; fail=$((fail+1)); fi
+  clear_doc; type_text "It was a nice day. "; sleep 2.0
+  if grep -q '"final":"the".*"typed":"teh"' "$TRAINING" 2>/dev/null; then
+    echo "PASS  training: the kept fix is saved with what was typed"; pass=$((pass+1))
+  else echo "FAIL  training: fix not in the file: $(cat "$TRAINING" 2>/dev/null)"; fail=$((fail+1)); fi
+  # A sentence the sentence model fixes: the fix is saved with both whole sentences, and the
+  # sentence that is saved is the corrected one, character for character (the export joins on it).
+  clear_doc; type_text "I drive a Tyoda Corola to work. "; sleep 2.0; type_text "It runs well. "; sleep 2.0
+  if grep -q '"corrected":"I drive a Toyota Corolla to work.".*"kept":true.*"original":"I drive a Tyoda Corola to work."' "$TRAINING" 2>/dev/null \
+    && grep -q '"event":"sentence","text":"I drive a Toyota Corolla to work."' "$TRAINING"; then
+    echo "PASS  training: a kept sentence fix is saved with the sentence before and after"; pass=$((pass+1))
+  else echo "FAIL  training: sentence fix not in the file: $(cat "$TRAINING" 2>/dev/null)"; fail=$((fail+1)); fi
+  send "$(printf 'key\t8\tctrl,option')"; sleep 0.8
+  clear_doc; type_text "This one stays private. "; sleep 2.5
+  send "$(printf 'key\t8\tctrl,option')"; sleep 0.8
+  if grep -q "stays private" "$TRAINING" 2>/dev/null; then
+    echo "FAIL  training: a sentence typed while Cotabby was off was saved"; fail=$((fail+1))
+  else echo "PASS  training: nothing is saved while Cotabby is off"; pass=$((pass+1)); fi
+  echo "INFO  training log: $(wc -l < "$TRAINING" | tr -d ' ') lines"
+}
+
+if [ "${E2E_ONLY:-}" = training ]; then
+  training_cases
+  cp "$TRAINING" "${E2E_TRAINING_COPY:-/dev/null}" 2>/dev/null
+  if [ -n "${E2E_SHOT:-}" ]; then
+    send "$(printf 'settings\ttrainingData\t%s\t%s' "$E2E_SHOT" "${E2E_SETTINGS_HEIGHT:-}")"; echo "SHOT  $E2E_SHOT"
+  fi
   echo "$pass passed, $fail failed  (log: $LOG)"; [ $fail -eq 0 ]; exit
 fi
 

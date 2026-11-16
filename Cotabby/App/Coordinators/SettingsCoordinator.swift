@@ -28,6 +28,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
     private let clearEmojiHistory: () -> Void
     private let clearLearnedPhrases: () -> Void
     private let correctionJournal: CorrectionJournal
+    private let trainingLog: TrainingLog
 
     private var settingsWindowController: NSWindowController?
 
@@ -55,7 +56,8 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         onShowWelcome: @escaping () -> Void,
         clearEmojiHistory: @escaping () -> Void,
         clearLearnedPhrases: @escaping () -> Void,
-        correctionJournal: CorrectionJournal
+        correctionJournal: CorrectionJournal,
+        trainingLog: TrainingLog
     ) {
         self.appUpdateManager = appUpdateManager
         self.permissionManager = permissionManager
@@ -74,6 +76,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         self.clearEmojiHistory = clearEmojiHistory
         self.clearLearnedPhrases = clearLearnedPhrases
         self.correctionJournal = correctionJournal
+        self.trainingLog = trainingLog
     }
 
     /// Shows the settings window, reusing the existing instance if it is already open.
@@ -106,6 +109,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
                     clearEmojiHistory: clearEmojiHistory,
                     clearLearnedPhrases: clearLearnedPhrases,
                     correctionJournal: correctionJournal,
+                    trainingLog: trainingLog,
                     onQuit: { NSApplication.shared.terminate(nil) }
                 )
             )

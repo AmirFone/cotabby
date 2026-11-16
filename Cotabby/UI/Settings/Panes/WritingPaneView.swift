@@ -9,6 +9,7 @@ struct WritingPaneView: View {
     @ObservedObject var jevKeyModel: JevKeyModel
     let clearLearnedPhrases: () -> Void
     let correctionJournal: CorrectionJournal
+    let trainingLog: TrainingLog
     @AppStorage(CorrectionJournal.enabledDefaultsKey) private var keepsJournal = true
     @AppStorage(WordPredictionController.enabledDefaultsKey) private var wordPredictionsEnabled = true
     @AppStorage(PersonalPhraseModel.learningDefaultsKey) private var learnsPhrases = true
@@ -132,6 +133,8 @@ struct WritingPaneView: View {
                 }
                 .disabled(clearedLearnedPhrases)
             }
+
+            TrainingDataSection(trainingLog: trainingLog)
 
             Section("Typos") {
                 Toggle(isOn: suppressCompletionsOnTypoBinding) {
