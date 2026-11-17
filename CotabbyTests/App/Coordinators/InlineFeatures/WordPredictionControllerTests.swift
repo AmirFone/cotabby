@@ -466,6 +466,206 @@ final class WordPredictionControllerTests: XCTestCase {
         return Harness(controller: controller, panel: panel, focus: focus, inserter: inserter, learned: learned, commitCounter: counter)
     }
 
+    // MARK: - The whole strip with the real model, no screen
+    //
+    // The live typing test needs an unlocked screen. These run the same path without one: the
+    // production predictor (bundled table, the dictionary as the app loads it, the word lists, the
+    // American spellings) and the real model service behind the real controller, with only the
+    // text field, the panel and the key injector stood in. They need a model file, so they run when
+    // TEST_RUNNER_WORD_LM_FILE names one, like `WordLanguageModelLiveTests`.
+
+    private func makeRealHarness(text: String = "") throws -> (harness: Harness, service: WordLanguageModelService) {
+        guard let modelPath = ProcessInfo.processInfo.environment["WORD_LM_FILE"] else {
+            throw XCTSkip("Set TEST_RUNNER_WORD_LM_FILE to run the strip against a real model")
+        }
+        let corrector = try Self.appDictionary()
+        let service = WordLanguageModelService(
+            modelURL: URL(fileURLWithPath: modelPath), wordListURLs: WordLanguageModelService.bundledWordListURLs()
+        )
+        let predict = WordPredictionController.makePredictor(
+            model: try XCTUnwrap(NextWordModel.bundled()),
+            symSpellCorrector: corrector,
+            phrases: PersonalPhraseModel(fileURL: nil),
+            languageModel: service,
+            americanSpellings: try XCTUnwrap(AmericanSpellings.preferredOnThisMac(region: "US"))
+        )
+        let panel = RecordingStripPanel()
+        let focus = StripFocus(precedingText: text)
+        let inserter = RigInserter()
+        let learned = LearnedSentences()
+        let counter = StripCommitCounter()
+        let controller = WordPredictionController(
+            panel: panel,
+            focusModel: focus,
+            inserter: inserter,
+            predict: predict,
+            isEnabled: { true },
+            learn: { learned.values.append($0) },
+            isSpellingPending: { false },
+            learnDelay: 0,
+            isLanguageModelPending: { service.isAnswerPending(forTextBefore: $0) },
+            languageModelWait: 0.05
+        )
+        service.onReady = { [weak controller] in controller?.redrawWithLanguageModel() }
+        controller.onCommitted = { counter.value += 1 }
+        controller.start()
+        service.warmUp()
+        retained.append(contentsOf: [controller, panel, focus, inserter, learned, counter, service] as [AnyObject])
+        return (Harness(controller: controller, panel: panel, focus: focus, inserter: inserter, learned: learned, commitCounter: counter), service)
+    }
+
+    /// The spelling dictionary with everything the app adds to it, built once for all tests.
+    private static var sharedAppDictionary: SymSpellCorrector?
+    private static func appDictionary() throws -> SymSpellCorrector {
+        if let sharedAppDictionary { return sharedAppDictionary }
+        let url = try XCTUnwrap(Bundle.main.url(forResource: "frequency_dictionary_en_82_765", withExtension: "txt"))
+        let corrector = SymSpellCorrector(preloadLanguage: nil)
+        corrector.loadForTesting(
+            contents: try String(contentsOf: url, encoding: .utf8) + "\n" + SymSpellCorrector.englishOverrides()
+                + "\n" + SymSpellCorrector.englishSupplement()
+        )
+        sharedAppDictionary = corrector
+        return corrector
+    }
+
+    /// Types `added` after `existing` one key at a time, as the app sees it: the field's text
+    /// changes, then the controller is told.
+    private func type(_ added: String, after existing: String, into harness: Harness) {
+        var text = existing
+        harness.focus.setPrecedingText(text)
+        for character in added {
+            text.append(character)
+            harness.focus.setPrecedingText(text)
+            harness.note(text)
+            RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+        }
+    }
+
+    /// Lets the main thread run until `condition` holds; false after `timeout`.
+    private func waitFor(timeout: TimeInterval = 20, _ condition: () -> Bool) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if condition() { return true }
+            RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+        }
+        return condition()
+    }
+
+    func test_realModel_pastTense_putsThePastFormFirst_andTabTypesIt() throws {
+        // #given a past-tense sentence typed up to the letters every form of the verb shares
+        let (harness, _) = try makeRealHarness()
+        type("Yesterday we walk", after: "", into: harness)
+
+        // #then the strip leads with the past form once the model has answered
+        XCTAssertTrue(waitFor { harness.panel.words.first == "walked" }, "strip shows \(harness.panel.words)")
+
+        // #when Tab is pressed
+        XCTAssertTrue(harness.controller.observe(Self.key(48)))
+        flushMainQueue()
+
+        // #then the four typed letters are replaced by the word and its space
+        XCTAssertEqual(harness.inserter.replacements.first?.deleteCount, 4)
+        XCTAssertEqual(harness.inserter.replacements.first?.text, "walked ")
+    }
+
+    func test_realModel_nameAlreadyInTheText_isOfferedWithItsCapital_andTyped() throws {
+        // #given a text that has named someone, and the first letters of the name typed in lowercase
+        let (harness, _) = try makeRealHarness()
+        let before = "I asked Priyanka about the launch plan on Monday. Then I sent the notes to "
+        type("pri", after: before, into: harness)
+
+        // #then the name is offered, capitalized as the writer wrote it
+        XCTAssertTrue(waitFor { harness.panel.words.contains("Priyanka") }, "strip shows \(harness.panel.words)")
+        // A model that cannot take a piece back out of its memory (Qwen 3.5) gets no exact pass, so
+        // it ranks the name among dictionary words by a rough estimate and need not put it first.
+        guard try modelHasExactPass() else { return }
+        XCTAssertTrue(waitFor { harness.panel.words.first == "Priyanka" }, "strip shows \(harness.panel.words)")
+
+        // #when Tab is pressed, the three letters become the name
+        XCTAssertTrue(harness.controller.observe(Self.key(48)))
+        flushMainQueue()
+        XCTAssertEqual(harness.inserter.replacements.first?.deleteCount, 3)
+        XCTAssertEqual(harness.inserter.replacements.first?.text, "Priyanka ")
+    }
+
+    private func modelHasExactPass() throws -> Bool {
+        let path = try XCTUnwrap(ProcessInfo.processInfo.environment["WORD_LM_FILE"])
+        return try XCTUnwrap(WordLanguageModelCore(
+            modelURL: URL(fileURLWithPath: path), wordListURLs: WordLanguageModelService.bundledWordListURLs()
+        )).canRollBack
+    }
+
+    func test_realModel_americanWordsTheDictionaryLacked_areOffered_inOneSpelling() throws {
+        // #given a sentence heading for `neighbor`, which the dictionary only has as `neighbour`
+        let (harness, _) = try makeRealHarness()
+        type("My mom and my neigh", after: "", into: harness)
+
+        // #then the American word leads and the British spelling is not shown beside it
+        XCTAssertTrue(waitFor { harness.panel.words.first == "neighbor" }, "strip shows \(harness.panel.words)")
+        XCTAssertFalse(harness.panel.words.contains("neighbour"))
+
+        // #and the same for a word with a doubled letter in British spelling
+        type("Next week I am trav", after: "", into: harness)
+        XCTAssertTrue(waitFor { harness.panel.words.first == "traveling" }, "strip shows \(harness.panel.words)")
+        XCTAssertFalse(harness.panel.words.contains("travelling"))
+    }
+
+    func test_realModel_finishedWord_hasTheNextListReadyAtTheSpace() throws {
+        // #given a model that can look ahead, and a whole word typed with a moment to spare
+        let (harness, service) = try makeRealHarness()
+        type("Yesterday we walked", after: "", into: harness)
+        guard waitFor(timeout: 10, { service.lookAheadText == "Yesterday we walked" }) else {
+            throw XCTSkip("this model does not look ahead (it cannot wind its memory back)")
+        }
+
+        // #when the space is typed
+        type(" ", after: "Yesterday we walked", into: harness)
+
+        // #then the list for the next word is there without waiting for the model
+        XCTAssertFalse(service.isAnswerPending(forTextBefore: "Yesterday we walked "))
+        XCTAssertFalse(harness.panel.words.isEmpty)
+    }
+
+    func test_realModel_longDocument_keepsPredicting_andReadsOnlyItsEnd() throws {
+        // #given a text several times the model's reach, ending in a past-tense sentence
+        let (harness, service) = try makeRealHarness()
+        let filler = (0..<120).map { "Note \($0) says the team met and agreed on the plan." }.joined(separator: " ")
+        let before = filler + " Yesterday we "
+        XCTAssertGreaterThan(before.utf8.count, 3 * LanguageModelContext.Reach.standard.maximumCharacters)
+        type("walk", after: before, into: harness)
+
+        // #then the strip still follows the tense, and what the model read fits its reach
+        XCTAssertTrue(waitFor { harness.panel.words.first == "walked" }, "strip shows \(harness.panel.words)")
+        let read = try XCTUnwrap(service.scores(forTextBefore: before + "walk")?.key.text)
+        XCTAssertLessThanOrEqual(read.utf8.count, LanguageModelContext.Reach.standard.maximumCharacters)
+        XCTAssertTrue(read.hasSuffix("Yesterday we"))
+    }
+
+    func test_realModel_pickAfterPick_buildsASentence() throws {
+        // #given a strip after a sentence start
+        let (harness, _) = try makeRealHarness()
+        type("I would like ", after: "", into: harness)
+        XCTAssertTrue(waitFor { !harness.panel.words.isEmpty })
+
+        // #when Tab is pressed three times, the field taking each pick
+        var text = "I would like "
+        for _ in 0..<3 {
+            XCTAssertTrue(waitFor { !harness.panel.words.isEmpty && !harness.panel.isHidden })
+            let before = harness.inserter.insertedChunks.count
+            XCTAssertTrue(harness.controller.observe(Self.key(48)))
+            flushMainQueue()
+            XCTAssertEqual(harness.inserter.insertedChunks.count, before + 1)
+            text += harness.inserter.insertedChunks.last ?? ""
+            harness.focus.setPrecedingText(text)
+            harness.note(text)
+        }
+
+        // #then three words and their spaces were typed, each a real word
+        XCTAssertEqual(harness.inserter.insertedChunks.count, 3)
+        XCTAssertTrue(harness.inserter.insertedChunks.allSatisfy { $0.hasSuffix(" ") && $0.count > 1 })
+        XCTAssertEqual(harness.commits, 3)
+    }
+
     private func flushMainQueue() {
         let fence = expectation(description: "flush main queue")
         DispatchQueue.main.async { fence.fulfill() }

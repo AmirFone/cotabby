@@ -391,6 +391,16 @@ xcodebuild test -project Cotabby.xcodeproj -scheme Cotabby -destination 'platfor
   -derivedDataPath ~/Library/Developer/Xcode/DerivedData/CotabbyFork-Check CODE_SIGNING_ALLOWED=NO \
   -only-testing:CotabbyTests/SuggestionCoordinatorSpellingModelTests
 
+# The word strip the same way, with a real model and no screen: the production predictor and the real
+# model service behind the real controller, typed into key by key, with only the text field, the panel
+# and the key injector stood in (the `test_realModel_...` cases of WordPredictionControllerTests, and
+# WordLanguageModelLiveTests for the service alone). They run when a model file is named, and work
+# on a locked Mac, where the live test below cannot.
+TEST_RUNNER_WORD_LM_FILE="$HOME/Library/Application Support/Cotabby Dev/LlamaRuntime/gemma-4-E2B.i1-Q6_K.gguf" \
+  xcodebuild test -project Cotabby.xcodeproj -scheme Cotabby -destination 'platform=macOS' \
+  -derivedDataPath ~/Library/Developer/Xcode/DerivedData/CotabbyFork-Check CODE_SIGNING_ALLOWED=NO \
+  -only-testing:CotabbyTests/WordPredictionControllerTests -only-testing:CotabbyTests/WordLanguageModelLiveTests
+
 # Build + install Cotabby Dev, then drive it live. The live test types into its own test host app
 # (Tools/e2e/TestHost), never your apps or documents, and restores your Cotabby history afterwards.
 # The keys are posted by Cotabby Dev itself (Services/Input/E2EKeyDriver.swift, active only when

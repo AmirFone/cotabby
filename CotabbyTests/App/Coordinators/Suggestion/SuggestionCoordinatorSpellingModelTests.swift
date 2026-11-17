@@ -128,6 +128,89 @@ final class SuggestionCoordinatorSpellingModelTests: XCTestCase {
         }
     }
 
+    // MARK: - American spelling, with the dictionary as the app loads it
+
+    private static var sharedAppCorrector: SymSpellCorrector?
+
+    /// The dictionary plus what the app adds to it: the overrides and the common words of the
+    /// supplement (`neighbor`, `jewelry`, `dataset`).
+    private static func appCorrector() throws -> SymSpellCorrector {
+        if let sharedAppCorrector { return sharedAppCorrector }
+        let corrector = SymSpellCorrector(preloadLanguage: nil)
+        corrector.loadForTesting(
+            contents: try resource("frequency_dictionary_en_82_765") + "\n" + SymSpellCorrector.englishOverrides()
+                + "\n" + SymSpellCorrector.englishSupplement()
+        )
+        sharedAppCorrector = corrector
+        return corrector
+    }
+
+    /// A rig set up like the app on a Mac whose region is the United States.
+    private func makeAmericanRig(text: String) throws -> CoordinatorRig {
+        let rig = makeCoordinatorRig(
+            snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: text),
+            settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(
+                debounceMilliseconds: 1,
+                suppressCompletionsOnTypo: true,
+                offerTypoCorrections: true,
+                automaticallyFixTypos: true
+            ),
+            symSpellCorrector: try Self.appCorrector()
+        )
+        rig.coordinator.bigramContextModel = try Self.bigrams()
+        rig.coordinator.nextWordModel = try XCTUnwrap(NextWordModel.bundled())
+        rig.coordinator.autoFixModel = try XCTUnwrap(AutoFixFeatures.bundledModel())
+        rig.coordinator.wrongWordModel = try XCTUnwrap(WrongWordDetector.bundledModel())
+        rig.coordinator.americanSpellings = try XCTUnwrap(AmericanSpellings.preferredOnThisMac(region: "US"))
+        rigs.append(rig)
+        return rig
+    }
+
+    func test_americanWriter_slipNearTheBritishSpelling_isFixedToTheAmericanWord() async throws {
+        // #given slips of words the dictionary used to hold only in British spelling
+        for (text, expected) in [("Our neighbur ", "neighbor "), ("She lost her jewlery ", "jewelry ")] {
+            let rig = try makeAmericanRig(text: text)
+
+            // #when the word is finished
+            rig.coordinator.schedulePrediction()
+            await waitUntil("No fix for \(text)") { !rig.inserter.replacements.isEmpty }
+
+            // #then the American word is typed into the field
+            XCTAssertEqual(rig.inserter.replacements.first?.text, expected, text)
+        }
+    }
+
+    func test_americanWriter_offeredFixes_leadWithTheAmericanSpelling_once() async throws {
+        // #given a slip the engine offers fixes for
+        let text = "The neigborhood "
+        let rig = try makeAmericanRig(text: text)
+        let (decision, _) = engineDecision(for: text, in: rig, word: "neigborhood")
+
+        // #then the first fix is the American word, and its British twin is not listed beside it
+        let fixes: [String]
+        switch decision {
+        case let .applyCorrection(_, corrected), let .offerCorrection(_, corrected):
+            fixes = [corrected]
+        case let .offerRankedCorrection(_, candidates), let .offerChoices(_, candidates), let .offerRealWordFix(_, candidates):
+            fixes = candidates.map(\.term)
+        case .proceed, .suppress:
+            return XCTFail("Expected a fix for neigborhood, got \(decision)")
+        }
+        XCTAssertEqual(fixes.first, "neighborhood")
+        XCTAssertFalse(fixes.contains("neighbourhood"))
+    }
+
+    func test_americanWriter_ordinaryFixes_areUnchanged() async throws {
+        // #given a slip that has nothing to do with spelling styles
+        let text = "We met at the restarant "
+        let rig = try makeAmericanRig(text: text)
+
+        rig.coordinator.schedulePrediction()
+        await waitUntil("The fix never reached the field") { !rig.inserter.replacements.isEmpty }
+
+        XCTAssertEqual(rig.inserter.replacements.first?.text, "restaurant ")
+    }
+
     /// Milliseconds from scheduling a cycle to the fix being handed to the inserter. A fresh word each
     /// time, so the spell checker's own caches do not hide the cost.
     private func millisecondsToFix(text: String, prepared: Bool) async throws -> Double {
