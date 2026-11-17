@@ -212,12 +212,22 @@ targets:
       - Cotabby/Services/Prediction/NextWordModel.swift
       - Cotabby/Support/Prediction/NextWordPredictor.swift
       - Cotabby/Services/Prediction/PersonalPhraseModel.swift
+      - Cotabby/Support/Prediction/WordLanguageModel.swift
+      - Cotabby/Support/Prediction/UnofferedWords.swift
+      - Cotabby/Services/Prediction/WordLanguageModelCore.swift
+      - Cotabby/Services/Runtime/Llama/LlamaTokenModel.swift
+      - Cotabby/Support/Spelling/SentenceModelCorrection.swift
     dependencies:
       - package: swift-log
         product: Logging
+      # llama.cpp, for scoring the word language model in the harness exactly as the app does.
+      - package: CotabbyInference
+        product: CotabbyInference
     settings:
       base:
         CODE_SIGN_IDENTITY: "-"
+        # The llama framework is built next to the tool, not installed anywhere.
+        LD_RUNPATH_SEARCH_PATHS: "@executable_path @executable_path/Frameworks"
         CODE_SIGN_STYLE: Manual
         DEVELOPMENT_TEAM: ""
         PRODUCT_NAME: cotabby-spell

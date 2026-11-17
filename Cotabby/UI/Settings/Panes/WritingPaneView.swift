@@ -97,7 +97,9 @@ struct WritingPaneView: View {
                             "types the first word and the next word is predicted right away, so you can build a " +
                             "sentence by pressing Tab. Option-2 to 5 type the others. Return and Escape work as usual. " +
                             "While this is on it replaces ghost-text suggestions, and a misspelled word's fix bar " +
-                            "comes first. Runs entirely on this Mac.",
+                            "comes first. The words are ordered by a language model that reads your last few " +
+                            "sentences, so the verb form offered follows the tense you are writing in. " +
+                            "Runs entirely on this Mac.",
                         systemImage: "text.word.spacing"
                     )
                 }

@@ -208,6 +208,89 @@ final class WordPredictionControllerTests: XCTestCase {
         XCTAssertEqual(harness.inserter.replacements.first?.text, "to ")
     }
 
+    // MARK: - Language model
+
+    func test_languageModelAnswer_redrawsTheStripInItsOrder() {
+        // #given the strip drawn from the table, before the language model has answered
+        let answer = LanguageModelFixture.scores(textBefore: "I want to ", ["be": 0.6, "go": 0.2, "get": 0.05])
+        var isReady = false
+        let harness = makeHarness(precedingText: "I want to ", languageModel: { _ in isReady ? answer : nil })
+        harness.note("I want to ")
+        XCTAssertEqual(Array(harness.panel.words.prefix(2)), ["go", "be"])
+
+        // #when the model's answer arrives
+        isReady = true
+        harness.controller.redrawWithLanguageModel()
+
+        // #then the strip shows the model's order
+        XCTAssertEqual(Array(harness.panel.words.prefix(3)), ["be", "go", "get"])
+    }
+
+    func test_languageModelAnswer_doesNotMoveWordsUnderAHighlightTheWriterMoved() {
+        // #given the writer has stepped the highlight to the second word
+        let answer = LanguageModelFixture.scores(textBefore: "I want to ", ["be": 0.6, "go": 0.2, "get": 0.05])
+        var isReady = false
+        let harness = makeHarness(precedingText: "I want to ", languageModel: { _ in isReady ? answer : nil })
+        harness.note("I want to ")
+        XCTAssertTrue(harness.controller.observe(Self.key(124)))
+        XCTAssertEqual(harness.controller.decideCaptureKey(InputMonitorKeyEvent(keyCode: 124)), .consume)
+
+        // #when the model's answer arrives
+        isReady = true
+        harness.controller.redrawWithLanguageModel()
+
+        // #then the words stay where they were
+        XCTAssertEqual(Array(harness.panel.words.prefix(2)), ["go", "be"])
+    }
+
+    func test_whileTheLanguageModelIsWorking_theStripWaitsForItsOrder() {
+        // #given a model that is still working on its answer for this text
+        let answer = LanguageModelFixture.scores(textBefore: "I want to ", ["be": 0.6, "go": 0.2, "get": 0.05])
+        var isReady = false
+        let harness = makeHarness(
+            precedingText: "I want to ",
+            languageModel: { _ in isReady ? answer : nil },
+            isLanguageModelPending: { _ in !isReady }
+        )
+
+        // #when the text is noted
+        harness.note("I want to ")
+
+        // #then nothing is drawn yet: the table's order would only be replaced a moment later
+        XCTAssertTrue(harness.panel.isHidden)
+
+        // #when the answer arrives
+        isReady = true
+        harness.controller.redrawWithLanguageModel()
+
+        // #then the strip appears once, in the model's order
+        XCTAssertEqual(Array(harness.panel.words.prefix(3)), ["be", "go", "get"])
+    }
+
+    func test_languageModelTakingTooLong_showsTheTableOrderAfterTheWait() {
+        // #given a model that never answers
+        let harness = makeHarness(precedingText: "I want to ", isLanguageModelPending: { _ in true })
+
+        // #when the text is noted and the wait runs out
+        harness.note("I want to ")
+        XCTAssertTrue(harness.panel.isHidden)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.12))
+
+        // #then the table's list is shown after all
+        XCTAssertEqual(Array(harness.panel.words.prefix(2)), ["go", "be"])
+    }
+
+    func test_languageModelAnswer_afterTheStripIsGone_showsNothing() {
+        let answer = LanguageModelFixture.scores(textBefore: "I want to ", ["be": 0.6])
+        let harness = makeHarness(precedingText: "I want to ", languageModel: { _ in answer })
+        harness.note("I want to ")
+        harness.controller.hidePredictions()
+
+        harness.controller.redrawWithLanguageModel()
+
+        XCTAssertTrue(harness.panel.isHidden)
+    }
+
     func test_rightArrow_movesTheHighlightAndReturnTypesThatWord() {
         // #given the strip after "I want to " with the caret at the end of the line
         let harness = makeHarness(precedingText: "I want to ")
@@ -344,7 +427,9 @@ final class WordPredictionControllerTests: XCTestCase {
     private func makeHarness(
         precedingText: String,
         trailingText: String = "",
-        isSpellingPending: @escaping () -> Bool = { false }
+        isSpellingPending: @escaping () -> Bool = { false },
+        languageModel: @escaping (String) -> LanguageModelScores? = { _ in nil },
+        isLanguageModelPending: @escaping (String) -> Bool = { _ in false }
     ) -> Harness {
         let model = NextWordModelFixture.make([
             "": (100, [("the", 30), ("to", 20)]),
@@ -355,7 +440,8 @@ final class WordPredictionControllerTests: XCTestCase {
         let sources = NextWordPredictor.Sources(
             model: model,
             completions: { _, _ in [] },
-            personal: { _ in nil }
+            personal: { _ in nil },
+            languageModel: languageModel
         )
         let panel = RecordingStripPanel()
         let focus = StripFocus(precedingText: precedingText, trailingText: trailingText)
@@ -370,7 +456,9 @@ final class WordPredictionControllerTests: XCTestCase {
             isEnabled: { true },
             learn: { learned.values.append($0) },
             isSpellingPending: isSpellingPending,
-            learnDelay: 0
+            learnDelay: 0,
+            isLanguageModelPending: isLanguageModelPending,
+            languageModelWait: 0.03
         )
         controller.onCommitted = { counter.value += 1 }
         controller.start()

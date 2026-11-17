@@ -25,7 +25,7 @@ nonisolated struct SentenceModelPrediction: Equatable, Sendable {
 /// What the decoder needs from a language model: text to pieces, pieces to bytes, and a memory of
 /// the pieces seen so far that can grow and be rolled back.
 ///
-/// `LlamaSentenceTokenModel` is the real one; tests use a scripted stand-in.
+/// `LlamaTokenModel` is the real one; tests use a scripted stand-in.
 protocol SentenceTokenModel: AnyObject {
     /// `text` as model pieces. `parsingSpecial` lets control markers such as `<|im_start|>` become
     /// their single pieces; it is false for anything the writer typed.

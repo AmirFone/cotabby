@@ -9,6 +9,9 @@ import Foundation
 ///   cotabby-spell --repl                               type lines, see decisions
 ///   cotabby-spell --predict "I would like |"          next-word list (see Prediction.swift)
 ///   cotabby-spell --ksr heldout.txt [3000]             prediction accuracy and keystroke savings
+///   cotabby-spell --typing texts [n] [--lm model.gguf] [--verbs verb_forms.txt]
+///                                                      first suggestion right at every typing moment,
+///                                                      and the tense test (see Prediction.swift)
 ///   cotabby-spell --rank "my dady |"                  every ranked candidate with its score
 ///   cotabby-spell --bench                              per-keystroke latency over the suite
 ///
@@ -253,6 +256,10 @@ struct Arguments {
     var autoMargin: Double?
     var ksrPath: String?
     var ksrLimit = 3000
+    var typingPath: String?
+    var typingLimit = 3000
+    var languageModelPath: String?
+    var verbFormsPath: String?
     var repl = false
     var bench = false
     var useJev = false
@@ -300,6 +307,11 @@ struct Arguments {
             case "--ksr":
                 ksrPath = iterator.next()
                 if let limit = iterator.next().flatMap(Int.init) { ksrLimit = limit }
+            case "--typing":
+                typingPath = iterator.next()
+                if let limit = iterator.next().flatMap(Int.init) { typingLimit = limit }
+            case "--lm": languageModelPath = iterator.next()
+            case "--verbs": verbFormsPath = iterator.next()
             case "--repl": repl = true
             case "--bench": bench = true
             case "--jev": useJev = true
@@ -800,16 +812,23 @@ func main() async -> Int32 {
         return WriterSimulation(predictor: predictor, decide: { harness.decide(CaretText($0)).decision })
             .run(sentencesPath: writer.sentences, typosPath: writer.typos, limit: writer.limit)
     }
-    if !arguments.predict.isEmpty || arguments.ksrPath != nil {
+    if !arguments.predict.isEmpty || arguments.ksrPath != nil || arguments.typingPath != nil {
         guard let predictor = PredictionHarness.make(
             resourceRoot: arguments.resourceRoot,
             corrector: harness.dependencies.symSpellCorrector,
-            adaptive: arguments.adaptive
+            adaptive: arguments.adaptive,
+            languageModelPath: arguments.languageModelPath
         ) else {
             print("could not load next_word_model_en.bin from \(arguments.resourceRoot.path)")
             return 2
         }
         arguments.predict.forEach { predictor.show(CaretText($0)) }
+        if let path = arguments.typingPath {
+            return predictor.typingReport(
+                path: path, limit: arguments.typingLimit, verbFormsPath: arguments.verbFormsPath,
+                decide: { harness.decide(CaretText($0)).decision }
+            )
+        }
         if let path = arguments.ksrPath {
             return predictor.keystrokeSavings(path: path, limit: arguments.ksrLimit)
         }

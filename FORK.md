@@ -13,6 +13,27 @@ No Xcode needed. macOS 14 or later. Tested on an Apple Silicon Mac running macOS
 
 The app is named "Cotabby Dev" and keeps its own settings and permissions, so it can sit next to the official Cotabby. It does not update itself: a new version is a new download, and permissions carry over. The download is about 700 MB because the sentence model is inside it.
 
+## Recommended setup
+
+What gives the best results, in order of how much it matters:
+
+1. **Run only one Cotabby.** The released Cotabby app and this fork are two typing assistants; with both running, the released one's ghost text also takes Tab and types words of its own. Quit it and take it out of System Settings → General → Login Items while you use this one.
+2. **Install the Gemma model for the word strip.** Settings → Engine & Model → download **tabby-2-base** (Gemma 4 E2B, 3.8 GB). The strip is ordered by a language model that reads your last few sentences, and it uses the best one installed, with no setting to change:
+
+   | Model (name in the app) | Size | First suggestion right, all typing moments | After 2 letters | After 3 letters | Right verb form first | Used when |
+   |---|---|---|---|---|---|---|
+   | Gemma 4 E2B (tabby-2-base) | 3.8 GB | 70% | 81% | 90% | 93% | installed, and the Mac has 16 GB of memory or more |
+   | Qwen 3.5 2B base (tabby-2-mini) | 1.3 GB | 67% | 77% | 87% | 91% | installed, 12 GB of memory or more |
+   | Qwen 3.5 0.8B base (tabby-2-nano) | 0.6 GB | 65% | 75% | 86% | 91% | installed |
+   | the built-in sentence model | already loaded | 58% | 67% | 80% | 84% | nothing else is installed |
+   | no language model (word table only) | | 38% | 43% | 57% | 54% | |
+
+   Measured on the held-back test passages (`Tools/prediction/README.md`). The larger Gemma (tabby-2-pro, 5.3 GB) was no better at this than tabby-2-base and takes half again as long per word.
+3. **Settings → Writing:** keep **Show Next-Word Predictions**, **Hide Suggestions on Typo**, **Offer Corrections on Typo** and **Automatically Fix Confident Typos** on (the defaults), and press the button under **macOS Autocorrect Is Also On** so macOS's own autocorrect is off.
+4. **Optional:** **Save Training Examples** (Settings → Writing → Training Data) if you want to train a model on your own writing later. It is off unless you turn it on.
+
+On a Mac with less than 16 GB of memory, install tabby-2-mini (or tabby-2-nano under 12 GB) instead of tabby-2-base. With neither, everything still works; the strip is just right less often.
+
 **Turning it off and on:** Control+Option+C (⌃⌥C), from any app. A short notice at the caret says which way it went, and anything Cotabby had on screen goes away. Change or clear the shortcut in Settings → Shortcuts → Toggle Cotabby.
 
 ## How it works while you type
@@ -23,7 +44,7 @@ The app is named "Cotabby Dev" and keeps its own settings and permissions, so it
 - **Shift slips are undone instantly:** `THe` → The, `kKing` → King (not `IDs`, `MHz`, or `iPhone`).
 - **Names you spelled right are capitalized, not "corrected":** `walmart` → Walmart, `monday` → Monday. When a common word is one slip away (`hungary`: Hungary or hungry?) you get the bar instead.
 - **Unsure words open a three-slot bar** above the word, like the iPhone: `"what you typed"` | **best fix** | runner-up. Tab takes the highlighted slot, ←/→ move, ⌥1/2/3 pick directly, or click. Return only picks after you move the highlight. Picking the quoted slot keeps your word and stops flagging it. Esc leaves this one word alone (no bar, no fix) until you move on. Shift- and Option-arrows go to the app. If you keep typing, the bar just goes away.
-- **Next-word strip** above the caret while you type: up to five likely words. Tab types the highlighted one (the first, to begin with) and the strip moves on to the word after it. → steps the highlight to the next word and ← steps back, then Tab or Return types it; ⌥1…5 pick a slot directly. The arrows are only taken when the app has no use for them: → when nothing follows the caret on its line, ← once → has moved the highlight. With text to the right of the caret, and for ↑/↓ always, arrows stay caret movement and the strip steps aside. Esc hides it until the next word.
+- **Next-word strip** above the caret while you type: up to five likely words, likeliest first, ordered by a language model that reads your last few sentences. That is what makes the verb form follow the tense you are writing in: after `Yesterday we` the letters `walk` offer **walked** first, after `She is still` **walking**, after `Every morning she` **walks**. It never offers slurs or swear words. Tab types the highlighted one (the first, to begin with) and the strip moves on to the word after it. → steps the highlight to the next word and ← steps back, then Tab or Return types it; ⌥1…5 pick a slot directly. The arrows are only taken when the app has no use for them: → when nothing follows the caret on its line, ← once → has moved the highlight. With text to the right of the caret, and for ↑/↓ always, arrows stay caret movement and the strip steps aside. Esc hides it until the next word.
 - **Capitals like the iPhone:** the first word of a sentence and `i` / `i'm` / `i've`.
 - **Sentence pass** when you finish a sentence (`.` `!` `?`):
   - fixed automatically: doubled words (`the the`), `hello ,world`, double spaces, leftover certain typos;
@@ -160,6 +181,44 @@ $CLI --no-model --accuracy <file>                   # compare with the score rul
 $CLI --proofread "He was to tired to walk."         # the sentence pass, wrong words included
 ```
 
+## Word strip language model
+
+The n-gram table sees the last three words of the current sentence. That is enough for `would like to`
+and blind to everything that sets a tense: `Yesterday`, the verbs earlier in the sentence, the sentence
+before. So the strip is ordered by a language model that reads the last four sentences.
+
+- **Once per word, not per key.** The model's answer depends only on the text before the word being
+  typed, so it is asked when a word is finished (at the Space) and every letter after that reuses the
+  answer. One pass takes 5 to 11 ms in the harness and 15 to 25 ms inside the running app.
+- **No second redraw.** The strip waits up to 50 ms for the answer instead of showing the table's
+  order and swapping it; if the model is slower than that the table's order is shown.
+- **From pieces to words.** A model predicts pieces, not words. A word's probability is its first
+  piece's probability times the word's share of that piece; once the typed letters narrow the field
+  to words sharing a piece (`shin`, `shins`, `shiny`), one more pass gives the exact numbers for them
+  (`Support/Prediction/WordLanguageModel.swift`). Models that cannot take a piece back out of their
+  memory (Qwen 3.5) skip that pass.
+- **Near misses.** A word that does not start with the typed letters (`small` for `smalle`) is charged
+  heavily, so it only comes first when nothing likely starts with them (`necc` → necessary).
+- **Which model:** the best one installed (see "Recommended setup"). Nothing is downloaded for this;
+  all of them are files the app already uses for ghost text or the sentence pass.
+- **Speed of everything else is unchanged:** key to automatic fix, median 22 ms; key to spelling bar,
+  27 ms (live, with the model running).
+
+Results on the held-back test passages, `cotabby-spell --typing` (first suggestion is the word):
+
+| Letters typed | 0 | 1 | 2 | 3 | 4 | all moments | right verb form first |
+|---|---|---|---|---|---|---|---|
+| word table only (before) | 12% | 34% | 43% | 57% | 57% | 38% | 54% |
+| Gemma 4 E2B | 34% | 69% | 81% | 90% | 92% | 70% | 93% |
+| Qwen 3.5 2B base | 32% | 66% | 77% | 87% | 90% | 67% | 91% |
+| Qwen 3.5 0.8B base | 30% | 62% | 75% | 86% | 90% | 65% | 91% |
+| built-in sentence model | 22% | 52% | 67% | 80% | 85% | 58% | 84% |
+
+Before any letter is typed no model gets far past a third: many words are possible there. What was
+tried and did not help: letting the model order the spelling bar's fixes (21.6% first against the
+engine's own 22.2%), a heavier weight on the word table, and the larger Gemma. Method, test data and
+how to run it are in `Tools/prediction/README.md`.
+
 ## Sentence model
 
 When a sentence is finished, a small language model fine-tuned for spelling rereads it. Words it is
@@ -273,6 +332,8 @@ xcodebuild test -project Cotabby.xcodeproj -scheme Cotabby -destination 'platfor
 Tools/install-dev.sh
 Tools/e2e/live-smoke.sh                       # everything, about three minutes
 E2E_ONLY=speed Tools/e2e/live-smoke.sh        # key-to-fix timings only (E2E_PACE=<ms per key>)
+E2E_ONLY=tense Tools/e2e/live-smoke.sh        # the word strip's verb forms (needs the CLI; COTABBY_SPELL=<path>)
+E2E_PAUSE_OTHER=1 Tools/e2e/live-smoke.sh     # quit the released Cotabby for the run (it types into the test window)
 E2E_ONLY=toggle Tools/e2e/live-smoke.sh       # the on/off shortcut only
 E2E_ONLY=training Tools/e2e/live-smoke.sh     # the opt-in training record (on for that run only)
 # A picture of Settings at one setting, taken by the app of its own window only:
@@ -292,11 +353,27 @@ with dark text. On macOS 26 the panel turns light over a light window and dark o
 the text follows. Checked by picture (spelling bar and word strip) over white, dark and colorful test
 windows; the macOS 14–15 fallback compiles but has not been run.
 
+## Building from source on another Mac
+
+```sh
+git clone https://github.com/AmirFone/cotabby && cd cotabby && git checkout groq
+Tools/release/fetch-models.sh     # the word table and the sentence model: too large for git
+Tools/install-dev.sh              # builds "Cotabby Dev", installs it in /Applications, opens it
+```
+
+Needs Xcode and `xcodegen` (`brew install xcodegen`; run `xcodegen generate` if the project file is
+out of date). `install-dev.sh` signs with a local identity when it finds one and ad hoc otherwise;
+with an ad hoc signature macOS asks for the Accessibility and Input Monitoring grants again after
+each rebuild. The downloadable release avoids all of this.
+
 ## Releasing
 
 ```sh
-Tools/release/package-dmg.sh 0.1.0   # builds, puts the sentence model in the app, signs, writes the .dmg
+Tools/release/package-dmg.sh 0.2.0   # builds, puts the sentence model in the app, signs, writes the .dmg
 ```
+
+Upload the image together with `next_word_model_en.bin` and the sentence model file, which
+`Tools/release/fetch-models.sh` downloads for source builds.
 
 The script prints the image's path (outside the repo) and its SHA-256. Install that app and run
 `Tools/e2e/live-smoke.sh` against it before uploading. Tags are named `fork-v<version>`: a tag that

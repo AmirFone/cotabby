@@ -5,6 +5,10 @@ import Foundation
 ///
 ///   cotabby-spell --predict "I would like to |"     the list the app would show
 ///   cotabby-spell --ksr heldout.txt [3000]          top-1 / top-5 and keystroke savings
+///   cotabby-spell --typing texts.txt|passages.jsonl [n] [--lm model.gguf] [--verbs verb_forms.txt]
+///         how often the first suggestion is the word, by letters typed, and the tense test. The
+///         text is typed as written, punctuation and earlier sentences included, so the language
+///         model (`--lm`) reads what it would read in the app.
 ///
 /// Keystroke savings simulates a writer who types letter by letter and picks the word with one key
 /// as soon as it is listed. Same method as `Tools/ngram/evaluate.py`, so the numbers are comparable.
@@ -14,12 +18,30 @@ struct PredictionHarness {
     /// With `--adaptive`, every simulated sentence is learned after it is typed, like the app does.
     let phrases: PersonalPhraseModel?
     let hardWords: Set<String>
+    /// The word language model, run in step with the simulated typing (`--lm`); nil without it.
+    let languageModel: SynchronousLanguageModel?
 
-    static func make(resourceRoot: URL, corrector: SymSpellCorrector, adaptive: Bool = false) -> PredictionHarness? {
+    static func make(
+        resourceRoot: URL,
+        corrector: SymSpellCorrector,
+        adaptive: Bool = false,
+        languageModelPath: String? = nil
+    ) -> PredictionHarness? {
         let url = resourceRoot.appendingPathComponent("next_word_model_en.bin")
         guard let data = try? Data(contentsOf: url, options: .alwaysMapped),
               let model = NextWordModel(data: data) else { return nil }
         let phrases = adaptive ? PersonalPhraseModel(fileURL: nil) : nil
+        var languageModel: SynchronousLanguageModel?
+        if let languageModelPath {
+            guard let core = WordLanguageModelCore(
+                modelURL: URL(fileURLWithPath: languageModelPath),
+                dictionaryURL: resourceRoot.appendingPathComponent("frequency_dictionary_en_82_765.txt")
+            ) else {
+                print("could not load the language model at \(languageModelPath)")
+                return nil
+            }
+            languageModel = SynchronousLanguageModel(core: core)
+        }
         let hardWords = Set(((try? String(contentsOf: resourceRoot.appendingPathComponent("commonly_misspelled_en.txt"), encoding: .utf8)) ?? "")
             .split(separator: "\n").filter { !$0.hasPrefix("#") }.map(String.init))
         return PredictionHarness(sources: NextWordPredictor.Sources(
@@ -31,8 +53,20 @@ struct PredictionHarness {
                 guard ProcessInfo.processInfo.environment["NO_FUZZY"] == nil else { return [] }
                 return corrector.fuzzyCompletions(of: prefix, limit: limit)
             },
-            isHardToSpell: { ProcessInfo.processInfo.environment["NO_HARD"] == nil && hardWords.contains($0) }
-        ), phrases: phrases, hardWords: hardWords)
+            isHardToSpell: { ProcessInfo.processInfo.environment["NO_HARD"] == nil && hardWords.contains($0) },
+            languageModel: { languageModel?.scores(forTextBefore: $0) },
+            mix: mixFromEnvironment()
+        ), phrases: phrases, hardWords: hardWords, languageModel: languageModel)
+    }
+
+    /// MIX_TABLE_WEIGHT, MIX_SLIP_PENALTY, MIX_CANDIDATES: try other numbers without rebuilding.
+    private static func mixFromEnvironment() -> NextWordPredictor.LanguageModelMix {
+        let environment = ProcessInfo.processInfo.environment
+        var mix = NextWordPredictor.LanguageModelMix()
+        if let value = environment["MIX_TABLE_WEIGHT"].flatMap(Double.init) { mix.tableWeight = value }
+        if let value = environment["MIX_SLIP_PENALTY"].flatMap(Double.init) { mix.slipPenalty = value }
+        if let value = environment["MIX_CANDIDATES"].flatMap(Int.init) { mix.modelCandidates = value }
+        return mix
     }
 
     func show(_ input: CaretText) {
@@ -80,6 +114,16 @@ struct PredictionHarness {
             100 * (1 - tally.keys / Double(max(tally.characters, 1))),
             1000 * seconds / Double(max(tally.calls, 1))
         ))
+        func row(_ hits: [Int]) -> String {
+            zip(hits, tally.momentsByLetters).map { String(format: "%5.1f%%", 100 * Double($0) / Double(max($1, 1))) }
+                .joined(separator: " ")
+        }
+        let moments = tally.momentsByLetters.reduce(0, +)
+        print("letters typed:           " + (0...Self.lettersTracked).map { String(format: "%6d", $0) }.joined())
+        print("first suggestion right:  " + row(tally.firstRightByLetters)
+              + String(format: "   all moments %.1f%%", 100 * Double(tally.firstRightByLetters.reduce(0, +)) / Double(max(moments, 1))))
+        print("in the list:             " + row(tally.listedByLetters)
+              + String(format: "   all moments %.1f%%", 100 * Double(tally.listedByLetters.reduce(0, +)) / Double(max(moments, 1))))
         return 0
     }
 
@@ -95,7 +139,15 @@ struct PredictionHarness {
         var hardCharacters = 0
         var characters = 0
         var calls = 0
+        /// First suggestion right / moments seen, by how many letters of the word were typed
+        /// (index 0 = before any letter). Counted at every letter, whether or not a writer would
+        /// already have picked the word, so it answers "how often is the first word the right one".
+        var firstRightByLetters = [Int](repeating: 0, count: PredictionHarness.lettersTracked + 1)
+        var listedByLetters = [Int](repeating: 0, count: PredictionHarness.lettersTracked + 1)
+        var momentsByLetters = [Int](repeating: 0, count: PredictionHarness.lettersTracked + 1)
     }
+
+    static let lettersTracked = 6
 
     private func simulate(_ sentence: String, into tally: inout Tally) {
         let words = NextWordPredictor.tokens(in: Substring(sentence))
@@ -111,6 +163,12 @@ struct PredictionHarness {
                 tally.predictions += 1
                 if listed.first == target { tally.top1 += 1 }
                 if listed.contains(target) { tally.top5 += 1 }
+                for letters in 0...min(word.count - 1, Self.lettersTracked) {
+                    let shown = letters == 0 ? listed : predict(written + word.prefix(letters), &tally)
+                    tally.momentsByLetters[letters] += 1
+                    if shown.first == target { tally.firstRightByLetters[letters] += 1 }
+                    if shown.contains(target) { tally.listedByLetters[letters] += 1 }
+                }
             }
             var typed = ""
             var picked = false
@@ -160,6 +218,362 @@ struct PredictionHarness {
     private func predict(_ text: String, _ tally: inout Tally) -> [String] {
         tally.calls += 1
         return NextWordPredictor.predict(textBefore: text, sources: sources)?.words.map { $0.lowercased() } ?? []
+    }
+}
+
+/// The app asks the language model in the background and redraws when the answer arrives; the
+/// harness simply waits for it, which scores what the writer sees once the answer is there.
+@MainActor
+final class SynchronousLanguageModel {
+    private let core: WordLanguageModelCore
+    private var latest: LanguageModelScores?
+    private(set) var passMilliseconds: [Double] = []
+
+    init(core: WordLanguageModelCore) {
+        self.core = core
+    }
+
+    func scores(forTextBefore text: String) -> LanguageModelScores? {
+        guard let context = LanguageModelContext.make(textBefore: text) else { return nil }
+        if latest?.key != context.key {
+            let started = DispatchTime.now().uptimeNanoseconds
+            latest = core.scores(for: context.key)
+            passMilliseconds.append(Double(DispatchTime.now().uptimeNanoseconds - started) / 1_000_000)
+        }
+        // NO_REFINE=1 scores the first estimate alone, to measure what the exact pass adds.
+        // The app asks again after each refinement until nothing is left to refine; so does this.
+        var rounds = 0
+        while let current = latest, !Self.skipsRefinement, rounds < 4 {
+            let started = DispatchTime.now().uptimeNanoseconds
+            guard let refined = core.refine(current, forPrefix: context.prefix.lowercased()) else { break }
+            latest = refined
+            rounds += 1
+            refineMilliseconds.append(Double(DispatchTime.now().uptimeNanoseconds - started) / 1_000_000)
+        }
+        return latest
+    }
+
+    private(set) var refineMilliseconds: [Double] = []
+    private static let skipsRefinement = ProcessInfo.processInfo.environment["NO_REFINE"] != nil
+}
+
+extension PredictionHarness {
+    /// One text to type, with the label its results are also grouped under (a passage's tense).
+    private struct TypedText {
+        let text: String
+        let group: String?
+        /// Words of the text with a misspelling a writer might type instead (`typed` in the
+        /// passages file): the text before the word, the misspelling, and the word.
+        var slips: [(before: String, wrong: String, right: String)] = []
+    }
+
+    private struct TypingTally {
+        var firstRight = [Int](repeating: 0, count: PredictionHarness.lettersTracked + 1)
+        var listed = [Int](repeating: 0, count: PredictionHarness.lettersTracked + 1)
+        var moments = [Int](repeating: 0, count: PredictionHarness.lettersTracked + 1)
+        /// Keys pressed by a writer who takes the first suggestion (one key) as soon as it is right.
+        var keys = 0
+        var characters = 0
+        var words = 0
+        /// Tense test: verb moments, right form listed before the other forms, right form first of
+        /// all, and no form of the verb listed at all.
+        var verbMoments = 0
+        var verbFormFirst = 0
+        var verbTop = 0
+        var verbUnlisted = 0
+        var predictions = 0
+        /// Typing a misspelling: moments after the slip (the letters no longer start the word), and
+        /// how often the word meant was first, or listed.
+        var slipMoments = 0
+        var slipFirst = 0
+        var slipListed = 0
+    }
+
+    /// `--typing`: types every text as written and reports how often the first suggestion is the
+    /// word at each number of letters typed, and how often the right form of a verb is offered
+    /// before its other forms once the letters they share are typed.
+    func typingReport(
+        path: String, limit: Int, verbFormsPath: String?, decide: ((String) -> TypoGateDecision)? = nil
+    ) -> Int32 {
+        guard let texts = Self.loadTexts(path: path, limit: limit) else {
+            print("cannot read \(path)")
+            return 2
+        }
+        let families = verbFormsPath.map(Self.loadVerbFamilies) ?? [:]
+        var total = TypingTally()
+        var spelling = SpellingTally()
+        var groups: [String: TypingTally] = [:]
+        let started = DispatchTime.now().uptimeNanoseconds
+        for item in texts {
+            var tally = TypingTally()
+            simulateTyping(item.text, families: families, into: &tally)
+            for slip in item.slips { typeMisspelling(slip.wrong, meaning: slip.right, after: slip.before, into: &tally) }
+            if let decide {
+                for slip in item.slips { finishMisspelling(slip, decide: decide, into: &spelling) }
+            }
+            // With `--adaptive` the text is learned after it is typed, like the app does.
+            if let phrases {
+                item.text.split(whereSeparator: { ".!?\n".contains($0) }).forEach { phrases.learn(sentence: String($0)) }
+            }
+            Self.add(tally, to: &total)
+            if let group = item.group { Self.add(tally, to: &groups[group, default: TypingTally()]) }
+        }
+        let seconds = Double(DispatchTime.now().uptimeNanoseconds - started) / 1_000_000_000
+
+        print("\(texts.count) texts, \(total.words) words" + (languageModel == nil ? ", table only" : ", with the language model"))
+        print("letters typed:            " + (0...Self.lettersTracked).map { String(format: "%6d", $0) }.joined(separator: " "))
+        func row(_ hits: [Int], _ tally: TypingTally) -> String {
+            zip(hits, tally.moments).map { String(format: "%5.1f%%", 100 * Double($0) / Double(max($1, 1))) }.joined(separator: " ")
+                + String(format: "   all moments %.1f%%", 100 * Double(hits.reduce(0, +)) / Double(max(tally.moments.reduce(0, +), 1)))
+        }
+        print("first suggestion right:   " + row(total.firstRight, total))
+        print("in the list of five:      " + row(total.listed, total))
+        print(String(format: "keys saved taking only the first suggestion: %.1f%%",
+                     100 * (1 - Double(total.keys) / Double(max(total.characters, 1)))))
+        if total.verbMoments > 0 {
+            print(Self.tenseLine("tense test", total))
+        }
+        if total.slipMoments > 0 {
+            print(String(format: "typing a misspelling, after the slip: word meant is first %.1f%%, listed %.1f%% (%d moments)",
+                         100 * Double(total.slipFirst) / Double(total.slipMoments),
+                         100 * Double(total.slipListed) / Double(total.slipMoments), total.slipMoments))
+        }
+        for name in groups.keys.sorted() {
+            guard let tally = groups[name] else { continue }
+            print(String(format: "  %-8@ first right, all moments %.1f%%", name as NSString,
+                         100 * Double(tally.firstRight.reduce(0, +)) / Double(max(tally.moments.reduce(0, +), 1)))
+                  + (tally.verbMoments > 0 ? "   " + Self.tenseLine("tense", tally) : ""))
+        }
+        if spelling.words > 0 {
+            func share(_ count: Int) -> String { String(format: "%.1f%%", 100 * Double(count) / Double(spelling.words)) }
+            print("finished misspellings (\(spelling.words)): fixed unasked \(share(spelling.fixedRight)) right, "
+                  + "\(share(spelling.fixedWrong)) wrong; offered with the word first \(share(spelling.offeredFirst)), "
+                  + "offered lower \(share(spelling.offeredLower)); not caught \(share(spelling.missed))")
+            if languageModel != nil {
+                print("  if the language model ordered what is offered: the word first \(share(spelling.offeredFirstByModel))")
+            }
+        }
+        if let passes = languageModel?.passMilliseconds.sorted(), !passes.isEmpty {
+            print(String(format: "language model: %d passes, median %.1f ms, 90%% within %.1f ms, slowest %.1f ms",
+                         passes.count, passes[passes.count / 2], passes[passes.count * 9 / 10], passes[passes.count - 1]))
+        }
+        if let refinements = languageModel?.refineMilliseconds.sorted(), !refinements.isEmpty {
+            print(String(format: "exact passes: %d (%.2f per word), median %.1f ms, 90%% within %.1f ms",
+                         refinements.count, Double(refinements.count) / Double(max(total.words, 1)),
+                         refinements[refinements.count / 2], refinements[refinements.count * 9 / 10]))
+        }
+        print(String(format: "%.2f ms per prediction overall", 1000 * seconds / Double(max(total.predictions, 1))))
+        return 0
+    }
+
+    private static func tenseLine(_ label: String, _ tally: TypingTally) -> String {
+        String(format: "%@: right verb form before the others %.1f%%, first of all %.1f%%, no form listed %.1f%% (%d verb moments)",
+               label,
+               100 * Double(tally.verbFormFirst) / Double(max(tally.verbMoments, 1)),
+               100 * Double(tally.verbTop) / Double(max(tally.verbMoments, 1)),
+               100 * Double(tally.verbUnlisted) / Double(max(tally.verbMoments, 1)),
+               tally.verbMoments)
+    }
+
+    private static func add(_ tally: TypingTally, to total: inout TypingTally) {
+        for index in 0...lettersTracked {
+            total.firstRight[index] += tally.firstRight[index]
+            total.listed[index] += tally.listed[index]
+            total.moments[index] += tally.moments[index]
+        }
+        total.keys += tally.keys
+        total.characters += tally.characters
+        total.words += tally.words
+        total.verbMoments += tally.verbMoments
+        total.verbFormFirst += tally.verbFormFirst
+        total.verbTop += tally.verbTop
+        total.verbUnlisted += tally.verbUnlisted
+        total.predictions += tally.predictions
+        total.slipMoments += tally.slipMoments
+        total.slipFirst += tally.slipFirst
+        total.slipListed += tally.slipListed
+    }
+
+    private func simulateTyping(_ text: String, families: [String: [String]], into tally: inout TypingTally) {
+        var index = text.startIndex
+        var startsSentence = true
+        while index < text.endIndex {
+            let character = text[index]
+            guard character.isASCII, character.isLetter || character.isNumber else {
+                if ".!?\n".contains(character) { startsSentence = true }
+                index = text.index(after: index)
+                continue
+            }
+            // One word: letters with inner apostrophes, or a run of digits (the predictor's own rule).
+            var end = index
+            let isNumber = character.isNumber
+            while end < text.endIndex {
+                let next = text[end]
+                if next.isASCII, isNumber ? next.isNumber : next.isLetter {
+                    end = text.index(after: end)
+                } else if !isNumber, next == "'", text.index(after: end) < text.endIndex,
+                          text[text.index(after: end)].isASCII, text[text.index(after: end)].isLetter {
+                    end = text.index(after: end)
+                } else {
+                    break
+                }
+            }
+            let raw = String(text[index..<end])
+            let isName = !startsSentence && raw.first?.isUppercase == true && raw != "I" && !raw.hasPrefix("I'")
+            if !isNumber, !isName {
+                type(raw, after: String(text[..<index]), families: startsSentence ? [:] : families, into: &tally)
+            }
+            startsSentence = false
+            index = end
+        }
+    }
+
+    private func type(_ raw: String, after before: String, families: [String: [String]], into tally: inout TypingTally) {
+        let target = raw.lowercased()
+        tally.words += 1
+        tally.characters += raw.count + 1
+        var keys = raw.count + 1
+        for letters in 0...min(raw.count - 1, Self.lettersTracked) {
+            let shown = shownWords(before + raw.prefix(letters), &tally)
+            tally.moments[letters] += 1
+            if shown.first == target {
+                tally.firstRight[letters] += 1
+                keys = min(keys, letters + 1)
+            } else if let misses = Self.missesFile {
+                // TYPING_MISSES=<file>: every moment the first suggestion was wrong, for reading.
+                let line = "\(letters)\t\(before.suffix(60).replacingOccurrences(of: "\n", with: " "))[\(raw.prefix(letters))]\t\(target)\t\(shown.joined(separator: " "))\n"
+                misses.write(Data(line.utf8))
+            }
+            if shown.contains(target) { tally.listed[letters] += 1 }
+        }
+        tally.keys += keys
+
+        guard let forms = families[target] else { return }
+        let shared = forms.dropFirst().reduce(forms[0]) { String($0.commonPrefix(with: $1)) }
+        let choices = Set(forms.filter { $0 != shared })
+        guard choices.contains(target), choices.count >= 2 else { return }
+        let shown = shownWords(before + raw.prefix(shared.count), &tally)
+        tally.verbMoments += 1
+        if shown.first == target { tally.verbTop += 1 }
+        if let firstForm = shown.first(where: choices.contains) {
+            if firstForm == target { tally.verbFormFirst += 1 }
+        } else {
+            tally.verbUnlisted += 1
+        }
+    }
+
+    /// Types a misspelling letter by letter, stopping before its last letter (a finished word
+    /// belongs to the spelling bar), and scores the moments where the slip has already happened.
+    private func typeMisspelling(_ wrong: String, meaning right: String, after before: String, into tally: inout TypingTally) {
+        let target = right.lowercased()
+        guard wrong.count >= 4 else { return }
+        for letters in 3..<wrong.count where !target.hasPrefix(wrong.prefix(letters).lowercased()) {
+            let shown = shownWords(before + wrong.prefix(letters), &tally)
+            tally.slipMoments += 1
+            if shown.first == target { tally.slipFirst += 1 }
+            if shown.contains(target) { tally.slipListed += 1 }
+        }
+    }
+
+    /// What the spelling engine did with finished misspellings.
+    private struct SpellingTally {
+        var words = 0
+        var fixedRight = 0
+        var fixedWrong = 0
+        var offeredFirst = 0
+        var offeredLower = 0
+        var missed = 0
+        /// Offers where the candidate the language model finds likeliest here is the word.
+        var offeredFirstByModel = 0
+    }
+
+    /// The whole misspelling and its space typed: what does the spelling engine do, and would the
+    /// language model's order of the offered fixes be better than the engine's own?
+    private func finishMisspelling(
+        _ slip: (before: String, wrong: String, right: String),
+        decide: (String) -> TypoGateDecision,
+        into tally: inout SpellingTally
+    ) {
+        let target = slip.right.lowercased()
+        tally.words += 1
+        let candidates: [String]
+        switch decide(slip.before + slip.wrong + " ") {
+        case let .applyCorrection(_, corrected):
+            if corrected.lowercased() == target { tally.fixedRight += 1 } else { tally.fixedWrong += 1 }
+            return
+        case let .offerCorrection(_, corrected):
+            candidates = [corrected]
+        case let .offerRankedCorrection(_, list), let .offerChoices(_, list), let .offerRealWordFix(_, list):
+            candidates = list.map(\.term)
+        case .proceed, .suppress:
+            tally.missed += 1
+            return
+        }
+        let terms = candidates.map { $0.lowercased() }
+        if terms.first == target { tally.offeredFirst += 1 } else if terms.contains(target) { tally.offeredLower += 1 } else { tally.missed += 1 }
+        if let scores = languageModel?.scores(forTextBefore: slip.before) {
+            let likeliest = terms.max { (scores.logProbability(of: $0) ?? -.infinity) < (scores.logProbability(of: $1) ?? -.infinity) }
+            if likeliest == target { tally.offeredFirstByModel += 1 }
+        }
+    }
+
+    private static let missesFile: FileHandle? = ProcessInfo.processInfo.environment["TYPING_MISSES"].flatMap { path in
+        FileManager.default.createFile(atPath: path, contents: nil)
+        return FileHandle(forWritingAtPath: path)
+    }
+
+    private func shownWords(_ text: String, _ tally: inout TypingTally) -> [String] {
+        tally.predictions += 1
+        return NextWordPredictor.predict(textBefore: text, sources: sources)?.words.map { $0.lowercased() } ?? []
+    }
+
+    /// One text per line (`.txt`, sampled like `--ksr`), or JSON Lines with a `text` and optionally
+    /// a `tense` (`Tools/prediction/passages-*.jsonl`, all used in order).
+    private static func loadTexts(path: String, limit: Int) -> [TypedText]? {
+        guard let contents = try? String(contentsOfFile: path, encoding: .utf8) else { return nil }
+        let lines = contents.split(separator: "\n").map(String.init).filter { !$0.isEmpty }
+        if path.hasSuffix(".jsonl") {
+            return lines.prefix(limit).compactMap { line in
+                guard let object = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any],
+                      let text = object["text"] as? String else { return nil }
+                var item = TypedText(text: text, group: object["tense"] as? String)
+                if let typed = object["typed"] as? String { item.slips = slips(in: text, typedAs: typed) }
+                return item
+            }
+        }
+        var generator = SeededGenerator(seed: 7)
+        var sampled = lines
+        sampled.shuffle(using: &generator)
+        return sampled.prefix(limit).map { TypedText(text: $0, group: nil) }
+    }
+
+    /// The words that differ between a text and its misspelled copy (same words, same order).
+    private static func slips(in text: String, typedAs typed: String) -> [(before: String, wrong: String, right: String)] {
+        let right = text.split(separator: " ", omittingEmptySubsequences: false)
+        let wrong = typed.split(separator: " ", omittingEmptySubsequences: false)
+        guard right.count == wrong.count else { return [] }
+        var result: [(before: String, wrong: String, right: String)] = []
+        for (correct, misspelled) in zip(right, wrong) where correct != misspelled {
+            let leading = correct.prefix { !$0.isLetter }
+            let core = correct.dropFirst(leading.count).prefix { $0.isLetter || $0 == "'" }
+            let wrongCore = misspelled.dropFirst(leading.count).prefix { $0.isLetter || $0 == "'" }
+            guard !core.isEmpty, !wrongCore.isEmpty, core.first?.isLowercase == true else { continue }
+            result.append((String(text[..<core.startIndex]), String(wrongCore), String(core)))
+        }
+        return result
+    }
+
+    /// Every form of a verb mapped to all its forms, from `Tools/prediction/verb_forms.txt` (one
+    /// verb per line). A form shared by two verbs (`found`) goes with the first line that has it,
+    /// and the file lists inflected readings first.
+    private static func loadVerbFamilies(path: String) -> [String: [String]] {
+        guard let contents = try? String(contentsOfFile: path, encoding: .utf8) else { return [:] }
+        var families: [String: [String]] = [:]
+        for line in contents.split(separator: "\n") where !line.hasPrefix("#") {
+            let forms = line.split(separator: " ").map(String.init)
+            for form in forms where families[form] == nil { families[form] = forms }
+        }
+        return families
     }
 }
 

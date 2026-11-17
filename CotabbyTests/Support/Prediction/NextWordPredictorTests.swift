@@ -20,15 +20,106 @@ final class NextWordPredictorTests: XCTestCase {
 
     private func sources(
         completions: [String] = ["going", "gone", "great"],
-        personal: [String: [String: Int]] = [:]
+        personal: [String: [String: Int]] = [:],
+        fuzzyCompletions: [String] = [],
+        languageModel: LanguageModelScores? = nil
     ) -> NextWordPredictor.Sources {
         NextWordPredictor.Sources(
             model: model,
             completions: { prefix, limit in Array(completions.filter { $0.hasPrefix(prefix) }.prefix(limit)) },
             personal: { context in
                 personal[context.joined(separator: " ")].map { ($0.values.reduce(0, +), $0) }
-            }
+            },
+            fuzzyCompletions: { _, limit in Array(fuzzyCompletions.prefix(limit)) },
+            languageModel: { _ in languageModel }
         )
+    }
+
+    // MARK: - With the language model
+
+    func test_languageModel_putsTheRightVerbFormFirst() {
+        // #given a past-tense sentence, where the table knows nothing after "Yesterday I"
+        let text = "Yesterday I walk"
+        let model = LanguageModelFixture.scores(textBefore: text, ["walked": 0.5, "walking": 0.04, "walks": 0.01, "walker": 0.001])
+
+        // #when predicting with the model's answer
+        let prediction = NextWordPredictor.predict(textBefore: text, sources: sources(languageModel: model))
+
+        // #then the past form comes before the other forms
+        XCTAssertEqual(prediction?.words, ["walked", "walking", "walks", "walker"])
+    }
+
+    func test_languageModel_ordersByLikelihoodNotByKeysSaved() {
+        // #given "I want to ", where the table alone would put the longer word forward
+        let text = "I want to "
+        let model = LanguageModelFixture.scores(textBefore: text, ["go": 0.4, "be": 0.3, "understand": 0.05])
+
+        // #when predicting with the model's answer
+        let prediction = NextWordPredictor.predict(textBefore: text, sources: sources(languageModel: model))
+
+        // #then the likeliest word is first, short as it is
+        XCTAssertEqual(prediction?.words.first, "go")
+    }
+
+    func test_languageModel_exactCompletionBeatsAFarLikelierNearMiss() {
+        // #given the letters "withou", and "with" (a near miss of them) twenty times likelier
+        let text = "I left withou"
+        let model = LanguageModelFixture.scores(textBefore: text, ["without": 0.02, "with": 0.4, "within": 0.01])
+
+        // #when predicting, with "with" and "within" offered as forgiven slips
+        let prediction = NextWordPredictor.predict(
+            textBefore: text, sources: sources(fuzzyCompletions: ["with", "within"], languageModel: model)
+        )
+
+        // #then the word the letters spell is first, and the shorter word is not offered at all
+        XCTAssertEqual(prediction?.words.first, "without")
+        XCTAssertEqual(prediction?.words.contains("with"), false)
+    }
+
+    func test_languageModel_nearMissComesFirstWhenNothingLikelyStartsWithTheLetters() {
+        // #given a misspelled start, "wich", that only begins a very unlikely word
+        let text = "I know wich"
+        let model = LanguageModelFixture.scores(textBefore: text, ["which": 0.3, "wichita": 0.000001])
+
+        // #when predicting, with "which" offered as a forgiven slip
+        let prediction = NextWordPredictor.predict(
+            textBefore: text, sources: sources(fuzzyCompletions: ["which"], languageModel: model)
+        )
+
+        // #then the word meant is first
+        XCTAssertEqual(prediction?.words.first, "which")
+    }
+
+    func test_languageModel_wordItDoesNotKnow_isScoredByTheTable() {
+        // #given the writer's own phrase "go to lindqvist", a name no dictionary has
+        let text = "We go to "
+        let model = LanguageModelFixture.scores(textBefore: text, ["work": 0.2, "bank": 0.1])
+        let personal = ["go to": ["lindqvist": 40]]
+
+        // #when predicting
+        let prediction = NextWordPredictor.predict(textBefore: text, sources: sources(personal: personal, languageModel: model))
+
+        // #then the name is still offered
+        XCTAssertEqual(prediction?.words.contains("lindqvist"), true)
+    }
+
+    func test_offensiveWord_isNeverOffered_withOrWithoutTheLanguageModel() {
+        // #given a context where a swear word is the likeliest next word for both sources
+        let table = NextWordModelFixture.make(["": (100, [("shit", 60), ("ship", 30), ("shin", 5)])])
+        let text = "Oh sh"
+        let model = LanguageModelFixture.scores(textBefore: text, ["shit": 0.6, "ship": 0.2, "shin": 0.01])
+        func predict(_ languageModel: LanguageModelScores?) -> [String]? {
+            NextWordPredictor.predict(textBefore: text, sources: NextWordPredictor.Sources(
+                model: table,
+                completions: { _, _ in ["shit", "ship"] },
+                personal: { _ in nil },
+                languageModel: { _ in languageModel }
+            ))?.words
+        }
+
+        // #then neither list contains it
+        XCTAssertEqual(predict(nil), ["ship", "shin"])
+        XCTAssertEqual(predict(model), ["ship", "shin"])
     }
 
     func test_afterSpace_prefersTheLongestKnownContext() {

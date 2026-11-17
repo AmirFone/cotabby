@@ -7,6 +7,15 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 DERIVED="$HOME/Library/Developer/Xcode/DerivedData/CotabbyFork-Dev"
 IDENTITY="${COTABBY_SIGN_IDENTITY:-Whisper Scribe Dev}"
+# On a Mac without that signing identity the app is signed ad hoc ("-") instead. It runs the same,
+# but macOS ties the Accessibility and Input Monitoring grants to the signature, and an ad-hoc one
+# changes with every build, so the grants have to be given again after each rebuild. A self-signed
+# code-signing certificate of your own (Keychain Access > Certificate Assistant), named in
+# COTABBY_SIGN_IDENTITY, avoids that.
+if [ "$IDENTITY" != "-" ] && ! security find-identity -v -p codesigning | grep -q "\"$IDENTITY\""; then
+  echo "signing identity \"$IDENTITY\" not found; signing ad hoc (permissions must be granted again after each rebuild)" >&2
+  IDENTITY="-"
+fi
 xcodebuild -project Cotabby.xcodeproj -scheme "Cotabby Dev" -configuration Release -destination 'platform=macOS' \
   -derivedDataPath "$DERIVED" CODE_SIGN_IDENTITY="$IDENTITY" CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="" \
   PROVISIONING_PROFILE_SPECIFIER="" ENABLE_HARDENED_RUNTIME=NO ENABLE_DEBUG_DYLIB=NO \

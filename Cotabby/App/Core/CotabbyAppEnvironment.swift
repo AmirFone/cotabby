@@ -510,6 +510,13 @@ final class CotabbyAppEnvironment {
         let autoFixState = Self.describe(suggestionCoordinator.autoFixModel)
         let wrongWordState = Self.describe(suggestionCoordinator.wrongWordModel)
         CotabbyLogger.app.info("Spelling models: auto-fix \(autoFixState), wrong-word \(wrongWordState)")
+        // The language model that orders the word strip by the whole text so far (tense, topic),
+        // loaded in the background so the first word does not wait for it.
+        let wordLanguageModel = WordLanguageModelService(
+            modelURL: WordLanguageModelService.defaultModelURL(),
+            dictionaryURL: Bundle.main.url(forResource: "frequency_dictionary_en_82_765", withExtension: "txt")
+        )
+        wordLanguageModel.warmUp()
         let wordPredictionController = WordPredictionController(
             panel: CandidateListPanelController(),
             focusModel: focusModel,
@@ -517,7 +524,8 @@ final class CotabbyAppEnvironment {
             predict: WordPredictionController.makePredictor(
                 model: nextWordModel,
                 symSpellCorrector: symSpellCorrector,
-                phrases: personalPhraseModel
+                phrases: personalPhraseModel,
+                languageModel: wordLanguageModel
             ),
             isEnabled: {
                 suggestionSettings.snapshot.isGloballyEnabled && WordPredictionController.isEnabledInDefaults
@@ -535,9 +543,13 @@ final class CotabbyAppEnvironment {
             },
             isSpellingPending: { [weak suggestionCoordinator] in
                 suggestionCoordinator?.isSpellingPendingForLastKey ?? false
-            }
+            },
+            isLanguageModelPending: { wordLanguageModel.isAnswerPending(forTextBefore: $0) }
         )
         wordPredictionController.onSentenceSettled = { trainingLog.noteSentence($0) }
+        wordLanguageModel.onReady = { [weak wordPredictionController] in
+            wordPredictionController?.redrawWithLanguageModel()
+        }
         wordPredictionController.onCommitted = { [weak suggestionCoordinator] in
             qualityMetricsStore.recordWordPredictionPicked()
             suggestionCoordinator?.schedulePredictionAfterHostPublishDelay()

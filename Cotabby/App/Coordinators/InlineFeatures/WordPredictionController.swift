@@ -76,6 +76,10 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
     private let isSpellingPending: () -> Bool
     /// How long a finished sentence must stay in the field unchanged before it is learned.
     private let learnDelay: TimeInterval
+    /// True while the language model is working on its answer for this text (see `showOrAwait`).
+    private let isLanguageModelPending: (String) -> Bool
+    /// The longest the strip waits for that answer before showing the table's order instead.
+    private let languageModelWait: TimeInterval
 
     private(set) var showing: Showing?
     /// The slot the writer moved the highlight to with the arrow keys; nil until they do, and again
@@ -89,6 +93,12 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
     private var lastNotedText = ""
     /// Uptime of the last key seen, for the key-to-strip latency in the debug log.
     private var lastKeyUptimeNanoseconds: UInt64?
+    /// The text before the caret that the strip on screen was predicted for. It can be a key ahead
+    /// of `lastNotedText` (see `predictAhead`); a redraw must predict for the same text.
+    private var shownText = ""
+    /// A strip that is ready to draw but waiting for the language model's order (`showOrAwait`).
+    private var awaited: (showing: Showing, text: String)?
+    private var awaitTimeout: DispatchWorkItem?
     /// Keys seen since the last settled text; the optimistic update only trusts exactly one.
     private var keysSinceNote = 0
     /// The field's text right after a pick typed a word and its space; cleared by the next key.
@@ -112,10 +122,14 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
         isEnabled: @escaping () -> Bool,
         learn: @escaping (String) -> Void,
         isSpellingPending: @escaping () -> Bool = { false },
-        learnDelay: TimeInterval = 0.8
+        learnDelay: TimeInterval = 0.8,
+        isLanguageModelPending: @escaping (String) -> Bool = { _ in false },
+        languageModelWait: TimeInterval = 0.05
     ) {
         self.isSpellingPending = isSpellingPending
         self.learnDelay = learnDelay
+        self.isLanguageModelPending = isLanguageModelPending
+        self.languageModelWait = languageModelWait
         self.panel = panel
         self.focusModel = focusModel
         self.inserter = inserter
@@ -131,7 +145,7 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
             self?.commit(slot: index)
         }
         panel.onClickOutside = { [weak self] in
-            self?.hidePredictions()
+            self?.hide(because: "a click outside it")
         }
         focusModel.snapshotPublisher
             .sink { [weak self] snapshot in self?.handleFocusSnapshot(snapshot) }
@@ -139,7 +153,7 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
     }
 
     func stop() {
-        hidePredictions()
+        hide(because: "the controller stopped")
         cancellables.removeAll()
     }
 
@@ -150,15 +164,79 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
         lastNotedText = precedingText
         learnFinishedSentence(in: precedingText)
         guard isEnabled(), !isSuppressed, let prediction = predict(precedingText) else {
-            hidePredictions()
+            hide(because: "nothing to predict for this text")
             return
         }
-        show(Showing(prediction: prediction, caretRect: caretRect, focusChangeSequence: focusChangeSequence))
+        showOrAwait(Showing(prediction: prediction, caretRect: caretRect, focusChangeSequence: focusChangeSequence), for: precedingText)
+    }
+
+    /// Shows the strip now, or holds it for a moment when the language model is about to say which
+    /// order the words belong in.
+    ///
+    /// Why wait: the table answers in under a millisecond and the model about 20 ms later. Drawing
+    /// both would put one word in the first slot and swap it for another before the writer has
+    /// finished reading it. The strip already on screen stays as it is during the wait (it is marked
+    /// stale, so a pick re-reads the field), and if the model takes longer than `languageModelWait`
+    /// the table's order is shown after all. The model only has to be waited for once per word: the
+    /// letters typed afterwards reuse its answer.
+    private func showOrAwait(_ next: Showing, for text: String) {
+        awaitTimeout?.cancel()
+        guard isLanguageModelPending(text) else {
+            awaited = nil
+            show(next, for: text)
+            return
+        }
+        awaited = (next, text)
+        let timeout = DispatchWorkItem { [weak self] in self?.showAwaited() }
+        awaitTimeout = timeout
+        DispatchQueue.main.asyncAfter(deadline: .now() + languageModelWait, execute: timeout)
+    }
+
+    /// Draws the strip that was held back, predicted again so it has the model's order if the
+    /// answer came in the meantime.
+    private func showAwaited() {
+        awaitTimeout?.cancel()
+        awaitTimeout = nil
+        guard let held = awaited else { return }
+        awaited = nil
+        var next = held.showing
+        if let prediction = predict(held.text) {
+            next = Showing(
+                prediction: prediction, caretRect: next.caretRect,
+                focusChangeSequence: next.focusChangeSequence, isStale: next.isStale
+            )
+        }
+        show(next, for: held.text)
+    }
+
+    /// The language model has a new answer (`WordLanguageModelService.onReady`). A strip that was
+    /// waiting for it is drawn. One already on screen is drawn again if the order changed, unless
+    /// the writer has moved the highlight: the words must not change under it.
+    func redrawWithLanguageModel() {
+        if awaited != nil {
+            showAwaited()
+            return
+        }
+        guard let current = showing, arrowedSlot == nil, pendingDecision == nil,
+              let prediction = predict(shownText), prediction.words != current.prediction.words else { return }
+        var next = Showing(prediction: prediction, caretRect: current.caretRect, focusChangeSequence: current.focusChangeSequence)
+        next.isStale = current.isStale
+        show(next, for: shownText)
     }
 
     var replacesGhostText: Bool { isEnabled() }
 
     func hidePredictions() {
+        hide(because: "another part of Cotabby asked")
+    }
+
+    /// `reason` goes to the debug log: a strip that is gone when Tab is pressed types a tab into the
+    /// writer's text, and the log has to say which of the many reasons took it down.
+    private func hide(because reason: String) {
+        if showing != nil { CotabbyLogger.suggestion.debug("Word strip hidden: \(reason)") }
+        awaitTimeout?.cancel()
+        awaitTimeout = nil
+        awaited = nil
         idleTimeoutTask?.cancel()
         idleTimeoutTask = nil
         pendingDecision = nil
@@ -189,17 +267,17 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
             return claim(event) { ModifierRelease.perform { self.commit(slot: slot) } }
         }
         guard modifiers.isEmpty || modifiers == .shift else {
-            hidePredictions()
+            hide(because: "a shortcut key")
             return false
         }
         if modifiers.isEmpty, claimPickingKey(event) { return true }
         switch event.keyCode {
         case KeyCode.escape:
             isSuppressed = true
-            hidePredictions()
+            hide(because: "Escape")
             return false
         case let code where KeyCode.arrows.contains(code) || code == KeyCode.returnKey || code == KeyCode.keypadEnter:
-            hidePredictions()
+            hide(because: "an arrow or Return the strip does not take")
             return false
         default:
             showing?.isStale = true
@@ -230,8 +308,10 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
             text = lastNotedText + event.characters
         }
         guard let prediction = predict(text) else { return }
-        show(Showing(prediction: prediction, caretRect: current.caretRect, focusChangeSequence: current.focusChangeSequence))
-        showing?.isStale = true
+        showOrAwait(
+            Showing(prediction: prediction, caretRect: current.caretRect, focusChangeSequence: current.focusChangeSequence, isStale: true),
+            for: text
+        )
     }
 
     func decideCaptureKey(_ keyEvent: InputMonitorKeyEvent) -> InputMonitorAcceptTapDecision {
@@ -322,10 +402,13 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
         guard let context = focusModel.snapshot.context,
               context.focusChangeSequence == current.focusChangeSequence,
               let prediction = predict(context.precedingText) else {
-            hidePredictions()
+            hide(because: "the field changed before a pick and nothing fits it now")
             return
         }
-        show(Showing(prediction: prediction, caretRect: context.caretRect, focusChangeSequence: current.focusChangeSequence))
+        show(
+            Showing(prediction: prediction, caretRect: context.caretRect, focusChangeSequence: current.focusChangeSequence),
+            for: context.precedingText
+        )
     }
 
     // MARK: - Commit
@@ -337,14 +420,14 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
         let prefix = current.prediction.prefix
         let precedingText = focusModel.snapshot.context?.precedingText ?? ""
         guard precedingText.hasSuffix(prefix) else {
-            hidePredictions()
+            hide(because: "the field no longer ends with the typed letters")
             return
         }
         let inserted = prefix.isEmpty
             ? inserter.insert(word + " ")
             : inserter.replace(deletingUTF16Count: prefix.utf16.count, with: word + " ")
         guard inserted else {
-            hidePredictions()
+            hide(because: "the pick could not be typed")
             return
         }
         // Predict the following word from the text the field is about to hold, so the next pick is
@@ -352,9 +435,9 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
         let expected = String(precedingText.dropLast(prefix.count)) + word + " "
         pickedText = expected
         if let next = predict(expected) {
-            show(Showing(prediction: next, caretRect: current.caretRect, focusChangeSequence: current.focusChangeSequence))
+            show(Showing(prediction: next, caretRect: current.caretRect, focusChangeSequence: current.focusChangeSequence), for: expected)
         } else {
-            hidePredictions()
+            hide(because: "nothing to predict after the pick")
         }
         focusModel.invalidateTransientCaretCaches()
         onCommitted?()
@@ -455,8 +538,9 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
 
     // MARK: - Presentation
 
-    private func show(_ next: Showing) {
+    private func show(_ next: Showing, for text: String) {
         let wasCapturing = isCapturing
+        shownText = text
         if next.prediction.words != showing?.prediction.words {
             arrowedSlot = nil
         }
@@ -482,7 +566,7 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
               !context.isSecure,
               context.focusChangeSequence == current.focusChangeSequence else {
             isSuppressed = false
-            hidePredictions()
+            hide(because: "focus moved")
             return
         }
         guard context.caretRect != current.caretRect else { return }
@@ -495,7 +579,7 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
         idleTimeoutTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: WordPredictionController.idleTimeoutNanoseconds)
             guard !Task.isCancelled else { return }
-            self?.hidePredictions()
+            self?.hide(because: "left alone too long")
         }
     }
 }
@@ -521,7 +605,8 @@ extension WordPredictionController {
     static func makePredictor(
         model: NextWordModel?,
         symSpellCorrector: SymSpellCorrector,
-        phrases: PersonalPhraseModel
+        phrases: PersonalPhraseModel,
+        languageModel: WordLanguageModelService? = nil
     ) -> (String) -> NextWordPrediction? {
         guard let model else {
             CotabbyLogger.app.error("Next-word model missing from the bundle; word predictions are off.")
@@ -534,7 +619,8 @@ extension WordPredictionController {
             personal: { phrases.nextWords(after: $0) },
             personalWords: { phrases.words(startingWith: $0) },
             fuzzyCompletions: { symSpellCorrector.fuzzyCompletions(of: $0, limit: $1) },
-            isHardToSpell: { hardWords.contains($0) }
+            isHardToSpell: { hardWords.contains($0) },
+            languageModel: { languageModel?.scores(forTextBefore: $0) }
         )
         return { NextWordPredictor.predict(textBefore: $0, sources: sources) }
     }

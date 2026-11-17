@@ -1,4 +1,6 @@
-> **This is a fork** of [FuJacob/cotabby](https://github.com/FuJacob/cotabby) that adds spelling help for dyslexic writers: on-the-spot fixes, a spelling bar, a next-word strip, and a sentence model. What it adds and how to install it without Xcode is in [FORK.md](FORK.md); downloads are on this fork's [releases page](https://github.com/AmirFone/cotabby/releases). Everything below is upstream's README.
+> **This is a fork** of [FuJacob/cotabby](https://github.com/FuJacob/cotabby) that adds spelling help for dyslexic writers: on-the-spot fixes, a spelling bar, a next-word strip that follows the tense you are writing in, and a sentence model. Downloads are on this fork's [releases page](https://github.com/AmirFone/cotabby/releases); no Xcode needed.
+>
+> **Best setup:** run only this Cotabby (quit the released one and remove it from Login Items), download the **tabby-2-base** model in Settings → Engine & Model (tabby-2-mini on a Mac with under 16 GB of memory), leave the Writing settings at their defaults, and turn macOS's own autocorrect off with the button in Settings → Writing. Details, measurements and how to build it yourself are in [FORK.md](FORK.md). Everything below is upstream's README.
 
 
 <p align="center">

@@ -9,6 +9,9 @@
 #   E2E_FORCE_GENERATION=1  run ghost text even in Low Power Mode (to test the model path on battery)
 #   E2E_ONLY=review         repeat only the review-card scenario
 #   E2E_ONLY=model          the sentence model's cases only
+#   E2E_ONLY=tense          the word strip's verb forms (needs the language model and the CLI)
+#   E2E_ONLY=fieldprobe     who types into the one-line field on Tab: this build, or something else
+#   E2E_PAUSE_OTHER=1       quit the released Cotabby app for the run and start it again after
 #   E2E_ONLY=toggle         the on/off shortcut only
 #   E2E_ONLY=training       the opt-in training record (switched on for this run only)
 #   E2E_ONLY=settings       picture of Settings at one setting (E2E_SETTING=<id> E2E_SHOT=<file.png>,
@@ -24,6 +27,17 @@ screen_locked() {
   ioreg -n Root -d1 -a | grep -A1 CGSSessionScreenIsLocked | grep -q "<true/>"
 }
 if screen_locked; then echo "SKIP  screen is locked; unlock it and run again"; exit 2; fi
+# The released Cotabby is a second typing assistant: its ghost text takes Tab and types words into
+# the test window, which reads as this build typing something it must not. E2E_PAUSE_OTHER=1 quits
+# it for the run and starts it again afterwards; without that the run goes on with a warning.
+OTHER_COTABBY=0
+if pgrep -x Cotabby >/dev/null; then
+  if [ "${E2E_PAUSE_OTHER:-0}" = 1 ]; then
+    OTHER_COTABBY=1; pkill -x Cotabby; sleep 1
+  else
+    echo "WARN  the released Cotabby app is also running and may type into the test window (E2E_PAUSE_OTHER=1 pauses it for the run)"
+  fi
+fi
 HOST_APP=$("$(dirname "$0")/build-host.sh")
 HOST=CotabbyE2EHost
 HOST_FILES="$HOME/Library/Caches/CotabbyE2E"
@@ -55,6 +69,7 @@ restore_history() {
   restore_file "$JOURNAL" "$SNAPSHOT.journal"
   restore_file "$TRAINING" "$SNAPSHOT.training"
   open "/Applications/Cotabby Dev.app"
+  if [ "$OTHER_COTABBY" = 1 ] && ! pgrep -x Cotabby >/dev/null; then open -g -j /Applications/Cotabby.app; fi
 }
 pkill -f "Cotabby Dev.app/Contents/MacOS"; sleep 1
 # The training record is opt-in; the test switches it on for its own run only (the writer's switch
@@ -69,7 +84,7 @@ if [ "${E2E_ONLY:-}" = speed ] || [ -n "${E2E_NO_OVERLAY:-}" ]; then
   # main-thread time than the whole spelling pipeline. Trace logging alone gives the timeline.
   open --env COTABBY_LOG_LEVEL=trace "/Applications/Cotabby Dev.app" --args -cotabby-e2e-commands "$KEYS"
 else
-  open "/Applications/Cotabby Dev.app" --args -cotabby-debug true -cotabby-e2e-commands "$KEYS"
+  open ${E2E_APP_ENV:+--env "$E2E_APP_ENV"} "/Applications/Cotabby Dev.app" --args -cotabby-debug true -cotabby-e2e-commands "$KEYS"
 fi
 pkill -x "$HOST" 2>/dev/null
 open -n "$HOST_APP"
@@ -148,8 +163,25 @@ case_type() { # name, text to type, expected document text after 1.5s
 # The strip's words for a text, from the same engine and resources the app uses (the CLI), so the
 # checks below test the keys, not one particular build of the word table.
 SPELL_CLI="${COTABBY_SPELL:-$(dirname "$0")/../../build/DerivedData/Build/Products/Release/cotabby-spell}"
+# The language model the app orders the strip with: the same choice as
+# `WordLanguageModelService.defaultModelURL` (best installed ghost-text model that fits in memory,
+# otherwise the sentence model's file), so the CLI below predicts what the app shows.
+STRIP_LM=""
+RUNTIME_MODELS="$HOME/Library/Application Support/Cotabby Dev/LlamaRuntime"
+SENTENCE_MODEL_FILE="spelling-qwen3-0.6b-q8_0.gguf"
+if [ -f "$RUNTIME_MODELS/gemma-4-E2B.i1-Q6_K.gguf" ] && [ "$(sysctl -n hw.memsize)" -ge $((16 * 1024 * 1024 * 1024)) ]; then
+  STRIP_LM="$RUNTIME_MODELS/gemma-4-E2B.i1-Q6_K.gguf"
+elif [ -f "$RUNTIME_MODELS/Qwen3.5-2B-Base.i1-Q4_K_M.gguf" ] && [ "$(sysctl -n hw.memsize)" -ge $((12 * 1024 * 1024 * 1024)) ]; then
+  STRIP_LM="$RUNTIME_MODELS/Qwen3.5-2B-Base.i1-Q4_K_M.gguf"
+elif [ -f "$RUNTIME_MODELS/Qwen3.5-0.8B-Base.i1-Q6_K.gguf" ]; then
+  STRIP_LM="$RUNTIME_MODELS/Qwen3.5-0.8B-Base.i1-Q6_K.gguf"
+elif [ -f "$HOME/Library/Application Support/Cotabby Dev/SentenceModel/$SENTENCE_MODEL_FILE" ]; then
+  STRIP_LM="$HOME/Library/Application Support/Cotabby Dev/SentenceModel/$SENTENCE_MODEL_FILE"
+elif [ -f "/Applications/Cotabby Dev.app/Contents/Resources/$SENTENCE_MODEL_FILE" ]; then
+  STRIP_LM="/Applications/Cotabby Dev.app/Contents/Resources/$SENTENCE_MODEL_FILE"
+fi
 strip_word() { # text, slot (1-based)
-  (cd "$(dirname "$0")/../.." && "$SPELL_CLI" --predict "$1|") 2>/dev/null | head -n 1 \
+  (cd "$(dirname "$0")/../.." && "$SPELL_CLI" --predict "$1|" ${STRIP_LM:+--lm "$STRIP_LM"}) 2>/dev/null | head -n 1 \
     | sed -E 's/.*→ +//; s/ +\[.*//' | awk -F ' · ' -v slot="$2" '{ print $slot }'
 }
 
@@ -324,6 +356,32 @@ toggle_cases() {
   case_type "toggle: on fixes it again" "I saw teh dog. " "I saw the dog. "
 }
 
+# Tense in the word strip: with the letters that several forms of a verb share typed, Tab takes
+# the form the sentence calls for. Needs the language model; each case is only required when the
+# engine (the CLI, same model) also puts that form first, so a weaker installed model reports
+# what it prefers instead of failing.
+tense_case() { # typed text, the form expected first, the document after Tab
+  local preferred; preferred=$(strip_word "$1" 1)
+  if [ "$preferred" != "$2" ]; then echo "INFO  tense: after [$1] this model prefers [$preferred], not [$2]"; return; fi
+  clear_doc; type_text "$1"; sleep 1.4
+  press 48; sleep 1.0
+  check "tense: [$1] + Tab types [$2]" "$3" "$(doc)"
+}
+tense_cases() {
+  if [ -z "$STRIP_LM" ] || [ -z "$(strip_word "I would like " 1)" ]; then
+    echo "INFO  tense checks skipped: no language model or no cotabby-spell CLI"; return
+  fi
+  tense_case "Yesterday we walk" "walked" "Yesterday we walked "
+  tense_case "She is still walk" "walking" "She is still walking "
+  tense_case "He has already finish" "finished" "He has already finished "
+  tense_case "Every morning she walk" "walks" "Every morning she walks "
+  tense_case "Last week I bou" "bought" "Last week I bought "
+  tense_case "They were eat" "eating" "They were eating "
+  # How long the model took, from the app's own log.
+  grep -oE "Word language model: (answer|refinement) in [0-9.]+ ms" "$LOG" | awk '{ print $4, $6 }' | sort \
+    | awk '{ n[$1]++; v[$1, n[$1]] = $2 } END { for (k in n) printf "TIME  word language model, %s: median %.1f ms over %d\n", k, v[k, int((n[k] + 1) / 2)], n[k] }'
+}
+
 # Typing straight on into the next sentence, without the per-word pauses: the model's fix either
 # lands whole or is dropped, and what the writer typed after the sentence is never damaged.
 # E2E_ONLY=flow E2E_PACE=<ms per key>
@@ -402,6 +460,30 @@ if [ "${E2E_ONLY:-}" = training ]; then
   if [ -n "${E2E_SHOT:-}" ]; then
     send "$(printf 'settings\ttrainingData\t%s\t%s' "$E2E_SHOT" "${E2E_SETTINGS_HEIGHT:-}")"; echo "SHOT  $E2E_SHOT"
   fi
+  echo "$pass passed, $fail failed  (log: $LOG)"; [ $fail -eq 0 ]; exit
+fi
+
+# E2E_ONLY=fieldprobe: the one-line-field Tab case several times with Cotabby Dev off, then on. A
+# word that appears while it is off was typed by something else (another typing assistant, or
+# macOS), which is how a failing strip check is told apart from a real one.
+if [ "${E2E_ONLY:-}" = fieldprobe ]; then
+  for state in off on; do
+    clear_doc
+    if [ "$state" = off ]; then send "$(printf 'key\t8\tctrl,option')"; sleep 0.8; fi
+    for round in 1 2 3 4 5; do
+      host_command focus-field; sleep 0.4
+      type_text "I would like "; sleep 1.2
+      press 48; sleep 1.0
+      echo "PROBE  Cotabby $state, round $round: [$(cat "$HOST_FILES/field.txt")]"
+      host_command clear-field; sleep 0.3
+    done
+    if [ "$state" = off ]; then focus_doc; host_command focus-text; send "$(printf 'key\t8\tctrl,option')"; sleep 0.8; fi
+  done
+  exit 0
+fi
+
+if [ "${E2E_ONLY:-}" = tense ]; then
+  tense_cases
   echo "$pass passed, $fail failed  (log: $LOG)"; [ $fail -eq 0 ]; exit
 fi
 
@@ -493,6 +575,7 @@ esac
 
 learn_cases
 predict_cases
+tense_cases
 model_cases
 toggle_cases
 report_latency

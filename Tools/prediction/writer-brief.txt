@@ -1,0 +1,45 @@
+Brief given to each of ten writers (language-model subagents) to produce the test passages.
+Each writer got a different theme, voice, and list of seed words, so the set is varied and no two
+writers fall into the same phrasing. The seed words were drawn at random from the middle of the
+frequency dictionary (ranks 2,500 to 22,000, 5 to 11 letters).
+
+Themes, one per writer:
+  00 workplace emails to a manager and teammates on a software team
+  01 text messages to close friends (weekend plans, what happened last night)
+  02 private journal entries about health and routine
+  03 messages a customer writes to support teams and shops
+  04 a software engineer's working notes and bug reports, in plain prose
+  05 student life: emails to a professor, study notes, job applications
+  06 family and household: relatives, a landlord, car repair, bills
+  07 short reviews and recommendations
+  08 meeting notes and status updates in the third person
+  09 storytelling and opinions written to a forum or a friend
+
+The brief (theme, seed words and file number filled in per writer):
+
+Write 30 short passages of everyday typed English and save them as one JSON Lines file. They are
+test data for a typing assistant (next-word prediction, verb tense, spelling).
+
+Each line is one JSON object:
+  "id"        "NN-01" through "NN-30"
+  "register"  two or three words describing the kind of writing
+  "tense"     one of "past", "present", "future", "mixed"
+  "text"      the passage, correctly spelled: 3 to 5 sentences, 35 to 80 words
+  "typed"     the same passage as a fast typist with dyslexia might type it: identical to "text"
+              except for 3 to 5 misspelled words
+  "fixes"     a list of [wrong, right] pairs, one per misspelled word, in order
+
+Requirements:
+- Tense mix: 10 past, 8 present, 6 future, 6 mixed (the time clearly shifts inside the passage).
+  Within past, present and future passages the tense stays consistent across every sentence,
+  because the test checks whether a predictor follows the tense set by earlier sentences.
+- Many different verbs, regular and irregular. Do not reuse the same opener or verb more than a
+  few times.
+- Write like a real person typing: natural, specific, a little uneven; vary sentence length.
+- Plain ASCII only: straight quotes, no long dashes, no emojis, no lists, no line breaks.
+- Misspellings realistic for dyslexia: phonetic spellings, swapped letters, dropped or doubled
+  letters, wrong vowels. At most one passage in five may use a real-word mix-up (their/there).
+  Never change punctuation, capitals at sentence starts, or word order.
+- Use one or two of the seed words per passage, naturally, rotating through all of them.
+- Invented first names only. No real people, addresses, phone numbers or emails.
+- Do not copy text from anywhere. Avoid stock phrases and avoid sounding like an AI assistant.

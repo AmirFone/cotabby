@@ -1,0 +1,5015 @@
+# One verb per line: every form in the dictionary. Built by build_verb_forms.py.
+be am are been being is was were
+have had has having
+do did does doing done
+use used uses using
+home homed homes homing
+page paged pages paging
+time timed times timing
+search searched searches searching
+service serviced services servicing
+site sited sites siting
+free freed freeing frees
+make made makes making
+post posted posting posts
+get gets getting got gotten
+up upped upping ups
+see saw seeing seen sees
+list listed listing lists
+price priced prices pricing
+find finding finds found
+state stated states stating
+view viewed viewing views
+go goes going gone went
+book booked booking books
+work worked working works
+contact contacted contacting contacts
+help helped helping helps
+review reviewed reviewing reviews
+right righted righting rights
+web webbed webbing webs
+link linked linking links
+say said saying says
+rate rated rates rating
+include included includes including
+date dated dates dating
+name named names naming
+click clicked clicking clicks
+game gamed games gaming
+add added adding adds
+take taken takes taking took
+like liked likes liking
+need needed needing needs
+provide provided provides providing
+back backed backing backs
+buy bought buying buys
+top topped topping tops
+message messaged messages messaging
+report reported reporting reports
+people peopled peoples peopling
+show showed showing shown shows
+support supported supporting supports
+school schooled schooling schools
+order ordered ordering orders
+know knew knowing known knows
+email emailed emailing emails
+video videoed videoing videos
+shop shopped shopping shops
+number numbered numbering numbers
+store stored stores storing
+group grouped grouping groups
+comment commented commenting comments
+read reading reads
+last lasted lasting lasts
+result resulted resulting results
+change changed changes changing
+file filed files filing
+set sets setting
+part parted parting parts
+look looked looking looks
+map mapped mapping maps
+please pleased pleases pleasing
+term termed terming terms
+give gave given gives giving
+ship shipped shipping ships
+design designed designing designs
+copyright copyrighted copyrighting copyrights
+detail detailed detailing details
+call called calling calls
+write writes writing written wrote
+mail mailed mailing mails
+well welled welling wells
+best bested besting bests
+send sending sends sent
+line lined lines lining
+plan planned planning plans
+want wanted wanting wants
+come came comes coming
+type typed types typing
+job jobbing jobs
+follow followed following follows
+offer offered offering offers
+power powered powering powers
+think thinking thinks thought
+base based bases basing
+picture pictured pictures picturing
+download downloaded downloading downloads
+project projected projecting projects
+network networked networking networks
+live lived lives living
+article articled articles
+start started starting starts
+end ended ending ends
+image imaged images imaging
+learn learned learning learns learnt
+phone phoned phones phoning
+case cased cases casing
+sex sexed sexes sexing
+house housed houses housing
+sign signed signing signs
+return returned returning returns
+sport sported sporting sports
+research researched researches researching
+resource resourced resources resourcing
+place placed places placing
+market marketed marketing markets
+address addressed addresses addressing
+issue issued issues issuing
+open opened opening opens
+feature featured features featuring
+full fulling fulls
+subject subjected subjecting subjects
+check checked checking checks
+reserve reserved reserves reserving
+unite united unites uniting
+card carded carding cards
+travel travelled travelling travels
+code coded codes coding
+question questioned questioning questions
+form formed forming forms
+account accounted accounting accounts
+leave leaves leaving left
+guide guided guides guiding
+process processed processes processing
+study studied studies studying
+point pointed pointing points
+note noted notes noting
+even evened evening evens
+control controlled controlling controls
+test tested testing tests
+own owned owning owns
+meet meeting meets met
+build building builds built
+section sectioned sectioning sections
+create created creates creating
+require required requires requiring
+index indexed indexes indexing
+window windowed windowing windows
+level levelled levelling levels
+board boarded boarding boards
+relate related relates relating
+update updated updates updating
+content contented contenting contents
+print printed printing prints
+cost costed costing costs
+register registered registering registers
+condition conditioned conditioning conditions
+value valued values valuing
+record recorded recording records
+play played playing plays
+version versioned versioning versions
+interest interested interesting interests
+size sized sizes sizing
+model modelled modelling models
+long longed longing longs
+tool tooled tooling tools
+black blacked blacking blacks
+release released releases releasing
+source sourced sources sourcing
+title titled titles titling
+join joined joining joins
+course coursed courses coursing
+love loved loves loving
+room roomed rooming rooms
+select selected selecting selects
+visit visited visiting visits
+class classed classes classing
+author authored authoring authors
+care cared cares caring
+access accessed accesses accessing
+reply replied replies replying
+profile profiled profiles profiling
+total totalled totalling totals
+water watered watering waters
+sell selling sells sold
+save saved saves saving
+mean meaning means meant
+run ran running runs
+down downed downing downs
+gift gifted gifting gifts
+advance advanced advances advancing
+train trained training trains
+compare compared compares comparing
+while whiled whiles whiling
+pay paid payed paying pays
+receive received receives receiving
+archive archived archives archiving
+complete completed completes completing
+white whited whites whiting
+try tried tries trying
+credit credited crediting credits
+ask asked asking asks
+box boxed boxes boxing
+team teamed teaming teams
+share shared shares sharing
+become became becomes becoming
+park parked parking parks
+stock stocked stocking stocks
+second seconded seconding seconds
+table tabled tables tabling
+lead leading leads led
+quote quoted quotes quoting
+thread threaded threading threads
+option optioned options
+drive driven drives driving drove
+party partied parties partying
+tell telling tells told
+light lighted lighting lights lit
+press pressed presses pressing
+still stilled stilling stills
+word worded wording words
+star starred starring stars
+low lowed lowing lows
+request requested requesting requests
+experience experienced experiences experiencing
+age aged ageing ages aging
+man manned manning mans
+act acted acting acts
+supply supplied supplies supplying
+keep keeping keeps kept
+paper papered papering papers
+fund funded funding funds
+allow allowed allowing allows
+host hosted hosting hosts
+tax taxed taxes taxing
+hold held holding holds
+increase increased increases increasing
+cover covered covering covers
+hand handed handing hands
+deal dealing deals dealt
+field fielded fielding fields
+advertise advertised advertises advertising
+present presented presenting presents
+track tracked tracking tracks
+move moved moves moving
+document documented documenting documents
+close closed closes closing
+reference referenced references referencing
+limit limited limiting limits
+watch watched watches watching
+loan loaned loaning loans
+rule ruled rules ruling
+club clubbed clubbing clubs
+fee feed fees
+display displayed displaying displays
+develop developed developing develops
+let lets letting
+continue continued continues continuing
+single singled singles singling
+trade traded trades trading
+side sided sides siding
+air aired airing airs
+begin began beginning begins begun
+feel feeling feels felt
+enter entered entering enters
+march marched marches marching
+staff staffed staffing staffs
+key keyed keying keys
+effect effected effecting effects
+log logged logging logs
+hot hots hotting
+talk talked talking talks
+thank thanked thanking thanks
+better bettered bettering betters
+cart carted carting carts
+film filmed filming films
+war warred warring wars
+bank banked banking banks
+submit submits submitted submitting
+head headed heading heads
+apply applied applies applying
+function functioned functioning functions
+range ranged ranges ranging
+blue blued blues bluing
+package packaged packages packaging
+garden gardened gardening gardens
+force forced forces forcing
+turn turned turning turns
+court courted courting courts
+associate associated associates associating
+notice noticed notices noticing
+publish published publishes publishing
+put puts putting
+contain contained containing contains
+space spaced spaces spacing
+win winning wins won
+brand branded branding brands
+format formats formatted formatting
+edit edited editing edits
+license licensed licenses licensing
+browse browsed browses browsing
+break breaking breaks broke broken
+mark marked marking marks
+sponsor sponsored sponsoring sponsors
+purchase purchased purchases purchasing
+minute minuted minutes
+sound sounded sounding sounds
+choose chooses choosing chose chosen
+sort sorted sorting sorts
+consider considered considering considers
+answer answered answering answers
+fall fallen falling falls fell
+bill billed billing bills
+hear heard hearing hears
+direct directed directing directs
+step stepped stepping steps
+baby babied babies
+bring bringing brings brought
+fax faxed faxes faxing
+engineer engineered engineering engineers
+style styled styles styling
+land landed landing lands
+finance financed finances financing
+programme programmed programmes programming
+wed wedded wedding weds
+major majored majoring majors
+award awarded awarding awards
+ticket ticketed ticketing tickets
+benefit benefited benefiting benefits
+understand understanding understands understood
+cause caused causes causing
+tip tipped tipping tips
+holiday holidaying holidays
+bear bearing bears bore born borne
+welcome welcomed welcomes welcoming
+amount amounted amounting amounts
+position positioned positioning positions
+net nets netted netting
+sun sunned sunning suns
+copy copied copies copying
+kid kidded kidding kids
+face faced faces facing
+figure figured figures figuring
+short shorted shorting shorts
+match matched matches matching
+charge charged charges charging
+vote voted votes voting
+tour toured touring tours
+radio radioed radios
+bid bade bidden bidding bids
+drug drugged drugging drugs
+career careering careers
+toy toyed toying toys
+mar marred marring mars
+purpose purposed purposes purposing
+lose loses losing lost
+pass passed passes passing
+partner partnered partnering partners
+beach beached beaches beaching
+discount discounted discounting discounts
+serve served serves serving
+seem seemed seeming seems
+sit sat sits sitting
+green greening greens
+calendar calendared calendaring calendars
+centre centred centres centring
+sample sampled samples sampling
+average averaged averages averaging
+rock rocked rocking rocks
+score scored scores scoring
+risk risked risking risks
+improve improved improves improving
+machine machined machines machining
+further furthered furthering furthers
+letter lettered lettering letters
+bar barred barring bars
+monitor monitored monitoring monitors
+reason reasoned reasoning reasons
+eye eyed eyeing eyes eying
+stop stopped stopping stops
+exist existed existing exists
+schedule scheduled schedules scheduling
+dog dogged dogging dogs
+appear appeared appearing appears
+hit hits hitting
+believe believed believes believing
+stay staid staves stayed staying stays
+screen screened screening screens
+operate operated operates operating
+focus focused focuses focusing focussed focussing
+object objected objecting objects
+weather weathered weathering weathers
+weight weighted weighting weights
+stand standing stands stood
+recommend recommended recommending recommends
+define defined defines defining
+front fronted fronting fronts
+accept accepted accepting accepts
+concern concerned concerning concerns
+contract contracted contracting contracts
+fire fired fires firing
+structure structured structures structuring
+clear cleared clearing clears
+measure measured measures measuring
+clothe clothed clothes clothing
+involve involved involves involving
+port ported porting ports
+die died dies dying
+expect expected expecting expects
+race raced races racing
+subscribe subscribed subscribes subscribing
+plant planted planting plants
+produce produced produces producing
+hope hoped hopes hoping
+spring sprang springing springs sprung
+teach taught teaches teaching
+shoe shod shoeing shoes
+miss missed misses missing
+determine determined determines determining
+matter mattered mattering matters
+manage managed manages managing
+true trued trues truing
+fish fished fishes fishing
+cable cabled cables cabling
+grow grew growing grown grows
+fast fasted fasting fasts
+skill skilled skilling skills
+grant granted granting grants
+remember remembered remembering remembers
+flower flowered flowering flowers
+cut cuts cutting
+bite bit bites biting bitten
+fix fixed fixes fixing
+bed bedded bedding beds
+describe described describes describing
+remove removed removes removing
+speed sped speeding speeds
+wish wished wishes wishing
+claim claimed claiming claims
+cross crossed crosses crossing
+oil oiled oiling oils
+reduce reduced reduces reducing
+season seasoned seasoning seasons
+mortgage mortgaged mortgages mortgaging
+band banded banding bands
+express expressed expresses expressing
+channel channelled channelling channels
+frame framed frames framing
+exchange exchanged exchanges exchanging
+mind minded minding minds
+golf golfing golfs
+commission commissioned commissioning commissions
+establish established establishes establishing
+flash flashed flashes flashing
+approach approached approaches approaching
+rise risen rises rising rose
+station stationed stationing stations
+stuff stuffed stuffing stuffs
+regard regarded regarding regards
+chat chats chatted chatting
+remain remained remaining remains
+estimate estimated estimates estimating
+connect connected connecting connects
+ring rang ringing rings rung
+aid aided aiding aids
+identify identified identifies identifying
+survey surveyed surveying surveys
+perform performed performing performs
+tree treed treeing trees
+transfer transferred transferring transfers
+install installed installing installs instals
+agree agreed agreeing agrees
+double doubled doubles doubling
+google googled googles googling
+institute instituted institutes instituting
+enable enabled enables enabling
+affiliate affiliated affiliates affiliating
+speak speaking speaks spoke spoken
+happen happened happening happens
+auction auctioned auctioning auctions
+locate located locates locating
+carry carried carries carrying
+near neared nearing nears
+filter filtered filtering filters
+tag tagged tagging tags
+factor factored factoring factors
+target targeted targeting targets
+guy guyed guys
+pack packed packing packs
+suggest suggested suggesting suggests
+walk walked walking walks
+yellow yellowed yellowing yellows
+protect protected protecting protects
+culture cultured cultures culturing
+discuss discussed discusses discussing
+button buttoned buttoning buttons
+block blocked blocking blocks
+maintain maintained maintaining maintains
+bay bayed baying bays
+secure secured secures securing
+command commanded commanding commands
+master mastered mastering masters
+lower lowered lowering lowers
+cash cashed cashes cashing
+clean cleaned cleaning cleans
+handle handled handles handling
+fail failed failing fails
+guest guested guesting guests
+trademark trademarked trademarks
+accord accorded according accords
+spend spending spends spent
+modify modified modifies modifying
+ensure ensured ensures ensuring
+specify specified specifies specifying
+load loaded loading loads
+voice voiced voices voicing
+glass glassed glasses glassing
+grade graded grades grading
+fan fanned fanning fans
+trust trusted trusting trusts
+inn inning inns
+fine fined fines fining
+impact impacted impacting impacts
+indicate indicated indicates indicating
+mature matured matures maturing
+gas gases gassed gassing
+wall walled walling walls
+wait waited waiting waits
+refer referred referring refers
+guarantee guaranteed guaranteeing guarantees
+seek seeking seeks sought
+represent represented representing represents
+horse horsed horses horsing
+reach reached reaches reaching
+silver silvered silvering silvers
+obtain obtained obtaining obtains
+round rounded rounding rounds
+draw drawing drawn draws drew
+enjoy enjoyed enjoying enjoys
+cool cooled cooling cools
+pick picked picking picks
+challenge challenged challenges challenging
+forget forgets forgetting forgot forgotten
+interface interfaced interfaces interfacing
+zip zipped zipping zips
+appropriate appropriated appropriates appropriating
+switch switched switches switching
+pet pets petted petting
+vacation vacationed vacationing vacations
+shoot shooting shoots shot
+bag bagged bagging bags
+drink drank drinking drinks drunk
+piece pieced pieces piecing
+warn warned warning warns
+generate generated generates generating
+fit fits fitted fitting
+middle middles middling
+fill filled filling fills
+forward forwarded forwarding forwards
+firm firmed firming firms
+summer summering summers
+certificate certificated certificates
+dance danced dances dancing
+prepare prepared prepares preparing
+deliver delivered delivering delivers
+count counted counting counts
+stage staged stages staging
+mix mixed mixes mixing
+brown browned browning browns
+floor floored flooring floors
+couple coupled couples coupling
+instrument instrumented instrumenting instruments
+budget budgeted budgeting budgets
+listen listened listening listens
+telephone telephoned telephones telephoning
+rank ranked ranking ranks
+finish finished finishes finishing
+police policed polices policing
+mother mothered mothering mothers
+wood wooded wooding woods
+trip tripped tripping trips
+kill killed killing kills
+propose proposed proposes proposing
+farm farmed farming farms
+approve approved approves approving
+occur occurred occurring occurs
+clip clipped clipping clips
+string stringing strings strung
+grind grinding grinds ground
+label labeled labelled labelling labels
+demand demanded demanding demands
+affect affected affecting affects
+nurse nursed nurses nursing
+extend extended extending extends
+arm armed arming arms
+input inputs inputted inputting
+resort resorted resorting resorts
+distance distanced distances distancing
+camp camped camping camps
+conduct conducted conducting conducts
+raise raised raises raising
+zone zoned zones zoning
+repair repaired repairing repairs
+metal metalled metals
+evidence evidenced evidences evidencing
+peter petered peters
+wind winded winding winds wound
+sheet sheeted sheeting sheets
+heat heated heating heats
+panel panelled panelling panels
+attack attacked attacking attacks
+retail retailed retailing retails
+abstract abstracted abstracting abstracts
+inch inched inches inching
+mount mounted mounting mounts
+bind binding binds bound
+skin skinned skinning skins
+decide decided decides deciding
+ready readied readies readying
+eat ate eaten eating eats
+flow flowed flowing flows
+drop dropped dropping drops
+manufacture manufactured manufactures manufacturing
+chart charted charting charts
+sense sensed senses sensing
+pool pooled pooling pools
+interview interviewed interviewing interviews
+blood blooded bloods
+output outputs outputted outputting
+hide hid hidden hides hiding
+scale scaled scales scaling
+sector sectored sectors
+perfect perfected perfecting perfects
+damage damaged damages damaging
+earth earthed earthing earths
+pattern patterned patterning patterns
+task tasked tasking tasks
+roll rolled rolling rolls
+traffic trafficked trafficking traffics
+bin binned binning bins
+pop popped popping pops
+balance balanced balances balancing
+breast breasted breasts
+provision provisioned provisioning provisions
+surface surfaced surfaces surfacing
+rest rested resting rests
+explain explained explaining explains
+respect respected respecting respects
+fight fighting fights fought
+upgrade upgraded upgrades upgrading
+chair chaired chairing chairs
+assume assumed assumes assuming
+seat seated seating seats
+implement implemented implementing implements
+doctor doctored doctoring doctors
+motor motored motoring motors
+default defaulted defaulting defaults
+graduate graduated graduates graduating
+dream dreamed dreaming dreams dreamt
+bug bugged bugging bugs
+paint painted painting paints
+script scripted scripting scripts
+root rooted rooting roots
+stream streamed streaming streams
+ball balled balling balls
+fly flew flied flies flown flying
+introduce introduced introduces introducing
+alert alerted alerting alerts
+pressure pressured pressures pressuring
+promote promoted promotes promoting
+permit permits permitted permitting
+lie lay lied lies lying
+combine combined combines combining
+stone stoned stones stoning
+cook cooked cooking cooks
+gain gained gaining gains
+jump jumped jumping jumps
+boat boated boating boats
+patch patched patches patching
+exercise exercised exercises exercising
+wear wearing wears wore worn
+achieve achieved achieves achieving
+rape raped rapes raping
+father fathered fathering fathers
+cup cupped cupping cups
+winter wintered wintering winters
+treat treated treating treats
+fair fairing fairs
+aim aimed aiming aims
+integrate integrated integrates integrating
+announce announced announces announcing
+hire hired hires hiring
+inform informed informing informs
+core cored cores coring
+prevent prevented preventing prevents
+transport transported transporting transports
+except excepted excepting excepts
+forest forested forests
+cock cocked cocking cocks
+correct corrected correcting corrects
+route routed routes routing
+lord lorded lording lords
+minister ministered ministering ministers
+mine mined mines mining
+expand expanded expanding expands
+edge edged edges edging
+attempt attempted attempting attempts
+chance chanced chances chancing
+jack jacked jacking jacks
+ride ridden rides riding rode
+mention mentioned mentioning mentions
+progress progressed progresses progressing
+square squared squares squaring
+depend depended depending depends
+fat fats fatted
+mike miked mikes miking
+rend rending rends rent
+waste wasted wastes wasting
+wire wired wires wiring
+gear geared gearing gears
+delete deleted deletes deleting
+diet dieted dieting diets
+steel steeled steeling steels
+separate separated separates separating
+import imported importing imports
+wrong wronged wrongs
+sub subbed subbing subs
+fashion fashioned fashioning fashions
+signal signaling signalled signalling signals
+cycle cycled cycles cycling
+sequence sequenced sequences sequencing
+launch launched launches launching
+enhance enhanced enhances enhancing
+assist assisted assisting assists
+branch branched branches branching
+truck trucked trucking trucks
+flag flagged flagging flags
+sleep sleeping sleeps slept
+cruise cruised cruises cruising
+coast coasted coasting coasts
+touch touched touches touching
+adventure adventured adventures adventuring
+participate participated participates participating
+phase phased phases phasing
+collect collected collecting collects
+skip skipped skipping skips
+judge judged judges judging
+poll polled polling polls
+compute computed computes computing
+profit profited profiting profits
+explore explored explores exploring
+bottom bottomed bottoming bottoms
+dress dressed dresses dressing
+vision visioned visioning visions
+smoke smoked smokes smoking
+bus bused buses busing bussed busses bussing
+motion motioned motioning motions
+avoid avoided avoiding avoids
+campaign campaigned campaigning campaigns
+replace replaced replaces replacing
+contribute contributed contributes contributing
+spirit spirited spirits
+intend intended intending intends
+query queried queries querying
+wheel wheeled wheeling wheels
+discover discovered discovering discovers
+shape shaped shapes shaping
+chain chained chaining chains
+encourage encouraged encourages encouraging
+counter countered countering counters
+burn burned burning burns burnt
+instal installed installing installs instals
+blow blew blowing blown blows
+brief briefed briefing briefs
+craft crafted crafting crafts
+appeal appealed appealing appeals
+bridge bridged bridges bridging
+consult consulted consulting consults
+palm palmed palming palms
+advantage advantaged advantages
+mass massed masses massing
+commit commits committed committing
+weekend weekending weekends
+pocket pocketed pocketing pockets
+pain pained paining pains
+lock locked locking locks
+catch catches catching caught
+ice iced ices icing
+plate plated plates plating
+fuel fuelled fuelling fuels
+bond bonded bonding bonds
+draft drafted drafting drafts
+volunteer volunteered volunteering volunteers
+convert converted converting converts
+attend attended attending attends
+reflect reflected reflecting reflects
+quarter quartered quartering quarters
+coach coached coaches coaching
+bob bobbed bobbing bobs
+joint jointed jointing joints
+confirm confirmed confirming confirms
+abuse abused abuses abusing
+corner cornered cornering corners
+cast casting casts
+beat beaten beating beats
+initial initialled initials
+tape taped tapes taping
+suck sucked sucking sucks
+designate designated designates designating
+dry dried dries drying
+spot spots spotted spotting
+foot footed footing foots
+lodge lodged lodges lodging
+colour coloured colouring colours
+ford forded fording fords
+ski skied skiing skis
+prefer preferred preferring prefers
+pink pinking pinks
+trend trended trending trends
+headline headlined headlines headlining
+boot booted booting boots
+delay delayed delaying delays
+distribute distributed distributes distributing
+certify certified certifies certifying
+constitute constituted constitutes constituting
+lack lacked lacking lacks
+recognize recognized recognizes recognizing
+forecast forecasting forecasts
+respond responded responding responds
+calculate calculated calculates calculating
+influence influenced influences influencing
+wonder wondered wondering wonders
+cap capped capping caps
+stick sticking sticks stuck
+prime primed primes priming
+strike stricken strikes striking struck
+vary varied varies varying
+breakfast breakfasted breakfasting breakfasts
+qualify qualified qualifies qualifying
+equal equalled equalling equals
+earn earned earning earns
+row rowed rowing rows
+adopt adopted adopting adopts
+bath bathed bathing baths
+bike biked bikes biking
+export exported exporting exports
+pull pulled pulling pulls
+queen queening queens
+scheme schemed schemes scheming
+throw threw throwing thrown throws
+con conned conning cons
+layer layered layering layers
+pair paired pairing pairs
+cheat cheated cheating cheats
+desire desired desires desiring
+preview previewed previewing previews
+battle battled battles battling
+hole holed holes holing
+meter metered metering meters
+iron ironed ironing irons
+fear feared fearing fears
+smart smarted smarting smarts
+seal sealed sealing seals
+brain brained brains
+wave waved waves waving
+tie tied ties tying
+bowl bowled bowling bowls
+arrive arrived arrives arriving
+observe observed observes observing
+bet bets betting
+portion portioned portioning portions
+snow snowed snowing snows
+bookmark bookmarked bookmarking bookmarks
+enlarge enlarged enlarges enlarging
+marry married marries marrying
+highlight highlighted highlighting highlights
+clock clocked clocking clocks
+conflict conflicted conflicting conflicts
+hunt hunted hunting hunts
+gun gunned gunning guns
+demonstrate demonstrated demonstrates demonstrating
+trail trailed trailing trails
+evaluate evaluated evaluates evaluating
+wallpaper wallpapering wallpapers
+chip chipped chipping chips
+scan scanned scanning scans
+attribute attributed attributes attributing
+dedicate dedicated dedicates dedicating
+wing winged winging wings
+assign assigned assigning assigns
+attach attached attaches attaching
+lens lenses lensing
+bargain bargained bargaining bargains
+push pushed pushes pushing
+promise promised promises promising
+wholesale wholesales wholesaling
+slot slots slotted slotting
+instance instanced instances instancing
+dine dined dines dining
+cartoon cartooning cartoons
+pin pinned pinning pins
+slide slid slides sliding
+patent patented patenting patents
+doll dolled dolling dolls
+examine examined examines examining
+spread spreading spreads
+harry harried harries
+pound pounded pounding pounds
+mirror mirrored mirroring mirrors
+notify notified notifies notifying
+border bordered bordering borders
+cache cached caches caching
+stress stressed stresses stressing
+contest contested contesting contests
+suit suited suiting suits
+consist consisted consisting consists
+organize organized organizes organizing
+pump pumped pumping pumps
+void voided voiding voids
+finger fingered fingering fingers
+upload uploaded uploading uploads
+prove proved proves proving
+minor minored minoring minors
+invite invited invites inviting
+photograph photographed photographing photographs
+guess guessed guesses guessing
+disable disabled disables disabling
+frank franked franking franks
+insert inserted inserting inserts
+zoom zoomed zooming zooms
+surprise surprised surprises surprising
+hang hanged hanging hangs hung
+spam spammed spamming spams
+capture captured captures capturing
+zero zeroed zeroes zeroing zeros
+dot dots dotted dotting
+broadcast broadcasting broadcasts
+tone toned tones toning
+trouble troubled troubles troubling
+lease leased leases leasing
+invest invested investing invests
+reform reformed reforming reforms
+revise revised revises revising
+negative negatived negatives
+incorporate incorporated incorporates incorporating
+authorize authorized authorizes authorizing
+circle circled circles circling
+shift shifted shifting shifts
+reveal revealed revealing reveals
+slow slowed slowing slows
+plug plugged plugging plugs
+solve solved solves solving
+employ employed employing employs
+boob boobed boobs
+seed seeded seeding seeds
+sky skied skies
+sing sang singing sings sung
+stamp stamped stamping stamps
+fruit fruited fruiting fruits
+repeat repeated repeating repeats
+audit audited auditing audits
+warm warmed warming warms
+amaze amazed amazes amazing
+landscape landscaped landscapes landscaping
+deposit deposited depositing deposits
+tank tanked tanking tanks
+comfort comforted comforting comforts
+peak peaked peaking peaks
+debate debated debates debating
+gamble gambled gambles gambling
+disorder disordered disordering disorders
+rain rained raining rains
+bell belled belling bells
+paragraph paragraphing paragraphs
+strip stripped stripping strips
+satisfy satisfied satisfies satisfying
+swim swam swimming swims swum
+toll tolled tolling tolls
+experiment experimented experimenting experiments
+surround surrounded surrounding surrounds
+excite excited excites exciting
+wale wales waling
+gender gendered genders
+dish dished dishes dishing
+amend amended amending amends
+jazz jazzed jazzing
+gate gated gates gating
+suffer suffered suffering suffers
+proof proofed proofing proofs
+shower showered showering showers
+exclude excluded excludes excluding
+soil soiled soiling soils
+moon mooned mooning moons
+array arrayed arraying arrays
+guard guarded guarding guards
+cancel cancelled cancelling cancels
+assess assessed assesses assessing
+realize realized realizes realizing
+engage engaged engages engaging
+tower towered towering towers
+configure configured configures configuring
+keyboard keyboarding keyboards
+supplement supplemented supplementing supplements
+bottle bottled bottles bottling
+tire tired tires tiring
+proceed proceeded proceeding proceeds
+tune tuned tunes tuning
+resume resumed resumes resuming
+decrease decreased decreases decreasing
+lift lifted lifting lifts
+crow crew crowed crowing crows
+pad padded padding pads
+coat coated coating coats
+gather gathered gathering gathers
+twin twinned twinning twins
+ink inked inking inks
+spy spied spies spying
+salt salted salting salts
+mill milled milling mills
+cream creamed creaming creams
+exit exited exiting exits
+loop looped looping loops
+salary salaried salaries
+empty emptied empties emptying
+pilot piloted piloting pilots
+customize customized customizes customizing
+exhibit exhibited exhibiting exhibits
+kiss kissed kisses kissing
+ram rammed ramming rams
+coin coined coining coins
+wrap wrapped wrapping wraps
+hate hated hates hating
+verify verified verifies verifying
+plot plots plotted plotting
+suppose supposed supposes supposing
+jacket jacketed jackets
+muscle muscled muscles muscling
+acquire acquired acquires acquiring
+don donned donning dons
+ignore ignored ignores ignoring
+exceed exceeded exceeding exceeds
+storm stormed storming storms
+noise noised noises
+pill pilling pills
+arise arisen arises arising arose
+scope scoped scopes scoping
+broker brokered brokering brokers
+compile compiled compiles compiling
+compact compacted compacting compacts
+crack cracked cracking cracks
+sentence sentenced sentences sentencing
+soldier soldiered soldiering soldiers
+charter chartered chartering charters
+lecture lectured lectures lecturing
+correspond corresponded corresponding corresponds
+essay essayed essays
+bone boned bones boning
+taste tasted tastes tasting
+wash washed washes washing
+transit transited transiting transits
+hop hopped hopping hops
+puzzle puzzled puzzles puzzling
+sum summed summing sums
+classify classified classifies classifying
+shell shelled shelling shells
+construct constructed constructing constructs
+pipe piped pipes piping
+pan panned panning pans
+inventory inventoried inventories inventorying
+joke joked jokes joking
+cite cited cites citing
+split splits splitting
+transition transitioned transitioning transitions
+mouth mouthed mouthing mouths
+catalogue catalogued catalogues cataloguing
+worry worried worries worrying
+dive dived dives diving dove
+fox foxed foxes foxing
+wet wets wetting
+plane planed planes planing
+shock shocked shocking shocks
+outline outlined outlines outlining
+smile smiled smiles smiling
+resolve resolved resolves resolving
+mesh meshed meshes meshing
+coordinate coordinated coordinates coordinating
+specialize specialized specializes specializing
+piss pissed pisses pissing
+reverse reversed reverses reversing
+rear reared rearing rears
+cluster clustered clustering clusters
+yield yielded yielding yields
+adjust adjusted adjusting adjusts
+emerge emerged emerges emerging
+doubt doubted doubting doubts
+butt butted butting butts
+detect detected detecting detects
+console consoled consoles consoling
+charm charmed charming charms
+peer peered peering peers
+crash crashed crashes crashing
+witness witnessed witnesses witnessing
+sugar sugared sugaring sugars
+breed bred breeding breeds
+angle angled angles angling
+egg egged egging eggs
+divide divided divides dividing
+alarm alarmed alarming alarms
+elect elected electing elects
+drum drummed drumming drums
+belt belted belting belts
+appoint appointed appointing appoints
+donate donated donates donating
+kick kicked kicking kicks
+advise advised advises advising
+deny denied denies denying
+graph graphed graphing graphs
+argue argued argues arguing
+prohibit prohibited prohibiting prohibits
+appreciate appreciated appreciates appreciating
+pen penned penning pens
+exact exacted exacting exacts
+destroy destroyed destroying destroys
+illustrate illustrated illustrates illustrating
+chicken chickened chickens
+rack racked racking racks
+shadow shadowed shadowing shadows
+sin sinned sinning sins
+echo echoed echoes echoing
+consent consented consenting consents
+ear eared earing ears
+champion championed championing champions
+pearl pearled pearling pearls
+cry cried cries crying
+pee peed peeing pees
+eliminate eliminated eliminates eliminating
+rail railed railing rails
+translate translated translates translating
+execute executed executes executing
+merchandise merchandised merchandises merchandising
+refuse refused refuses refusing
+laugh laughed laughing laughs
+investigate investigated investigates investigating
+journey journeyed journeying journeys
+potter pottering potters
+restrict restricted restricting restricts
+milk milked milking milks
+segment segmented segmenting segments
+belong belonged belonging belongs
+cake caked cakes caking
+premier premiered premiering premiers
+derive derived derives deriving
+lunch lunched lunches lunching
+jet jets jetted jetting
+decline declined declines declining
+rely relied relies relying
+dose dosed doses dosing
+wage waged wages waging
+tend tended tending tends
+pulse pulsed pulses pulsing
+sand sanded sanding sands
+venture ventured ventures venturing
+fold folded folding folds
+labour laboured labouring labours
+spell spelled spelling spells spelt
+narrow narrowed narrowing narrows
+occasion occasioned occasioning occasions
+imply implied implies implying
+admit admits admitted admitting
+mistake mistaken mistakes mistaking mistook
+declare declared declares declaring
+flood flooded flooding floods
+escape escaped escapes escaping
+char charred charring chars
+bang banged banging bangs
+polish polished polishes polishing
+shave shaved shaves shaving
+deck decked decking decks
+contrast contrasted contrasting contrasts
+blind blinded blinding blinds
+motorcycle motorcycles motorcycling
+extract extracted extracting extracts
+retain retained retaining retains
+crop cropped cropping crops
+imagine imagined imagines imagining
+ban banned banning bans
+steal stealing steals stole stolen
+conclude concluded concludes concluding
+allocate allocated allocates allocating
+tear teared tearing tears tore torn
+castle castles castling
+restore restored restores restoring
+celebrate celebrated celebrates celebrating
+roof roofed roofing roofs
+heal healed healing heals
+cloud clouded clouding clouds
+expose exposed exposes exposing
+spank spanked spanking spanks
+rush rushed rushes rushing
+smooth smoothed smoothing smooths
+murder murdered murdering murders
+refine refined refines refining
+communicate communicated communicates communicating
+blank blanked blanking blanks
+phrase phrased phrases phrasing
+wake waked wakes waking woke woken
+spin spinning spins spun
+pant panted panting pants
+struggle struggled struggles struggling
+sight sighted sighting sights
+recall recalled recalling recalls
+reward rewarded rewarding rewards
+vector vectored vectoring vectors
+wow wowed wowing wows
+buffer buffered buffering buffers
+curve curved curves curving
+bead beaded beading beads
+stretch stretched stretches stretching
+uniform uniformed uniforms
+crown crowned crowning crowns
+trace traced traces tracing
+refund refunded refunding refunds
+parallel paralleled paralleling parallels
+undertake undertaken undertakes undertaking undertook
+climb climbed climbing climbs
+reject rejected rejecting rejects
+compound compounded compounding compounds
+arrange arranged arranges arranging
+orient oriented orienting orients
+freeze freezes freezing froze frozen
+arrest arrested arresting arrests
+putt putted putting putts
+nick nicked nicking nicks
+float floated floating floats
+candle candles candling
+inspire inspired inspires inspiring
+pleasure pleasured pleasures pleasuring
+preserve preserved preserves preserving
+surf surfed surfing surfs
+hook hooked hooking hooks
+stable stabled stables stabling
+pour poured pouring pours
+costume costumed costumes costuming
+counsel counselled counselling counsels
+receipt receipted receipting receipts
+warehouse warehoused warehouses warehousing
+swing swinging swings swung
+rat rats ratted ratting
+slip slipped slipping slips
+entitle entitled entitles entitling
+pioneer pioneered pioneering pioneers
+toe toed toeing toes
+dispatch dispatched dispatches dispatching
+suspect suspected suspecting suspects
+concrete concreted concretes concreting
+discipline disciplined disciplines disciplining
+pension pensioned pensions
+captain captained captaining captains
+trick tricked tricking tricks
+foster fostered fostering fosters
+mask masked masking masks
+knight knighted knights
+drill drilled drilling drills
+spray sprayed spraying sprays
+rob robbed robbing robs
+massage massaged massages massaging
+govern governed governing governs
+pose posed poses posing
+predict predicted predicting predicts
+dispute disputed disputes disputing
+grey greyed greying greys
+remark remarked remarking remarks
+bomb bombed bombing bombs
+grace graced graces gracing
+garage garaged garages garaging
+quiz quizzed quizzes quizzing
+thumb thumbed thumbing thumbs
+neck necked necking necks
+franchise franchised franchises franchising
+render rendered rendering renders
+relax relaxed relaxes relaxing
+recover recovered recovering recovers
+retrieve retrieved retrieves retrieving
+oppose opposed opposes opposing
+lounge lounged lounges lounging
+escort escorted escorting escorts
+gang ganged ganging gangs
+desert deserted deserting deserts
+facilitate facilitated facilitates facilitating
+accompany accompanied accompanies accompanying
+bulk bulked bulking bulks
+comply complied complies complying
+recycle recycled recycles recycling
+mate mated mates mating
+transmit transmits transmitted transmitting
+bend bended bending bends bent
+impose imposed imposes imposing
+induce induced induces inducing
+recruit recruited recruiting recruits
+dial dialled dialling dials
+survive survived survives surviving
+threaten threatened threatening threatens
+pot pots potted potting
+cater catered catering caters
+rescue rescued rescues rescuing
+transform transformed transforming transforms
+mat mats matted matting
+hurt hurting hurts
+ghost ghosted ghosting ghosts
+crowd crowded crowding crowds
+glance glanced glances glancing
+encounter encountered encountering encounters
+compete competed competes competing
+sail sailed sailing sails
+busy busied busies busying
+navigate navigated navigates navigating
+equip equipped equipping equips
+thin thinned thinning thins
+boost boosted boosting boosts
+utilize utilized utilizes utilizing
+encode encoded encodes encoding
+shoulder shouldered shouldering shoulders
+discharge discharged discharges discharging
+ridge ridged ridges ridging
+lip lipped lips
+gross grossed grosses grossing
+strap strapped strapping straps
+brush brushed brushes brushing
+stack stacked stacking stacks
+pine pined pines pining
+shore shored shores shoring
+nail nailed nailing nails
+quiet quieted quieting quiets
+analyse analysed analyses analysing
+clone cloned clones cloning
+alter altered altering alters
+divorce divorced divorces divorcing
+luck lucked lucking lucks
+automate automated automates automating
+grill grilled grilling grills
+reprint reprinted reprinting reprints
+blend blended blending blends
+comprise comprised comprises comprising
+settle settled settles settling
+retire retired retires retiring
+ward warded warding wards
+till tilled tilling tills
+assure assured assures assuring
+fault faulted faulting faults
+pace paced paces pacing
+hike hiked hikes hiking
+ken kenning kens
+digest digested digesting digests
+expire expired expires expiring
+probe probed probes probing
+differ differed differing differs
+troop trooped trooping troops
+brake braked brakes braking
+tan tanned tanning tans
+combat combated combating combats
+refinance refinanced refinances refinancing
+prompt prompted prompting prompts
+substitute substituted substitutes substituting
+pat pats patted patting
+stroke stroked strokes stroking
+boss bossed bosses bossing
+trap trapped trapping traps
+skirt skirted skirting skirts
+acknowledge acknowledged acknowledges acknowledging
+glove gloved gloves
+carpet carpeted carpeting carpets
+dirty dirtied dirtying
+twist twisted twisting twists
+attract attracted attracting attracts
+ease eased eases easing
+dust dusted dusting dusts
+chronicle chronicled chronicles chronicling
+reproduce reproduced reproduces reproducing
+strengthen strengthened strengthening strengthens
+bless blessed blesses blessing
+vacuum vacuumed vacuuming vacuums
+hack hacked hacking hacks
+quest quested questing quests
+solo soloed soloing solos
+ally allied allies allying
+regulate regulated regulates regulating
+moderate moderated moderates moderating
+sue sued sues suing
+perfume perfumed perfumes
+privilege privileged privileges privileging
+shake shaken shakes shaking shook
+brook brooking brooks
+excerpt excerpted excerpting excerpts
+beam beamed beaming beams
+nut nuts nutting
+sink sank sinking sinks sunk
+dodge dodged dodges dodging
+stem stemmed stemming stems
+inter interred inters
+okay okayed okays
+slave slaved slaves slaving
+jam jammed jamming jams
+alternate alternated alternates alternating
+tee teed teeing tees
+pitch pitched pitches pitching
+shield shielded shielding shields
+strain strained straining strains
+squirt squirted squirting squirts
+flame flamed flames flaming
+screw screwed screwing screws
+candy candied candies
+torture tortured tortures torturing
+accomplish accomplished accomplishes accomplishing
+hint hinted hinting hints
+distinguish distinguished distinguishes distinguishing
+tile tiled tiles tiling
+prospect prospected prospecting prospects
+advocate advocated advocates advocating
+pursue pursued pursues pursuing
+petition petitioned petitioning petitions
+personalize personalized personalizes personalizing
+embed embedded embedding embeds
+excel excelled excelling excels
+chase chased chases chasing
+licence licenced licences licencing
+shade shaded shades shading
+pride prided prides priding
+cord corded cording cords
+trigger triggered triggering triggers
+shit shat shits shitting
+powder powdered powdering powders
+grain grained grains
+confuse confused confuses confusing
+tap tapped tapping taps
+decorate decorated decorates decorating
+cure cured cures curing
+tail tailed tailing tails
+soap soaped soaping soaps
+leaf leafed leafing leafs
+initiate initiated initiates initiating
+remind reminded reminding reminds
+hazard hazarded hazards
+worship worshipped worshipping worships
+urge urged urges urging
+spare spared spares sparing
+outsource outsourced outsources outsourcing
+administer administered administering administers
+succeed succeeded succeeding succeeds
+treasure treasured treasures treasuring
+trim trimmed trimming trims
+defend defended defending defends
+consolidate consolidated consolidates consolidating
+interpret interpreted interpreting interprets
+grass grassed grasses
+activate activated activates activating
+warrant warranted warranting warrants
+harvest harvested harvesting harvests
+bake baked bakes baking
+diagram diagrammed diagramming diagrams
+temp temping temps
+sole soled soles soling
+clerk clerked clerking clerks
+offset offsets offsetting
+occupy occupied occupies occupying
+founder foundered foundering founders
+monkey monkeying monkeys
+rebate rebated rebates rebating
+nest nested nesting nests
+deserve deserved deserves deserving
+prescribe prescribed prescribes prescribing
+triple tripled triples tripling
+debug debugged debugging debugs
+isolate isolated isolates isolating
+steer steered steering steers
+sustain sustained sustaining sustains
+damn damned damning damns
+shut shuts shutting
+bat bats batted batting
+opt opted opting opts
+entrance entranced entrances entrancing
+bull bulling bulls
+concentrate concentrated concentrates concentrating
+span spanned spanning spans
+grab grabbed grabbing grabs
+mint minted minting mints
+animate animated animates animating
+stud studded studding studs
+spear speared spearing spears
+pepper peppered peppering peppers
+headquarter headquartered headquarters
+loose loosed looses loosing
+defeat defeated defeating defeats
+trek trekked trekking treks
+pole poled poles poling
+glory gloried glories glorying
+optimize optimized optimizes optimizing
+arc arced arcing arcs
+afford afforded affording affords
+ace aced aces acing
+lend lending lends lent
+adapt adapted adapting adapts
+remedy remedied remedies remedying
+wise wised wises
+protest protested protesting protests
+shelter sheltered sheltering shelters
+bundle bundled bundles bundling
+rev revs revved revving
+greet greeted greeting greets
+pray prayed praying prays
+drag dragged dragging drags
+buck bucked bucking bucks
+fence fenced fences fencing
+premise premised premises
+juice juiced juices juicing
+wolf wolfed wolfing wolfs
+insure insured insures insuring
+negotiate negotiated negotiates negotiating
+convince convinced convinces convincing
+dawn dawned dawning dawns
+blast blasted blasting blasts
+educate educated educates educating
+proportion proportioned proportioning proportions
+bicycle bicycled bicycles bicycling
+dig digging digs dug
+compose composed composes composing
+rip ripped ripping rips
+deem deemed deeming deems
+pal paled paling pals
+praise praised praises praising
+scroll scrolled scrolling scrolls
+herald heralded heralding heralds
+tender tendered tendering tenders
+steam steamed steaming steams
+skate skated skates skating
+soup souped soups
+bow bowed bowing bows
+gauge gauged gauges gauging
+reset resets resetting
+knee kneed knees
+corn corned corning corns
+fake faked fakes faking
+consume consumed consumes consuming
+bias biased biases biasing biassed
+harm harmed harming harms
+quit quits quitting
+anticipate anticipated anticipates anticipating
+fool fooled fooling fools
+cheer cheered cheering cheers
+bubble bubbled bubbles bubbling
+sock socked socking socks
+defect defected defecting defects
+lick licked licking licks
+pierce pierced pierces piercing
+renew renewed renewing renews
+rout routed routing routs
+dump dumped dumping dumps
+duck ducked ducking ducks
+arch arched arches arching
+underlie underlain underlay underlies underlying
+recognise recognised recognises recognising
+collapse collapsed collapses collapsing
+grip gripped gripping grips
+cow cowed cowing cows
+evolve evolved evolves evolving
+anchor anchored anchoring anchors
+terminate terminated terminates terminating
+wrestle wrestled wrestles wrestling
+assault assaulted assaulting assaults
+withdraw withdrawing withdrawn withdraws withdrew
+merge merged merges merging
+disturb disturbed disturbing disturbs
+relay relayed relaying relays
+furnish furnished furnishes furnishing
+shine shined shines shining shone
+texture textured textures texturing
+tin tinned tinning tins
+fork forked forking forks
+redeem redeemed redeeming redeems
+fry fried fries frying
+rough roughed roughing roughs
+blame blamed blames blaming
+balloon ballooned ballooning balloons
+nose nosed noses nosing
+ash ashes ashing
+scout scouted scouting scouts
+disclose disclosed discloses disclosing
+interact interacted interacting interacts
+simplify simplified simplifies simplifying
+exploit exploited exploiting exploits
+showcase showcased showcases showcasing
+tenant tenanted tenants
+gel gelled gelling gels jelled jelling
+breathe breathed breathes breathing
+aggregate aggregated aggregates aggregating
+mentor mentored mentoring mentors
+burden burdened burdening burdens
+suspend suspended suspending suspends
+beef beefed beefing beefs
+tongue tongued tongues tonguing
+ranch ranches ranching
+composite composited composites compositing
+rally rallied rallies rallying
+deploy deployed deploying deploys
+benchmark benchmarking benchmarks
+fare fared fares faring
+partition partitioned partitioning partitions
+syndicate syndicated syndicates syndicating
+exhaust exhausted exhausting exhausts
+rap rapped rapping raps
+snap snapped snapping snaps
+violate violated violates violating
+dam dammed damming dams
+bitch bitched bitches bitching
+scratch scratched scratches scratching
+knife knifed knifes knifing
+pirate pirated pirates pirating
+swap swapped swapping swaps
+compress compressed compresses compressing
+pit pits pitted pitting
+invoice invoiced invoices invoicing
+stain stained staining stains
+possess possessed possesses possessing
+justify justified justifies justifying
+allege alleged alleges alleging
+minimize minimized minimizes minimizing
+accuse accused accuses accusing
+spotlight spotlighted spotlighting spotlights
+ferry ferried ferries ferrying
+delight delighted delighting delights
+horn horned horns
+tent tented tenting tents
+weigh weighed weighing weighs
+bunch bunched bunches bunching
+accent accented accenting accents
+delegate delegated delegates delegating
+reload reloaded reloading reloads
+entertain entertained entertaining entertains
+drain drained draining drains
+stun stunned stunning stuns
+tunnel tunnelled tunnelling tunnels
+frequent frequented frequenting frequents
+alias aliased aliases aliasing
+align aligned aligning aligns
+slim slimmed slimming slims
+knit knits knitting
+smell smelled smelling smells smelt
+endorse endorsed endorses endorsing
+hawk hawked hawking hawks
+slope sloped slopes sloping
+queue queued queueing queues queuing
+cave caved caves caving
+bury buried buries burying
+heel heeled heeling heels
+railroad railroaded railroading railroads
+complain complained complaining complains
+paste pasted pastes pasting
+spice spiced spices spicing
+bracket bracketed bracketing brackets
+organise organised organises organising
+infect infected infecting infects
+borrow borrowed borrowing borrows
+lean leaned leaning leans
+unlock unlocked unlocking unlocks
+tackle tackled tackles tackling
+scream screamed screaming screams
+strand stranded stranding strands
+overcome overcame overcomes overcoming
+rocket rocketed rocketing rockets
+situate situated situates situating
+rebuild rebuilding rebuilds rebuilt
+quilt quilted quilting quilts
+snowboard snowboarding snowboards
+sculpture sculptured sculptures sculpturing
+microwave microwaved microwaves microwaving
+dock docked docking docks
+butter buttered buttering butters
+devote devoted devotes devoting
+lobby lobbied lobbies lobbying
+silence silenced silences silencing
+frog frogging frogs
+bronze bronzed bronzes bronzing
+enforce enforced enforces enforcing
+brick bricked bricking bricks
+knock knocked knocking knocks
+flip flipped flipping flips
+raid raided raiding raids
+accommodate accommodated accommodates accommodating
+snake snaked snakes snaking
+punch punched punches punching
+pillow pillowed pillows
+rebel rebelled rebelling rebels
+abandon abandoned abandoning abandons
+rim rimmed rimming rims
+enroll enrolled enrolling
+precede preceded precedes preceding
+slice sliced slices slicing
+emphasize emphasized emphasizes emphasizing
+tutor tutored tutoring tutors
+dominate dominated dominates dominating
+depart departed departing departs
+prototype prototyped prototypes prototyping
+chuck chucked chucking chucks
+mandate mandated mandates mandating
+hammer hammered hammering hammers
+disappear disappeared disappearing disappears
+spark sparked sparking sparks
+collar collared collaring collars
+worm wormed worming worms
+fragment fragmented fragmenting fragments
+blanket blanketed blanketing blankets
+annex annexed annexes annexing
+duplicate duplicated duplicates duplicating
+scatter scattered scattering scatters
+cashier cashiered cashiering cashiers
+foam foamed foaming foams
+sweep sweeping sweeps swept
+disagree disagreed disagreeing disagrees
+rope roped ropes roping
+perceive perceived perceives perceiving
+merit merited meriting merits
+diagnose diagnosed diagnoses diagnosing
+mess messed messes messing
+injure injured injures injuring
+pledge pledged pledges pledging
+accelerate accelerated accelerates accelerating
+boom boomed booming booms
+honour honoured honouring honours
+exempt exempted exempting exempts
+stimulate stimulated stimulates stimulating
+complicate complicated complicates complicating
+customise customised customising
+reel reeled reeling reels
+denote denoted denotes denoting
+accredit accredited accrediting accredits
+bolt bolted bolting bolts
+jail jailed jailing jails
+divine divined divines divining
+parade paraded parades parading
+shed shedding sheds
+excuse excused excuses excusing
+sandwich sandwiched sandwiches sandwiching
+poison poisoned poisoning poisons
+refresh refreshed refreshes refreshing
+leak leaked leaking leaks
+jar jarred jarring jars
+cube cubed cubes cubing
+calm calmed calming calms
+mug mugged mugging mugs
+retreat retreated retreating retreats
+compromise compromised compromises compromising
+incur incurred incurring incurs
+taxi taxied taxiing taxis
+berry berried berries
+sew sewed sewing sewn sews
+fancy fancied fancies fancying
+nickname nicknamed nicknames
+characterize characterized characterizes characterizing
+wee weed weeing wees
+stake staked stakes staking
+dip dipped dipping dips
+barrel barrelled barrelling barrels
+unify unified unifies unifying
+bare bared bares baring
+assemble assembled assembles assembling
+shuttle shuttled shuttles shuttling
+lace laced laces lacing
+badge badged badges
+sophisticate sophisticated sophisticates
+weld welded welding welds
+towel towelling towels
+eclipse eclipsed eclipses eclipsing
+impress impressed impresses impressing
+scare scared scares scaring
+inherit inherited inheriting inherits
+tension tensioned tensions
+tailor tailored tailoring tailors
+sacrifice sacrificed sacrifices sacrificing
+batch batched batches batching
+masturbate masturbated masturbates masturbating
+stitch stitched stitches stitching
+dash dashed dashes dashing
+annotate annotated annotates annotating
+owe owed owes owing
+complement complemented complementing complements
+needle needled needles needling
+terrace terraced terraces terracing
+weave weaved weaves weaving wove woven
+tier tiered tiers
+debut debuted debuting debuts
+motivate motivated motivates motivating
+nerve nerved nerves
+forge forged forges forging
+embrace embraced embraces embracing
+annoy annoyed annoying annoys
+timber timbered timbering timbers
+anger angered angering angers
+maximize maximized maximizes maximizing
+fever fevered fevers
+cage caged cages caging
+nominate nominated nominates nominating
+absent absented absents
+shout shouted shouting shouts
+advert adverted adverting adverts
+buzz buzzed buzzes buzzing
+invalid invalided invalids
+bother bothered bothering bothers
+rage raged rages raging
+roster rostering rosters
+undergo undergoes undergoing undergone underwent
+ballot balloted balloting ballots
+plumb plumbed plumbing plumbs
+bounce bounced bounces bouncing
+lap lapped lapping laps
+wax waxed waxes waxing
+hose hosed hoses hosing
+belly bellied bellies
+clarify clarified clarifies clarifying
+tide tided tides tiding
+cope coped copes coping
+commence commenced commences commencing
+bloom bloomed blooming blooms
+disappoint disappointed disappointing disappoints
+disadvantage disadvantaged disadvantages disadvantaging
+snack snacked snacking snacks
+freight freighted freighting freights
+norm normed norms
+flush flushed flushes flushing
+stir stirred stirring stirs
+premiere premiered premieres premiering
+swallow swallowed swallowing swallows
+cant canted canting cants
+melt melted melting melts
+sprint sprinted sprinting sprints
+ruin ruined ruining ruins
+reinforce reinforced reinforces reinforcing
+parcel parcelled parcels
+bleed bled bleeding bleeds
+mainstream mainstreamed mainstreaming mainstreams
+patrol patrolled patrolling patrols
+await awaited awaiting awaits
+wick wicked wicks
+rotate rotated rotates rotating
+reside resided resides residing
+caution cautioned cautioning cautions
+steady steadied steadies steadying
+fade faded fades fading
+harbour harboured harbouring harbours
+breach breached breaches breaching
+dye dyed dyeing dyes
+reef reefed reefing reefs
+curtain curtained curtains
+marble marbled marbles marbling
+vest vested vesting vests
+compel compelled compelling compels
+descend descended descending descends
+validate validated validates validating
+interrupt interrupted interrupting interrupts
+insist insisted insisting insists
+approximate approximated approximates approximating
+chill chilled chilling chills
+strive striven strives striving strove
+assert asserted asserting asserts
+sanction sanctioned sanctioning sanctions
+ping pinged pinging pings
+crush crushed crushes crushing
+rid ridding rids
+chop chopped chopping chops
+sap sapped sapping saps
+fate fated fates
+inquire inquired inquires inquiring
+shaft shafted shafting shafts
+brave braved braves braving
+prefix prefixed prefixes prefixing
+pencil pencilled pencils
+pile piled piles piling
+rant ranted ranting rants
+enclose enclosed encloses enclosing
+telescope telescoped telescopes telescoping
+conform conformed conforming conforms
+lamb lambing lambs
+vault vaulted vaulting vaults
+addict addicted addicting addicts
+dismiss dismissed dismisses dismissing
+purse pursed purses pursing
+doom doomed dooming dooms
+cease ceased ceases ceasing
+freak freaked freaking freaks
+levy levied levies levying
+forbid forbade forbidden forbidding forbids
+slight slighted slighting slights
+alloy alloyed alloying alloys
+resist resisted resisting resists
+frost frosted frosting frosts
+parse parsed parses parsing
+absorb absorbed absorbing absorbs
+trash trashed trashes trashing
+neglect neglected neglecting neglects
+simulate simulated simulates simulating
+whip whipped whipping whips
+fin finned fins
+bust busted busting busts
+boil boiled boiling boils
+summarize summarized summarizes summarizing
+spike spiked spikes spiking
+glow glowed glowing glows
+fulfill fulfilled fulfilling fulfils
+fulfil fulfilled fulfilling fulfils
+bump bumped bumping bumps
+sketch sketched sketches sketching
+prop propped propping props
+overlook overlooked overlooking overlooks
+originate originated originates originating
+proposition propositioned propositions
+gag gagged gagging gags
+dwell dwelling dwells dwelt
+fur furred furring furs
+refill refilled refilling refills
+realise realised realises realising
+refurbish refurbished refurbishes refurbishing
+burst bursting bursts
+groom groomed grooming grooms
+rub rubbed rubbing rubs
+undo undid undoes undoing undone
+rename renamed renames renaming
+troubleshoot troubleshooting troubleshoots
+groove grooved grooves grooving
+hay haying hays
+clue clued clues
+ham hamming hams
+carve carved carves carving
+favour favoured favouring favours
+crest crested cresting crests
+ladder laddering ladders
+dis dissed dissing
+thunder thundered thundering thunders
+leverage leveraged leverages leveraging
+swear swearing swears swore sworn
+caption captioned captioning captions
+vent vented venting vents
+bud budded budding buds
+chorus chorused choruses
+scam scammed scamming scams
+rifle rifled rifles rifling
+hull hulled hulls
+handicap handicapped handicapping handicaps
+freelance freelanced freelances freelancing
+curse cursed curses cursing
+roast roasted roasting roasts
+coil coiled coiling coils
+react reacted reacting reacts
+vet vets vetted vetting
+lid lidded lids
+shame shamed shames shaming
+fog fogged fogging fogs
+fascinate fascinated fascinates fascinating
+flaw flawed flaws
+spill spilled spilling spills spilt
+orbit orbited orbiting orbits
+impair impaired impairing impairs
+supervise supervised supervises supervising
+neighbour neighbouring neighbours
+thrill thrilled thrilling thrills
+panic panicked panicking panics
+sip sipped sipping sips
+ware wares waring
+flesh fleshed fleshes fleshing
+depict depicted depicting depicts
+dice diced dices dicing
+shelve shelved shelves shelving
+rival rivalled rivalling rivals
+cushion cushioned cushioning cushions
+autograph autographed autographing autographs
+prepay prepaid prepaying prepays
+blink blinked blinking blinks
+defer deferred deferring defers
+legitimate legitimated legitimates legitimating
+surge surged surges surging
+redirect redirected redirecting redirects
+pause paused pauses pausing
+inspect inspected inspecting inspects
+convey conveyed conveying conveys
+foul fouled fouling fouls
+hash hashed hashes hashing
+rewrite rewrites rewriting rewritten rewrote
+leap leaping leaps leapt
+enact enacted enacting enacts
+ornament ornamented ornaments
+tick ticked ticking ticks
+swell swelled swelling swells swollen
+accumulate accumulated accumulates accumulating
+curl curled curling curls
+subtitle subtitled subtitles subtitling
+sheer sheered sheering sheers
+omit omits omitted omitting
+stare stared stares staring
+harness harnessed harnesses harnessing
+funk funked funking funks
+invoke invoked invokes invoking
+scent scented scenting scents
+scrap scrapped scrapping scraps
+scoop scooped scooping scoops
+imprint imprinted imprinting imprints
+pod podded pods
+overlap overlapped overlapping overlaps
+endanger endangered endangering endangers
+revenge revenged revenging
+gore gored gores goring
+attain attained attaining attains
+empower empowered empowering empowers
+tow towed towing tows
+restructure restructured restructures restructuring
+tilt tilted tilting tilts
+cradle cradled cradles cradling
+dome domed domes doming
+junk junked junking junks
+decay decayed decaying decays
+critique critiqued critiques critiquing
+outfit outfits outfitted outfitting
+ascend ascended ascending ascends
+knot knots knotted knotting
+upset upsets upsetting
+slam slammed slamming slams
+cue cued cues cuing
+gazette gazetted gazettes
+lade laded laden lades lading
+overwhelm overwhelmed overwhelming overwhelms
+mushroom mushroomed mushrooming mushrooms
+canoe canoeing canoes
+implant implanted implanting implants
+intimate intimated intimates intimating
+convict convicted convicting convicts
+clamp clamped clamping clamps
+testify testified testifies testifying
+prevail prevailed prevailing prevails
+pertain pertained pertaining pertains
+dub dubbed dubbing dubs
+waterproof waterproofed waterproofing waterproofs
+hug hugged hugging hugs
+sweat sweated sweating sweats
+wipe wiped wipes wiping
+crane craned cranes craning
+sediment sedimented sediments
+dim dimmed dimming dims
+hedge hedged hedges hedging
+flex flexed flexes flexing
+cascade cascaded cascades cascading
+ramp ramped ramping ramps
+idle idled idles idling
+triumph triumphed triumphing triumphs
+relieve relieved relieves relieving
+brew brewed brewing brews
+shepherd shepherded shepherding shepherds
+kayak kayaking kayaks
+fleece fleeced fleeces fleecing
+rib ribbed ribbing ribs
+haunt haunted haunting haunts
+discontinue discontinued discontinues discontinuing
+marvel marvelled marvels
+feather feathered feathering feathers
+corrupt corrupted corrupting corrupts
+drift drifted drifting drifts
+shrink shrank shrinking shrinks shrunk shrunken
+cement cemented cementing cements
+repeal repealed repealing repeals
+glue glued glueing glues gluing
+bash bashed bashes bashing
+withhold withheld withholding withholds
+restart restarted restarting restarts
+footnote footnoted footnotes footnoting
+picnic picnicking picnics
+abide abides abiding abode
+gossip gossiped gossiping gossips
+staple stapled staples stapling
+seize seized seizes seizing
+dispose disposed disposes disposing
+smash smashed smashes smashing
+diaper diapered diapering diapers
+frustrate frustrated frustrates frustrating
+formulate formulated formulates formulating
+covenant covenanted covenanting covenants
+sear seared searing sears
+whisper whispered whispering whispers
+cone coned cones coning
+multiply multiplied multiplies multiplying
+behave behaved behaves behaving
+bypass bypassed bypasses bypassing
+saddle saddled saddles saddling
+referee refereed refereeing referees
+assay assayed assaying assays
+override overridden overrides overriding overrode
+sally sallied sallies
+remainder remaindered remainders
+peel peeled peeling peels
+transplant transplanted transplanting transplants
+safeguard safeguarded safeguarding safeguards
+prejudice prejudiced prejudices prejudicing
+pale paled pales paling
+invent invented inventing invents
+jade jaded jades
+credential credentialing credentials
+elevate elevated elevates elevating
+mime mimed mimes miming
+interfere interfered interferes interfering
+confront confronted confronting confronts
+bark barked barking barks
+contour contoured contouring contours
+redistribute redistributed redistributes redistributing
+authorise authorised authorises authorising
+lance lanced lances lancing
+manipulate manipulated manipulates manipulating
+hollow hollowed hollowing hollows
+specialise specialised specialises specialising
+encrypt encrypted encrypting encrypts
+usher ushered ushering ushers
+cork corked corking corks
+pedal pedalled pedalling pedals
+savage savaged savages savaging
+beg begged begging begs
+rig rigged rigging rigs
+keen keening keens
+fuse fused fuses fusing
+mediate mediated mediates mediating
+wander wandered wandering wanders
+wade waded wades wading
+jerk jerked jerking jerks
+instruct instructed instructing instructs
+clutch clutched clutches clutching
+banquet banqueting banquets
+laminate laminated laminates laminating
+toss tossed tosses tossing
+rebind rebinding rebound
+closet closeted closets
+fracture fractured fractures fracturing
+unwrap unwrapped unwrapping unwraps
+surrender surrendered surrendering surrenders
+endure endured endures enduring
+pave paved paves paving
+lime limed limes liming
+distress distressed distresses distressing
+vein veined veining veins
+forgive forgave forgiven forgives forgiving
+gum gummed gumming gums
+confine confined confines confining
+pretend pretended pretending pretends
+condemn condemned condemning condemns
+buffet buffeted buffeting buffets
+scrub scrubbed scrubbing scrubs
+unveil unveiled unveiling unveils
+fatigue fatigued fatigues fatiguing
+flour floured flouring flours
+explode exploded explodes exploding
+regret regrets regretted regretting
+hunger hungered hungering hungers
+hatch hatched hatches hatching
+spoon spooned spooning spoons
+intern interned interning interns
+foil foiled foiling foils
+engrave engraved engraving
+knob knobbed knobs
+voyage voyages voyaging
+pouch pouched pouches
+flute fluted flutes fluting
+cosponsor cosponsored cosponsoring cosponsors
+din dinning dins
+slate slated slates slating
+dissolve dissolved dissolves dissolving
+sparkle sparkled sparkles sparkling
+tote toted totes toting
+sack sacked sacking sacks
+nod nodded nodding nods
+tenure tenured tenures
+encompass encompassed encompasses encompassing
+breeze breezed breezes breezing
+err erred erring errs
+manifest manifested manifesting manifests
+inhibit inhibited inhibiting inhibits
+reign reigned reigning reigns
+squeeze squeezed squeezes squeezing
+depress depressed depresses depressing
+compass compassed compasses
+honeymoon honeymooned honeymooning honeymoons
+spur spurred spurring spurs
+champ champing champs
+reuse reused reuses reusing
+compensate compensated compensates compensating
+migrate migrated migrates migrating
+suppress suppressed suppresses suppressing
+skateboard skateboarding skateboards
+boast boasted boasting boasts
+lynch lynched lynching
+couch couched couches couching
+brace braced braces bracing
+conserve conserved conserves conserving
+bluff bluffed bluffing bluffs
+asterisk asterisked asterisks
+debit debited debiting debits
+tickle tickled tickles tickling
+discard discarded discarding discards
+cooperate cooperated cooperates cooperating
+affirm affirmed affirming affirms
+sigh sighed sighing sighs
+collaborate collaborated collaborates collaborating
+accession accessioned accessioning accessions
+gown gowned gowns
+flee fled fleeing flees
+axe axed axes axing
+peg pegged pegging pegs
+contaminate contaminated contaminates contaminating
+overflow overflowed overflowing overflows
+resign resigned resigning resigns
+crawl crawled crawling crawls
+punish punished punishes punishing
+streamline streamlined streamlines streamlining
+offend offended offending offends
+hyperlink hyperlinked hyperlinking hyperlinks
+preach preached preaches preaching
+mislead misleading misleads misled
+standardize standardized standardizes standardizing
+gut guts gutted gutting
+splash splashed splashes splashing
+stoke stoked stokes stoking
+discourse discoursed discourses discoursing
+dart darted darting darts
+feast feasted feasting feasts
+oversee oversaw overseeing overseen oversees
+spiral spiralled spiralling spirals
+timetable timetabled timetables timetabling
+crab crabbed crabbing crabs
+quake quaked quakes quaking
+clash clashed clashes clashing
+stall stalled stalling stalls
+ginger gingered gingers
+illuminate illuminated illuminates illuminating
+humour humoured humours
+rave raved raves raving
+jaw jawed jaws
+glaze glazed glazes glazing
+barber barbering barbers
+disconnect disconnected disconnecting disconnects
+diminish diminished diminishes diminishing
+halt halted halting halts
+cough coughed coughing coughs
+fringe fringed fringes fringing
+blossom blossomed blossoming blossoms
+adhere adhered adheres adhering
+scat scats scatting
+lever levered levering levers
+fetch fetched fetches fetching
+hoop hooped hooping hoops
+relocate relocated relocates relocating
+litter littered littering litters
+differentiate differentiated differentiates differentiating
+erase erased erases erasing
+shuffle shuffled shuffles shuffling
+uncover uncovered uncovering uncovers
+toast toasted toasting toasts
+cheek cheeked cheeks
+circulate circulated circulates circulating
+increment incremented incrementing increments
+haul hauled hauling hauls
+wig wigged wigs
+condense condensed condenses condensing
+resemble resembled resembles resembling
+intrigue intrigued intrigues intriguing
+pronounce pronounced pronounces pronouncing
+grasp grasped grasping grasps
+comb combed combing combs
+scar scarred scarring scars
+telegraph telegraphed telegraphing telegraphs
+hail hailed hailing hails
+insult insulted insulting insults
+enrich enriched enriches enriching
+hinge hinged hinges hinging
+cleanse cleansed cleanses cleansing
+curb curbed curbing curbs
+yell yelled yelling yells
+blunt blunted blunting blunts
+cane caned canes caning
+hassle hassled hassles hassling
+chew chewed chewing chews
+hurry hurried hurries hurrying
+shutter shuttered shuttering shutters
+buckle buckled buckles buckling
+inject injected injecting injects
+embroider embroidered embroidering
+paddle paddled paddles paddling
+lag lagged lagging lags
+audition auditioned auditioning auditions
+overstock overstocked overstocking overstocks
+decree decreed decreeing decrees
+wedge wedged wedges wedging
+stave staved staves staving stove
+aspire aspired aspires aspiring
+initialize initialized initializes initializing
+squash squashed squashes squashing
+curry curried curries currying
+tweak tweaked tweaking tweaks
+slash slashed slashes slashing
+detach detached detaches detaching
+shear sheared shearing shears
+elaborate elaborated elaborates elaborating
+esteem esteemed esteeming esteems
+elbow elbowed elbowing elbows
+mob mobbed mobbing mobs
+streak streaked streaking streaks
+riot rioted rioting riots
+bully bullied bullies bullying
+spawn spawned spawning spawns
+soar soared soaring soars
+erect erected erecting erects
+shy shied shies shying
+grandfather grandfathered grandfathering grandfathers
+conceive conceived conceives conceiving
+torque torqued torques torquing
+waive waived waives waiving
+redesign redesigned redesigning redesigns
+criticize criticized criticizes criticizing
+compliment complimented complimenting compliments
+conquer conquered conquering conquers
+hex hexed hexes
+beard bearded beards
+rag ragged ragging rags
+mock mocked mocking mocks
+humble humbled humbles humbling
+trumpet trumpeted trumpeting trumpets
+drown drowned drowning drowns
+mist misted misting mists
+underline underlined underlines underlining
+clown clowning clowns
+pillar pillared pillars
+wreck wrecked wrecking wrecks
+blaze blazed blazes blazing
+barbecue barbecued barbecues barbecuing
+dent dented denting dents
+whistle whistled whistles whistling
+plead pleaded pleading pleads
+admire admired admires admiring
+raft rafted rafting rafts
+decode decoded decodes decoding
+amuse amused amuses amusing
+obscure obscured obscures obscuring
+soak soaked soaking soaks
+muse mused muses musing
+flap flapped flapping flaps
+hesitate hesitated hesitates hesitating
+cuff cuffed cuffing cuffs
+bail bailed bailing bails
+avail availed availing avails
+rust rusted rusting rusts
+emit emits emitted emitting
+contend contended contending contends
+herd herded herding herds
+prod prodded prodding prods
+docket docketed docketing dockets
+sup supped supping sups
+chin chinned chins
+awake awakes awaking awoke awoken
+regiment regimented regiments
+crisp crisped crisps
+signify signified signifies signifying
+throne throned thrones
+widen widened widening widens
+deprecate deprecated deprecating
+chunk chunked chunking chunks
+bait baited baiting baits
+clutter cluttered cluttering clutters
+lumber lumbered lumbering lumbers
+notch notched notches notching
+thrust thrusting thrusts
+tease teased teases teasing
+invade invaded invades invading
+heap heaped heaping heaps
+confer conferred conferring confers
+undermine undermined undermines undermining
+penetrate penetrated penetrates penetrating
+generalize generalized generalizes generalizing
+canopy canopied canopies
+thrive thrived thrives thriving
+kite kites kiting
+replay replayed replaying replays
+rue rued rues
+revisit revisited revisiting revisits
+insulate insulated insulates insulating
+misplace misplaced misplacing
+pulp pulped pulping pulps
+rhyme rhymed rhymes rhyming
+slaughter slaughtered slaughtering slaughters
+articulate articulated articulates articulating
+facet faceted faceting facets
+apprentice apprenticed apprentices apprenticing
+flare flared flares flaring
+robe robed robes
+obey obeyed obeying obeys
+portray portrayed portraying portrays
+flop flopped flopping flops
+bate bated bates bating
+steep steeped steeping steeps
+mould moulded moulding moulds
+hum hummed humming hums
+overload overloaded overloading overloads
+dwarf dwarfed dwarfing dwarfs
+constrain constrained constraining constrains
+prolong prolonged prolonging prolongs
+spoil spoiled spoiling spoils spoilt
+lump lumped lumping lumps
+exile exiled exiles exiling
+sour soured souring sours
+conceal concealed concealing conceals
+loft lofted lofting lofts
+troll trolled trolling trolls
+revert reverted reverting reverts
+persuade persuaded persuades persuading
+persist persisted persisting persists
+plague plagued plagues plaguing
+tolerate tolerated tolerates tolerating
+shampoo shampooed shampooing shampoos
+awaken awakened awakening awakens
+append appended appending appends
+displace displaced displaces displacing
+authenticate authenticated authenticates authenticating
+ape aped apes aping
+lure lured lures luring
+accrue accrued accrues accruing
+discourage discouraged discourages discouraging
+flock flocked flocking flocks
+populate populated populates populating
+hype hyped hypes hyping
+vow vowed vowing vows
+drip dripped dripping drips
+crook crooked crooks
+slay slain slaying slays slew
+madden maddened maddening
+uphold upheld upholding upholds
+creep creeping creeps crept
+stumble stumbled stumbles stumbling
+fingerprint fingerprinted fingerprinting fingerprints
+proclaim proclaimed proclaiming proclaims
+grease greased greases greasing
+recur recurred recurring recurs
+interchange interchanged interchanges interchanging
+stiff stiffed stiffs
+gesture gestured gestures gesturing
+contemplate contemplated contemplates contemplating
+blur blurred blurring blurs
+warp warped warping warps
+glitter glittered glittering glitters
+vanish vanished vanishes vanishing
+construe construed construes construing
+zipper zippered zippers
+interconnect interconnected interconnecting interconnects
+gaze gazed gazes gazing
+orphan orphaned orphans
+parrot parroted parroting parrots
+nip nipped nipping nips
+gloss glossed glosses glossing
+devastate devastated devastates devastating
+disseminate disseminated disseminates disseminating
+goose goosed gooses
+cultivate cultivated cultivates cultivating
+apologize apologized apologizes apologizing
+dictate dictated dictates dictating
+bathe bathed bathes bathing
+parole paroled paroles
+dispense dispensed dispenses dispensing
+coke coked cokes coking
+prey preyed preying preys
+trump trumped trumping trumps
+garner garnered garnering garners
+incline inclined inclines inclining
+grin grinned grinning grins
+embarrass embarrassed embarrasses embarrassing
+batter battered battering batters
+lam lamming lams
+misuse misused misuses misusing
+hamper hampered hampering hampers
+devise devised devises devising
+spit spat spits spitting
+tuck tucked tucking tucks
+presume presumed presumes presuming
+renovate renovated renovates renovating
+wager wagered wagering wagers
+tempt tempted tempting tempts
+practise practised practises practising
+replicate replicated replicates replicating
+slap slapped slapping slaps
+etch etched etches etching
+flick flicked flicking flicks
+weaken weakened weakening weakens
+strut struts strutted strutting
+synchronize synchronized synchronizes synchronizing
+frighten frightened frightening frightens
+hitch hitched hitches hitching
+hump humped humping humps
+diversify diversified diversifies diversifying
+lattice latticed lattices
+toggle toggled toggles toggling
+boo booed booing boos
+sting stings stung
+mitigate mitigated mitigates mitigating
+paw pawed pawing paws
+sorrow sorrowing sorrows
+swamp swamped swamping swamps
+swivel swivelled swivelling swivels
+stabilize stabilized stabilizes stabilizing
+purify purified purifies purifying
+solicit solicited soliciting solicits
+forgo foregoes foregoing foregone forgoes forgoing forgone
+forego foregoes foregoing foregone forgoes forgoing forgone
+summon summoned summoning summons
+outlaw outlawed outlawing outlaws
+solder soldered soldering solders
+crate crated crates crating
+lust lusted lusting lusts
+stunt stunted stunting stunts
+enlist enlisted enlisting enlists
+garland garlanded garlands
+recap recapped recapping recaps
+provoke provoked provokes provoking
+behold beheld beholding beholds
+glimpse glimpsed glimpses glimpsing
+categorize categorized categorizes categorizing
+jockey jockeying jockeys
+revolve revolved revolves revolving
+plump plumped plumping plumps
+dilute diluted dilutes diluting
+claw clawed clawing claws
+roar roared roaring roars
+degrade degraded degrades degrading
+chap chapped chaps
+temper tempered tempering tempers
+tout touted touting touts
+converge converged converges converging
+revoke revoked revokes revoking
+hound hounded hounding hounds
+expedite expedited expedites expediting
+kidnap kidnapped kidnapping kidnaps
+gravel gravelled gravels
+traverse traversed traverses traversing
+commute commuted commutes commuting
+personalise personalised personalising
+harden hardened hardening hardens
+dull dulled dulling dulls
+prosecute prosecuted prosecutes prosecuting
+tighten tightened tightening tightens
+deduct deducted deducting deducts
+unfold unfolded unfolding unfolds
+broaden broadened broadening broadens
+unleash unleashed unleashes unleashing
+deprive deprived deprives depriving
+stab stabbed stabbing stabs
+ditch ditched ditches ditching
+seam seamed seaming seams
+shorten shortened shortening shortens
+taboo tabooed taboos
+glide glided glides gliding
+stub stubbed stubbing stubs
+confess confessed confesses confessing
+badger badgered badgering badgers
+wrinkle wrinkled wrinkles wrinkling
+discriminate discriminated discriminates discriminating
+intervene intervened intervenes intervening
+finalize finalized finalizes finalizing
+snoop snooped snooping snoops
+hallmark hallmarked hallmarks
+choke choked chokes choking
+hog hogged hogging hogs
+roam roamed roaming roams
+tumble tumbled tumbles tumbling
+centralize centralized centralizes centralizing
+utter uttered uttering utters
+mute muted mutes muting
+compost composted composting composts
+tack tacked tacking tacks
+leaflet leafleting leaflets
+dislike disliked dislikes disliking
+dissent dissented dissenting dissents
+butcher butchered butchering butchers
+snatch snatched snatches snatching
+veil veiled veiling veils
+loom loomed looming looms
+nap napped napping naps
+massacre massacred massacres massacring
+enquire enquired enquires enquiring
+incense incensed incenses
+buff buffed buffing buffs
+spade spades spading
+damp damped damping damps
+disrupt disrupted disrupting disrupts
+faint fainted fainting faints
+postpone postponed postpones postponing
+recess recessed recesses recessing
+enchant enchanted enchanting enchants
+oblige obliged obliges obliging
+nurture nurtured nurtures nurturing
+crank cranked cranking cranks
+overlie overlain overlay overlies overlying
+crochet crocheted crocheting crochets
+recondition reconditioned reconditioning
+wrench wrenched wrenches wrenching
+coop cooped coops
+graze grazed grazes grazing
+chant chanted chanting chants
+barb barbed barbs
+turf turfed turfing turfs
+peek peeked peeking peeks
+preside presided presides presiding
+shatter shattered shattering shatters
+asphalt asphalted asphalts
+woo wooed wooing woos
+sneak sneaked sneaking sneaks
+salvage salvaged salvages salvaging
+probate probated probates
+quantify quantified quantifies quantifying
+moor moored mooring moors
+taper tapered tapering tapers
+plunge plunged plunges plunging
+lame lamed lames laming
+detain detained detaining detains
+dope doped dopes doping
+photocopy photocopied photocopies photocopying
+weep weeping weeps wept
+predicate predicated predicates
+distort distorted distorting distorts
+rot rots rotted rotting
+saturate saturated saturates saturating
+capitalize capitalized capitalizes capitalizing
+convene convened convenes convening
+ache ached aches aching
+normalize normalized normalizes normalizing
+shortlist shortlisted shortlisting shortlists
+moan moaned moaning moans
+maroon marooned maroons
+randomize randomized randomizes randomizing
+coincide coincided coincides coinciding
+vie vied vies vying
+nestle nestled nestles nestling
+intercept intercepted intercepting intercepts
+queer queering queers
+poke poked pokes poking
+keel keeled keeling keels
+wink winked winking winks
+vomit vomited vomiting vomits
+localize localized localizes localizing
+pasture pastured pastures pasturing
+subordinate subordinated subordinates subordinating
+inconvenience inconvenienced inconveniences inconveniencing
+revive revived revives reviving
+augment augmented augmenting augments
+pimp pimped pimping pimps
+puff puffed puffing puffs
+trench trenched trenches trenching
+reclaim reclaimed reclaiming reclaims
+harp harped harping harps
+flirt flirted flirting flirts
+enlighten enlightened enlightening enlightens
+mourn mourned mourning mourns
+converse conversed converses conversing
+pickle pickled pickles pickling
+sponge sponged sponges sponging
+pigment pigmented pigments
+disgust disgusted disgusting disgusts
+regain regained regaining regains
+splice spliced splices splicing
+subtract subtracted subtracting subtracts
+soothe soothed soothes soothing
+abort aborted aborting aborts
+pinch pinched pinches pinching
+grate grated grates grating
+disregard disregarded disregarding disregards
+misunderstand misunderstanding misunderstands misunderstood
+shack shacked shacking shacks
+repay repaid repaying repays
+infer inferred inferring infers
+tint tinted tinting tints
+reckon reckoned reckoning reckons
+endeavour endeavoured endeavouring endeavours
+scramble scrambled scrambles scrambling
+dread dreaded dreading dreads
+entail entailed entailing entails
+embark embarked embarking embarks
+stalk stalked stalking stalks
+stride strides striding strode
+stereotype stereotyped stereotypes stereotyping
+pity pitied pities pitying
+videotape videotaped videotapes videotaping
+enamel enamelled enamelling enamels
+lug lugged lugging lugs
+invert inverted inverting inverts
+crave craved craves craving
+manicure manicured manicures manicuring
+vend vended vending vends
+bleach bleached bleaches bleaching
+fabricate fabricated fabricates fabricating
+disclaim disclaimed disclaiming disclaims
+latch latched latches latching
+riddle riddled riddles riddling
+boycott boycotted boycotting boycotts
+restrain restrained restraining restrains
+embody embodied embodies embodying
+chime chimed chimes chiming
+sling slinging slings slung
+adjourn adjourned adjourning adjourns
+shred shredded shredding shreds
+graft grafted grafting grafts
+eddy eddies eddying
+distract distracted distracting distracts
+reissue reissued reissues reissuing
+chalk chalked chalking chalks
+mast masted masts
+crust crusted crusting crusts
+surcharge surcharged surcharges surcharging
+envision envisioned envisioning envisions
+sow sowed sowing sown sows
+rove roved roves roving
+uplift uplifted uplifting uplifts
+tense tensed tenses tensing
+shin shinned shinning shins
+censor censored censoring censors
+dazzle dazzled dazzles dazzling
+marshal marshalled marshalling marshals
+quarry quarried quarries quarrying
+bootstrap bootstrapped bootstrapping bootstraps
+reimburse reimbursed reimburses reimbursing
+posture postured postures posturing
+rinse rinsed rinses rinsing
+redefine redefined redefines redefining
+tally tallied tallies tallying
+mash mashed mashes mashing
+peep peeped peeping peeps
+braid braided braiding braids
+preclude precluded precludes precluding
+envy envied envies envying
+handcraft handcrafted handcrafting handcrafts
+deliberate deliberated deliberates deliberating
+suffix suffixed suffixes suffixing
+reconstruct reconstructed reconstructing reconstructs
+plateau plateaued plateaus
+limp limped limping limps
+ascertain ascertained ascertaining ascertains
+unload unloaded unloading unloads
+hover hovered hovering hovers
+disguise disguised disguises disguising
+outrage outraged outrages
+abolish abolished abolishes abolishing
+plaster plastered plastering plasters
+flourish flourished flourishes flourishing
+divert diverted diverting diverts
+punt punted punting punts
+tread treading treads trod trodden
+spruce spruced spruces sprucing
+slack slacked slacking slacks
+amplify amplified amplifies amplifying
+cherish cherished cherishes cherishing
+preface prefaced prefaces prefacing
+blitz blitzed blitzes blitzing
+spindle spindled spindles
+despair despaired despairing despairs
+transcend transcended transcending transcends
+sprinkle sprinkled sprinkles sprinkling
+hem hemmed hemming hems
+ponder pondered pondering ponders
+concur concurred concurring concurs
+commend commended commending commends
+stagger staggered staggering staggers
+crusade crusades crusading
+blush blushed blushes blushing
+clog clogged clogging clogs
+sucker suckered suckering suckers
+holster holstered holsters
+moonlight moonlighting moonlights
+reconcile reconciled reconciles reconciling
+parody parodied parodies parodying
+silhouette silhouetted silhouettes
+rake raked rakes raking
+preset presets presetting
+evoke evoked evokes evoking
+mop mopped mopping mops
+ratify ratified ratifies ratifying
+jog jogged jogging jogs
+utilise utilised utilises utilising
+clasp clasped clasping clasps
+transcribe transcribed transcribes transcribing
+lob lobbed lobbing lobs
+prune pruned prunes pruning
+glare glared glares glaring
+hinder hindered hindering hinders
+crater cratered cratering craters
+overdose overdosed overdoses overdosing
+disperse dispersed disperses dispersing
+reap reaped reaping reaps
+nitrate nitrated nitrates
+infringe infringed infringes infringing
+starve starved starves starving
+hoe hoed hoeing hoes
+astonish astonished astonishes astonishing
+deter deterred deterring deters
+computerize computerized computerizing
+federate federated federates federating
+stew stewed stewing stews
+stroll strolled strolling strolls
+salute saluted salutes saluting
+jingle jingled jingles jingling
+indent indented indenting indents
+reopen reopened reopening reopens
+stray strayed straying strays
+gorge gorged gorges gorging
+haze hazed hazes hazing
+remake remade remakes remaking
+throttle throttled throttles throttling
+cramp cramped cramping cramps
+rumour rumoured rumours
+awe awed awes
+pardon pardoned pardoning pardons
+ante anted antes
+cleave cleaved cleaves cleaving cleft clove cloven
+hare hares haring
+visualize visualized visualizes visualizing
+rumble rumbled rumbles rumbling
+refrain refrained refraining refrains
+retard retarded retarding retards
+propagate propagated propagates propagating
+clap clapped clapping claps
+crunch crunched crunches crunching
+fiddle fiddled fiddles fiddling
+dun dunning duns
+watermark watermarked watermarking watermarks
+irritate irritated irritates irritating
+minimise minimised minimises minimising
+soften softened softening softens
+exert exerted exerting exerts
+swirl swirled swirling swirls
+ply plied plies plying
+biopsy biopsied biopsies
+recharge recharged recharges recharging
+duel duelling duels
+procure procured procures procuring
+stipulate stipulated stipulates stipulating
+mantle mantled mantles mantling
+calibrate calibrated calibrates calibrating
+peck pecked pecking pecks
+polarize polarized polarizes polarizing
+stencil stencilled stencilling stencils
+underscore underscored underscores underscoring
+garrison garrisoned garrisons
+ensue ensued ensues ensuing
+lapse lapsed lapses lapsing
+clam clamming clams
+mortar mortared mortars
+sway swayed swaying sways
+excise excised excises excising
+cripple crippled cripples crippling
+alleviate alleviated alleviates alleviating
+expend expended expending expends
+inhabit inhabited inhabiting inhabits
+emboss embossed embossing
+slug slugged slugging slugs
+hurdle hurdles hurdling
+discern discerned discerning discerns
+thieve thieves thieving
+raffle raffled raffles raffling
+flange flanged flanges
+vibrate vibrated vibrates vibrating
+menace menaced menaces menacing
+purge purged purges purging
+smack smacked smacking smacks
+diffuse diffused diffuses diffusing
+surpass surpassed surpasses surpassing
+sharpen sharpened sharpening sharpens
+perch perched perches perching
+confederate confederated confederates
+gust gusted gusting gusts
+dangle dangled dangles dangling
+resend resending resent
+withstand withstanding withstands withstood
+underwrite underwrites underwriting underwritten underwrote
+congratulate congratulated congratulates congratulating
+smear smeared smearing smears
+steward stewarding stewards
+inflict inflicted inflicting inflicts
+riff riffed riffing riffs
+chatter chattered chattering chatters
+veto vetoed vetoes vetoing
+cling clinging clings clung
+intensify intensified intensifies intensifying
+cloak cloaked cloaking cloaks
+itch itched itches itching
+rattle rattled rattles rattling
+tug tugged tugging tugs
+jag jagged jags
+synthesize synthesized synthesizes synthesizing
+indulge indulged indulges indulging
+bum bummed bumming bums
+pivot pivoted pivoting pivots
+forage foraged forages foraging
+pellet pelleted pelleting pellets
+fasten fastened fastening fastens
+despatch despatched despatches despatching
+aggravate aggravated aggravates aggravating
+terrify terrified terrifies terrifying
+recount recounted recounting recounts
+emphasise emphasised emphasises emphasising
+betray betrayed betraying betrays
+obligate obligated obligates obligating
+gutter guttering gutters
+revolt revolted revolting revolts
+stump stumped stumping stumps
+contradict contradicted contradicting contradicts
+gin ginned ginning gins
+elapse elapsed elapses elapsing
+deepen deepened deepening deepens
+dab dabbed dabbing dabs
+concede conceded concedes conceding
+pebble pebbled pebbles
+leach leached leaches leaching
+pore pored pores poring
+defy defied defies defying
+subpoena subpoenaed subpoenas
+valet valeting valets
+carbonate carbonated carbonates
+climax climaxed climaxes climaxing
+hijack hijacked hijacking hijacks
+conjugate conjugated conjugates conjugating
+liberate liberated liberates liberating
+tame tamed tames taming
+gasp gasped gasping gasps
+overhaul overhauled overhauling overhauls
+magnify magnified magnifies magnifying
+flake flaked flakes flaking
+blister blistered blistering blisters
+linger lingered lingering lingers
+shrug shrugged shrugging shrugs
+obsess obsessed obsesses obsessing
+deteriorate deteriorated deteriorates deteriorating
+fortify fortified fortifies fortifying
+loot looted looting loots
+snort snorted snorting snorts
+sniff sniffed sniffing sniffs
+ration rationed rationing rations
+ferret ferreted ferreting ferrets
+topple toppled topples toppling
+propel propelled propelling propels
+bruise bruised bruises bruising
+splinter splintered splintering splinters
+reconsider reconsidered reconsidering reconsiders
+pamper pampered pampering pampers
+skid skidded skidding skids
+deplete depleted depletes depleting
+truncate truncated truncates truncating
+poop pooped pooping poops
+intimidate intimidated intimidates intimidating
+resell reselling resells resold
+quarterback quarterbacking quarterbacks
+sober sobered sobering sobers
+scotch scotched scotches
+overwrite overwrites overwriting overwritten overwrote
+stopper stoppered stoppers
+sire sired sires siring
+mobilize mobilized mobilizes mobilizing
+emulate emulated emulates emulating
+flank flanked flanking flanks
+rejoice rejoiced rejoices rejoicing
+undress undressed undresses undressing
+blot blots blotted blotting
+whine whined whines whining
+waltz waltzed waltzes waltzing
+coo cooed cooing coos
+deceive deceived deceives deceiving
+startle startled startles startling
+abound abounded abounding abounds
+jig jigged jigging jigs
+tidy tidied tidies tidying
+fudge fudged fudges fudging
+adore adored adores adoring
+optimise optimised optimises optimising
+carp carping carps
+suffice sufficed suffices sufficing
+promulgate promulgated promulgates promulgating
+bog bogged bogging bogs
+veneer veneered veneering veneers
+erode eroded erodes eroding
+enumerate enumerated enumerates enumerating
+spool spooled spooling spools
+subsidize subsidized subsidizes subsidizing
+slit slits slitting
+rein reined reining reins
+nag nagged nagging nags
+adjoin adjoined adjoining adjoins
+martyr martyred martyrs
+sled sledding sleds
+crease creased creases creasing
+inflate inflated inflates inflating
+ripple rippled ripples rippling
+hush hushed hushing
+rivet riveted riveting rivets
+reiterate reiterated reiterates reiterating
+launder laundered laundering
+rethink rethinking rethinks rethought
+recreate recreated recreates recreating
+drape draped drapes draping
+ramble rambled rambles rambling
+spoof spoofed spoofing spoofs
+giggle giggled giggles giggling
+lash lashed lashes lashing
+hustle hustled hustles hustling
+maximise maximised maximises maximising
+scrape scraped scrapes scraping
+shove shoved shoves shoving
+stink stank stinking stinks stunk
+christen christened christening christens
+dredge dredged dredges dredging
+grieve grieved grieves grieving
+pip pipped pips
+darn darned darning
+pollute polluted pollutes polluting
+harass harassed harasses harassing
+sprout sprouted sprouting sprouts
+heighten heightened heightening heightens
+muddy muddied muddies muddying
+quicken quickened quickening quickens
+comprehend comprehended comprehending comprehends
+quarantine quarantined quarantines quarantining
+worsen worsened worsening worsens
+prostitute prostituted prostitutes prostituting
+howl howled howling howls
+dismantle dismantled dismantles dismantling
+digitize digitized digitizes digitizing
+suction suctioned suctioning
+prioritize prioritized prioritizes prioritizing
+applaud applauded applauding applauds
+speculate speculated speculates speculating
+waffle waffled waffles waffling
+commemorate commemorated commemorates commemorating
+scribe scribed scribes scribing
+moo mooing moos
+lessen lessened lessening lessens
+underestimate underestimated underestimates underestimating
+barge barged barges barging
+escalate escalated escalates escalating
+beep beeped beeping beeps
+gush gushed gushes gushing
+bale baled bales baling
+subcontract subcontracted subcontracting subcontracts
+slant slanted slanting slants
+swarm swarmed swarming swarms
+corset corseted corsets
+bunk bunked bunking bunks
+fume fumed fumes fuming
+malt malted malting malts
+expel expelled expelling expels
+fob fobbed fobs
+snowshoe snowshoeing snowshoes
+evacuate evacuated evacuates evacuating
+heave heaved heaves heaving hove
+equate equated equates equating
+starch starched starches
+leash leashed leashes
+elicit elicited eliciting elicits
+burrow burrowed burrowing burrows
+overturn overturned overturning overturns
+stomp stomped stomping stomps
+summarise summarised summarises summarising
+encapsulate encapsulated encapsulates encapsulating
+tangle tangled tangles tangling
+harrow harrowed harrowing harrows
+grit grits gritted gritting
+unpack unpacked unpacking unpacks
+truss trussed trusses trussing
+gall galled galling galls
+allure allured allures alluring
+acquaint acquainted acquainting acquaints
+pervert perverted perverting perverts
+parachute parachuted parachutes parachuting
+brainstorm brainstormed brainstorming brainstorms
+forfeit forfeited forfeiting forfeits
+exclaim exclaimed exclaiming exclaims
+mismatch mismatched mismatches mismatching
+seduce seduced seduces seducing
+plank planked planking planks
+manure manured manures manuring
+bop bopping bops
+sprawl sprawled sprawling sprawls
+reassure reassured reassures reassuring
+bolster bolstered bolstering bolsters
+characterise characterised characterises characterising
+ejaculate ejaculated ejaculates ejaculating
+sculpt sculpted sculpting sculpts
+halve halved halves halving
+smuggle smuggled smuggles smuggling
+hoist hoisted hoisting hoists
+endow endowed endowing endows
+attest attested attesting attests
+purport purported purporting purports
+ignite ignited ignites igniting
+imprison imprisoned imprisoning imprisons
+exaggerate exaggerated exaggerates exaggerating
+skipper skippered skippers
+fling flinging flings flung
+crouch crouched crouches crouching
+tremble trembled trembles trembling
+reunite reunited reunites reuniting
+inlay inlaid inlays
+wilt wilted wilting wilts
+jell gelled gelling gels jelled jelling
+sever severed severing severs
+recite recited recites reciting
+revere revered reveres revering
+modulate modulated modulates modulating
+culminate culminated culminates culminating
+skew skewed skewing skews
+pinpoint pinpointed pinpointing pinpoints
+weary wearied wearying
+fart farted farting farts
+stash stashed stashes stashing
+snare snared snares snaring
+plume plumed plumes
+ting tinged tings
+fumble fumbled fumbles fumbling
+reinstall reinstalled reinstalling
+sideline sidelined sidelines sidelining
+collide collided collides colliding
+inhale inhaled inhales inhaling
+cram crammed cramming crams
+lament lamented lamenting laments
+malfunction malfunctioned malfunctioning malfunctions
+foresee foresaw foreseeing foreseen foresees
+pun punned punning puns
+conjecture conjectured conjectures conjecturing
+sag sagged sagging sags
+unplug unplugged unplugging unplugs
+snip snipped snipping snips
+avenge avenged avenges avenging
+buoy buoyed buoys
+remit remits remitted remitting
+ballast ballasted ballasting ballasts
+smother smothered smothering smothers
+billet billeted billeting billets
+hone honed hones honing
+entrust entrusted entrusting entrusts
+remand remanded remanding remands
+interlock interlocked interlocking interlocks
+intersect intersected intersecting intersects
+refrigerate refrigerated refrigerating
+rupture ruptured ruptures rupturing
+demolish demolished demolishes demolishing
+allot allots allotted allotting
+envisage envisaged envisages envisaging
+energize energized energizes energizing
+outweigh outweighed outweighing outweighs
+radiate radiated radiates radiating
+camouflage camouflaged camouflages camouflaging
+appraise appraised appraises appraising
+numb numbed numbing numbs
+squat squats squatted squatting
+skim skimmed skimming skims
+fuss fussed fusses fussing
+masquerade masqueraded masquerades masquerading
+scaffold scaffolding scaffolds
+tamper tampered tampering tampers
+verge verged verges verging
+psych psyched psyches
+implicate implicated implicates implicating
+perish perished perishes perishing
+brood brooded brooding broods
+muster mustered mustering musters
+proctor proctored proctoring proctors
+captivate captivated captivates captivating
+denounce denounced denounces denouncing
+craze crazed crazes crazing
+bulge bulged bulges bulging
+straighten straightened straightening straightens
+teleconference teleconferences teleconferencing
+fret frets fretted fretting
+individualize individualized individualizing
+ordain ordained ordaining ordains
+scallop scalloped scallops
+scalp scalped scalping scalps
+revamp revamped revamping revamps
+flatter flattered flattering flatters
+slough sloughed sloughing sloughs
+mingle mingled mingles mingling
+kneel kneeling kneels knelt
+publicize publicized publicizes publicizing
+putter puttering putters
+eject ejected ejecting ejects
+underpin underpinned underpinning underpins
+immerse immersed immerses immersing
+grub grubbing grubs
+prong pronged prongs
+lurk lurked lurking lurks
+relapse relapsed relapses relapsing
+shingle shingled shingles
+lactate lactates lactating
+frown frowned frowning frowns
+juggle juggled juggles juggling
+rouse roused rouses rousing
+arouse aroused arouses arousing
+foreground foregrounded foregrounding foregrounds
+lighten lightened lightening lightens
+counterfeit counterfeited counterfeiting counterfeits
+pluck plucked plucking plucks
+whiten whitened whitening whitens
+swat swats swatted swatting
+impede impeded impedes impeding
+reinvent reinvented reinventing reinvents
+torment tormented tormenting torments
+unbind unbinding unbound
+simmer simmered simmering simmers
+abridge abridged abridging
+flatten flattened flattening flattens
+calve calved calves calving
+exemplify exemplified exemplifies exemplifying
+heed heeded heeding heeds
+sob sobbed sobbing sobs
+loosen loosened loosening loosens
+pawn pawned pawning pawns
+bootleg bootlegged bootlegging bootlegs
+yank yanked yanking yanks
+nix nixed nixes
+umpire umpires umpiring
+vacate vacated vacates vacating
+berth berthed berthing berths
+dunk dunked dunking dunks
+reaffirm reaffirmed reaffirming reaffirms
+crumble crumbled crumbles crumbling
+spar sparred sparring spars
+trample trampled tramples trampling
+cipher ciphered ciphering ciphers
+perk perked perking perks
+necessitate necessitated necessitates necessitating
+criticise criticised criticises criticising
+sod sodded sodding sods
+winch winched winches winching
+prosper prospered prospering prospers
+baffle baffled baffles baffling
+flicker flickered flickering flickers
+indemnify indemnified indemnifies indemnifying
+rampage rampaged rampages rampaging
+clot clots clotted clotting
+muck mucked mucking mucks
+disqualify disqualified disqualifies disqualifying
+groan groaned groaning groans
+tramp tramped tramping tramps
+bestow bestowed bestowing bestows
+adorn adorned adorning adorns
+rewind rewinding rewinds rewound
+indict indicted indicting indicts
+shiver shivered shivering shivers
+chuckle chuckled chuckles chuckling
+imitate imitated imitates imitating
+blacklist blacklisted blacklisting blacklists
+shimmer shimmered shimmering shimmers
+regenerate regenerated regenerates regenerating
+bankrupt bankrupted bankrupting bankrupts
+tailgate tailgates tailgating
+nourish nourished nourishes nourishing
+taint tainted tainting taints
+unzip unzipped unzipping unzips
+overthrow overthrew overthrowing overthrown overthrows
+bray braying brays
+bribe bribed bribes bribing
+downgrade downgraded downgrades downgrading
+wither withered withering withers
+oppress oppressed oppresses oppressing
+perm permed perming perms
+lathe lathes lathing
+impart imparted imparting imparts
+eradicate eradicated eradicates eradicating
+brighten brightened brightening brightens
+mow mowed mowing mows
+fluctuate fluctuated fluctuates fluctuating
+tinker tinkered tinkering tinkers
+ransom ransomed ransoms
+vignette vignetted vignettes vignetting
+bellow bellowed bellowing bellows
+shovel shovelled shovelling shovels
+astound astounded astounding astounds
+nuance nuanced nuances
+parry parried parries parrying
+despise despised despises despising
+kink kinked kinking kinks
+lacquer lacquered lacquers
+filibuster filibustered filibustering filibusters
+thirst thirsted thirsting thirsts
+brag bragged bragging brags
+slump slumped slumping slumps
+overtake overtaken overtakes overtaking overtook
+baptize baptized baptizes baptizing
+extinguish extinguished extinguishes extinguishing
+reinstate reinstated reinstates reinstating
+affix affixed affixes affixing
+excavate excavated excavating
+wiggle wiggled wiggles wiggling
+dole doled doles doling
+autopsy autopsied autopsies
+erupt erupted erupting erupts
+hydrate hydrated hydrates hydrating
+spout spouted spouting spouts
+coax coaxed coaxes coaxing
+zap zapped zapping zaps
+ruffle ruffled ruffles ruffling
+nab nabbed nabbing nabs
+cuckold cuckolded cuckolds
+daunt daunted daunting
+retrofit retrofits retrofitted retrofitting
+thrash thrashed thrashes thrashing
+distil distilled distilling distils
+psyche psyched psyches
+entice enticed entices enticing
+embargo embargoed embargoes
+rework reworked reworking reworks
+darken darkened darkening darkens
+restock restocked restocking restocks
+infuse infused infuses infusing
+ratchet ratcheted ratcheting ratchets
+abbreviate abbreviated abbreviates abbreviating
+categorise categorised categorises categorising
+mutter muttered muttering mutters
+narrate narrated narrates narrating
+bandage bandaged bandages bandaging
+incubate incubated incubates incubating
+mellow mellowed mellowing mellows
+redo redid redoing redone
+deduce deduced deduces deducing
+wane waned wanes waning
+republish republished republishing
+disallow disallowed disallowing disallows
+segregate segregated segregates segregating
+thaw thawed thawing thaws
+churn churned churning churns
+humiliate humiliated humiliates humiliating
+mull mulled mulling mulls
+rectify rectified rectifies rectifying
+bustle bustled bustles bustling
+remodel remodelled remodelling remodels
+quail quailed quails
+commune communed communes communing
+assent assented assenting assents
+galvanize galvanized galvanizing
+abstain abstained abstaining abstains
+unwind unwinding unwinds unwound
+fray frayed fraying frays
+pare pared pares paring
+airbrush airbrushed airbrushes airbrushing
+sop sopping sops
+symbolize symbolized symbolizes symbolizing
+memorize memorized memorizes memorizing
+mend mended mending mends
+funnel funnelled funnelling funnels
+stockpile stockpiled stockpiles stockpiling
+transact transacted transacting transacts
+disgrace disgraced disgraces disgracing
+obstruct obstructed obstructing obstructs
+disapprove disapproved disapproves disapproving
+snorkel snorkelling snorkels
+whoop whooped whooping whoops
+exacerbate exacerbated exacerbates exacerbating
+retry retried retries retrying
+murmur murmured murmuring murmurs
+snore snored snores snoring
+drone droned drones droning
+delineate delineated delineates delineating
+snag snagged snagging snags
+precipitate precipitated precipitates precipitating
+submerge submerged submerges submerging
+avert averted averting averts
+wield wielded wielding wields
+knuckle knuckled knuckles
+reorder reordered reordering reorders
+profess professed professes professing
+refute refuted refutes refuting
+thicken thickened thickening thickens
+nudge nudged nudges nudging
+intoxicate intoxicated intoxicating
+caricature caricatured caricatures
+fillet filleted filleting fillets
+relish relished relishes relishing
+shroud shrouded shrouding shrouds
+sabotage sabotaged sabotages sabotaging
+bespeak bespeaks bespoke
+landslide landslides landsliding
+alienate alienated alienates alienating
+moot mooted mooting moots
+cocoon cocooned cocooning cocoons
+grapple grappled grapples grappling
+sizzle sizzled sizzles sizzling
+coauthor coauthored coauthors
+mince minced minces mincing
+yoke yoked yokes
+outperform outperformed outperforming outperforms
+rearrange rearranged rearranges rearranging
+reorganize reorganized reorganizes reorganizing
+ventilate ventilated ventilating
+geld gelded gelding
+trot trots trotted trotting
+cull culled culling culls
+yearn yearned yearning yearns
+delve delved delves delving
+pleat pleated pleating pleats
+prick pricked pricking pricks
+hurl hurled hurling hurls
+glorify glorified glorifies glorifying
+requisition requisitioned requisitioning requisitions
+shun shunned shunning shuns
+expatriate expatriated expatriates
+civilize civilized civilizing
+neutralize neutralized neutralizes neutralizing
+exalt exalted exalting exalts
+perpetuate perpetuated perpetuates perpetuating
+gape gaped gapes gaping
+overrun overran overrunning overruns
+bloat bloated bloating
+deadlock deadlocked deadlocking deadlocks
+invalidate invalidated invalidates invalidating
+sift sifted sifting sifts
+deviate deviated deviates deviating
+backlog backlogged backlogs
+grunt grunted grunting grunts
+picket picketed picketing pickets
+decompose decomposed decomposes decomposing
+afflict afflicted afflicting afflicts
+evaporate evaporated evaporates evaporating
+restate restated restates restating
+thwart thwarted thwarting thwarts
+blight blighted blighting blights
+loathe loathed loathes loathing
+plough ploughed ploughing ploughs
+retract retracted retracting retracts
+ambush ambushed ambushes ambushing
+revitalize revitalized revitalizes revitalizing
+whack whacked whacking whacks
+varnish varnished varnishes varnishing
+inscribe inscribed inscribes inscribing
+ail ailed ailing ails
+doodle doodled doodles doodling
+mulch mulched mulches mulching
+whirl whirled whirling whirls
+forsake forsaken forsakes forsaking forsook
+irrigate irrigated irrigates irrigating
+caress caressed caresses caressing
+legalize legalized legalizes legalizing
+wean weaned weaning
+degenerate degenerated degenerates degenerating
+reschedule rescheduled reschedules rescheduling
+yawn yawned yawning yawns
+substantiate substantiated substantiates substantiating
+blockade blockaded blockades blockading
+electrify electrified electrifying
+officiate officiated officiates officiating
+twinkle twinkled twinkles twinkling
+squeak squeaked squeaking squeaks
+ridicule ridiculed ridicules ridiculing
+reconnect reconnected reconnecting reconnects
+negate negated negates negating
+gleam gleamed gleaming gleams
+harmonize harmonized harmonizes harmonizing
+innovate innovated innovates innovating
+puncture punctured punctures puncturing
+apologise apologised apologises apologising
+barter bartered bartering barters
+resurface resurfaced resurfaces resurfacing
+precondition preconditioned preconditioning preconditions
+mew mewing mews
+silt silted silting silts
+finalise finalised finalises finalising
+meditate meditated meditates meditating
+chauffeur chauffeured chauffeurs
+serialize serialized serializes serializing
+unmask unmasked unmasking unmasks
+actuate actuated actuates actuating
+trespass trespassed trespasses trespassing
+garnish garnished garnishes garnishing
+socialize socialized socializing
+huff huffed huffing huffs
+yak yakking yaks
+growl growled growling growls
+disarm disarmed disarming disarms
+covet coveted coveting covets
+horrify horrified horrifies horrifying
+sieve sieved sieves sieving
+ooze oozed oozes oozing
+improvise improvised improvises improvising
+babble babbled babbles babbling
+iterate iterated iterates iterating
+lithograph lithographed lithographs
+subdue subdued subdues subduing
+jolt jolted jolting jolts
+treble trebled trebles trebling
+deactivate deactivated deactivates deactivating
+quench quenched quenches quenching
+recline reclined reclines reclining
+slum slumming slums
+infiltrate infiltrated infiltrates infiltrating
+decentralize decentralized decentralizing
+redress redressed redressing
+ruff ruffed ruffing ruffs
+spearhead spearheaded spearheading spearheads
+paraphrase paraphrased paraphrases paraphrasing
+discredit discredited discrediting discredits
+repent repented repenting repents
+goof goofed goofing goofs
+devour devoured devouring devours
+lark larking larks
+earmark earmarked earmarking earmarks
+stow stowed stowing stows
+delimit delimited delimiting delimits
+dismay dismayed dismaying
+secrete secreted secretes secreting
+ravage ravaged ravages ravaging
+televise televised televising
+modernize modernized modernizes modernizing
+rerun reran rerunning reruns
+twitch twitched twitches twitching
+assimilate assimilated assimilates assimilating
+elongate elongated elongates elongating
+decommission decommissioned decommissioning
+jeopardize jeopardized jeopardizes jeopardizing
+handcuff handcuffed handcuffing handcuffs
+moisturize moisturized moisturizes moisturizing
+infest infested infesting infests
+crimp crimped crimping crimps
+lubricate lubricated lubricates lubricating
+stifle stifled stifles stifling
+rehabilitate rehabilitated rehabilitates rehabilitating
+trickle trickled trickles trickling
+oxidize oxidized oxidizes oxidizing
+hock hocking hocks
+drool drooled drooling drools
+revolutionize revolutionized revolutionizes revolutionizing
+bumble bumbles bumbling
+unearth unearthed unearthing unearths
+puddle puddled puddles puddling
+industrialize industrialized industrializing
+banish banished banishes banishing
+decipher deciphered deciphering deciphers
+scour scoured scouring scours
+collate collated collates collating
+ream reamed reaming reams
+liquidate liquidated liquidates liquidating
+hibernate hibernates hibernating
+brim brimmed brimming brims
+clinch clinched clinches clinching
+postulate postulated postulates postulating
+ascribe ascribed ascribes ascribing
+evade evaded evades evading
+persecute persecuted persecutes persecuting
+ingest ingested ingesting ingests
+dissect dissected dissecting dissects
+foal foaled foaling foals
+tingle tingled tingles tingling
+cuddle cuddled cuddles cuddling
+flurry flurried flurries
+anneal annealed annealing
+drench drenched drenches drenching
+perforate perforated perforating
+jab jabbed jabbing jabs
+munch munched munches munching
+codify codified codifies codifying
+reformat reformatted reformatting
+rediscover rediscovered rediscovering rediscovers
+snowball snowballed snowballing snowballs
+emanate emanated emanates emanating
+curate curated curates curating
+postmark postmarked postmarks
+abduct abducted abducting abducts
+lavish lavished lavishes lavishing
+misrepresent misrepresented misrepresenting misrepresents
+confound confounded confounding confounds
+hasten hastened hastening hastens
+snipe sniped snipes sniping
+deform deformed deforming deforms
+babysit babysat babysitting
+confiscate confiscated confiscates confiscating
+toil toiled toiling toils
+hiss hissed hisses hissing
+swish swished swishing
+domicile domiciled domiciles
+wag wagged wagging wags
+itemize itemized itemizes itemizing
+shudder shuddered shuddering shudders
+formalize formalized formalizes formalizing
+standardise standardised standardising
+fowl fowling fowls
+resurrect resurrected resurrecting resurrects
+mutate mutated mutates mutating
+derail derailed derailing derails
+sublet sublets subletting
+refinish refinished refinishing
+smirk smirked smirking smirks
+repress repressed represses repressing
+oust ousted ousting ousts
+scribble scribbled scribbles scribbling
+smite smites smiting smitten smote
+deport deported deporting deports
+impute imputed imputes imputing
+overhear overheard overhearing overhears
+flutter fluttered fluttering flutters
+conjure conjured conjures conjuring
+anoint anointed anointing anoints
+impeach impeached impeaching
+circumvent circumvented circumventing circumvents
+snuff snuffed snuffing snuffs
+leech leeches leeching
+gait gaited gaits
+wail wailed wailing wails
+mastermind masterminded masterminding masterminds
+unsettle unsettled unsettles unsettling
+inaugurate inaugurated inaugurates inaugurating
+gripe griped gripes griping
+ebb ebbed ebbing ebbs
+centrifuge centrifuged centrifuges centrifuging
+detour detoured detours
+subdivide subdivided subdivides subdividing
+succumb succumbed succumbing succumbs
+feud feuded feuding feuds
+wince winced winces wincing
+reprise reprised reprises reprising
+dissipate dissipated dissipates dissipating
+allude alluded alludes alluding
+lengthen lengthened lengthening lengthens
+curtail curtailed curtailing curtails
+vaccinate vaccinated vaccinating
+instill instilled instilling instills
+resonate resonated resonates resonating
+neuter neutered neutering neuters
+jest jesting jests
+whisk whisked whisking whisks
+throb throbbed throbbing throbs
+fawn fawned fawning fawns
+recapture recaptured recaptures recapturing
+thump thumped thumping thumps
+disburse disbursed disburses disbursing
+engross engrossed engrossing
+overheat overheated overheating overheats
+dike diked dikes diking
+preheat preheated preheating
+gallop galloped galloping gallops
+shackle shackled shackles shackling
+penalize penalized penalizes penalizing
+trawl trawled trawling trawls
+relinquish relinquished relinquishes relinquishing
+rescind rescinded rescinding rescinds
+scorch scorched scorches scorching
+institutionalize institutionalized institutionalizes institutionalizing
+furl furled furling
+plunder plundered plundering plunders
+upholster upholstered upholstering
+slumber slumbered slumbering slumbers
+shunt shunted shunting shunts
+suture sutured sutures suturing
+discontent discontented discontents
+binge bingeing binges
+ionize ionized ionizes ionizing
+corral corralled corralling corrals
+jumble jumbled jumbles
+chisel chiselled chisels
+leapfrog leapfrogged leapfrogging
+assassinate assassinated assassinating
+scorn scorned scorning scorns
+bristle bristled bristles bristling
+grudge grudges grudging
+stonewall stonewalled stonewalling stonewalls
+broil broiled broiling broils
+replenish replenished replenishes replenishing
+stampede stampeded stampedes stampeding
+shipwreck shipwrecked shipwrecks
+taunt taunted taunting taunts
+spew spewed spewing spews
+sneeze sneezed sneezes sneezing
+bode boded bodes boding
+quiver quivered quivering quivers
+dispel dispelled dispelling dispels
+reconfigure reconfigured reconfigures reconfiguring
+incite incited incites inciting
+meander meandered meandering meanders
+haw hawed hawing haws
+distrust distrusted distrusting distrusts
+orchestrate orchestrated orchestrates orchestrating
+daydream daydreamed daydreaming daydreams
+quarrel quarrelled quarrelling quarrels
+banter bantered bantering
+glimmer glimmered glimmering glimmers
+renounce renounced renounces renouncing
+hoard hoarded hoarding hoards
+deflect deflected deflecting deflects
+crackle crackled crackles crackling
+gild gilded gilding gilds
+muff muffed muffs
+barricade barricaded barricades barricading
+rehearse rehearsed rehearses rehearsing
+privatize privatized privatizing
+transpose transposed transposes transposing
+fluff fluffed fluffing fluffs
+cobble cobbled cobbles cobbling
+recoil recoiled recoiling recoils
+serenade serenaded serenades serenading
+familiarize familiarized familiarizes familiarizing
+clump clumped clumping clumps
+ferment fermented fermenting ferments
+marinate marinated marinating
+perpetrate perpetrated perpetrates perpetrating
+revel revelled revelling revels
+blunder blundered blundering blunders
+attenuate attenuated attenuates attenuating
+blemish blemished blemishes
+overcrowd overcrowded overcrowding
+downsize downsized downsizing
+perplex perplexed perplexes perplexing
+legislate legislated legislates legislating
+repel repelled repelling repels
+supersize supersized supersizing
+subside subsided subsides subsiding
+interpolate interpolated interpolates interpolating
+dupe duped dupes duping
+impoverish impoverished impoverishes impoverishing
+stoop stooped stooping stoops
+mumble mumbled mumbles mumbling
+materialize materialized materializes materializing
+crucify crucified crucifying
+diverge diverged diverges diverging
+peruse perused perusing
+rut ruts rutted rutting
+rejoin rejoined rejoining rejoins
+condone condoned condones condoning
+slander slandered slandering slanders
+bewitch bewitched bewitching
+flog flogged flogging flogs
+apprehend apprehended apprehending apprehends
+rejuvenate rejuvenated rejuvenates rejuvenating
+hoot hooted hooting hoots
+brainwash brainwashed brainwashes brainwashing
+unfit unfitted unfitting
+entrench entrenched entrenches entrenching
+hypnotize hypnotized hypnotizing
+amortize amortized amortizes amortizing
+flounder floundered floundering flounders
+abate abated abates abating
+agitate agitated agitates agitating
+fathom fathomed fathoms
+pry pried pries prying
+grouse groused grousing
+canvass canvassed canvasses canvassing
+conspire conspired conspires conspiring
+veer veered veering veers
+girdle girdled girdles girdling
+swipe swiped swipes swiping
+gab gabbing gabs
+gratify gratified gratifying
+stutter stuttered stuttering stutters
+unravel unravelled unravelling unravels
+muzzle muzzled muzzles muzzling
+dampen dampened dampening dampens
+induct inducted inducting inducts
+extrude extruded extruding
+bask basked basking basks
+partake partaken partakes partaking partook
+coerce coerced coerces coercing
+incarcerate incarcerated incarcerating
+embellish embellished embellishes embellishing
+roost roosting roosts
+tether tethered tethering tethers
+indenture indentured indentures
+pique piqued piques
+hypothesize hypothesized hypothesizes hypothesizing
+blindfold blindfolded blindfolds
+tabulate tabulated tabulates tabulating
+blackmail blackmailed blackmailing blackmails
+envelop enveloped enveloping envelops
+understate understated understates understating
+toot tooted tooting toots
+reciprocate reciprocated reciprocates reciprocating
+recompile recompiled recompiling
+detract detracted detracting detracts
+elucidate elucidated elucidates elucidating
+divulge divulged divulges divulging
+overshadow overshadowed overshadowing overshadows
+extrapolate extrapolated extrapolates extrapolating
+swab swabbed swabbing swabs
+foreclose foreclosed forecloses foreclosing
+resubmit resubmits resubmitted resubmitting
+scrutinize scrutinized scrutinizes scrutinizing
+counteract counteracted counteracting counteracts
+intertwine intertwined intertwines intertwining
+wad wadded wadding wads
+drizzle drizzled drizzling
+emigrate emigrated emigrating
+jot jots jotted jotting
+stratify stratified stratifying
+repaint repainted repainting repaints
+glean gleaned gleaning gleans
+permeate permeated permeates permeating
+swoop swooped swooping swoops
+solidify solidified solidifies solidifying
+dwindle dwindled dwindles dwindling
+laud lauded lauding lauds
+misspell misspelled misspelling misspells
+sprain sprained spraining sprains
+adjudicate adjudicated adjudicates adjudicating
+catapult catapulted catapulting catapults
+splint splinting splints
+relive relived relives reliving
+posit posited positing posits
+snuggle snuggled snuggles snuggling
+enslave enslaved enslaves enslaving
+slat slats slatted
+oscillate oscillated oscillates oscillating
+orientate orientated orientating
+vamp vamped vamping vamps
+grumble grumbled grumbles grumbling
+vise vised vises
+sidestep sidestepped sidestepping sidesteps
+falter faltered faltering falters
+mildew mildewed mildews
+padlock padlocked padlocks
+irradiate irradiated irradiating
+quadruple quadrupled quadruples quadrupling
+renumber renumbered renumbering
+puke puked pukes puking
+eavesdrop eavesdropped eavesdropping
+nibble nibbled nibbles nibbling
+fertilize fertilized fertilizes fertilizing
+devolve devolved devolves devolving
+bombard bombarded bombarding bombards
+boggle boggled boggles boggling
+recede receded recedes receding
+ripen ripened ripening ripens
+slurp slurped slurping slurps
+interweave interweaves interweaving interwoven
+huddle huddled huddles huddling
+beget begets begetting begot begotten
+interrogate interrogated interrogates interrogating
+brocade brocaded brocades
+straddle straddled straddles straddling
+mangle mangled mangles mangling
+sweeten sweetened sweetening sweetens
+yap yapping yaps
+bewilder bewildered bewildering
+tarnish tarnished tarnishes tarnishing
+retort retorted retorts
+retrain retrained retraining
+bridle bridled bridles
+blacken blackened blackening
+spook spooked spooking spooks
+interleave interleaved interleaves interleaving
+reappear reappeared reappearing reappears
+brawl brawling brawls
+bevel bevelled bevels
+engender engendered engendering engenders
+rationalize rationalized rationalizes rationalizing
+acquit acquits acquitted acquitting
+debunk debunked debunking debunks
+scourge scourged scourges scourging
+regress regressed regresses regressing
+romp romped romping romps
+countenance countenanced countenances
+relegate relegated relegates relegating
+supercharge supercharged supercharges supercharging
+beckon beckoned beckoning beckons
+plummet plummeted plummeting plummets
+sledge sledges sledging
+overhang overhanging overhangs overhung
+poach poached poaching
+consort consorted consorting consorts
+strangle strangled strangles strangling
+entangle entangled entangles entangling
+abscess abscessed abscesses
+sleuth sleuthing sleuths
+frill frilled frills
+disband disbanded disbanding disbands
+reprimand reprimanded reprimanding reprimands
+seep seeped seeping seeps
+interlink interlinked interlinking
+overpower overpowered overpowering overpowers
+barrage barraged barrages
+signpost signposted signposting signposts
+fissure fissured fissures
+cede ceded cedes ceding
+rebuke rebuked rebukes rebuking
+skyrocket skyrocketed skyrocketing skyrockets
+dilate dilated dilates dilating
+bugger buggered buggering buggers
+deflate deflated deflates deflating
+nettle nettled nettles
+evict evicted evicting evicts
+protrude protruded protrudes protruding
+coexist coexisted coexisting coexists
+shim shimming shims
+overuse overused overusing
+kindle kindled kindles kindling
+disrespect disrespected disrespecting disrespects
+redraw redrawing redrawn redraws redrew
+prioritise prioritised prioritises prioritising
+vex vexed vexes vexing
+disinfect disinfected disinfecting disinfects
+resound resounded resounding resounds
+contrive contrived contrives contriving
+liken likened likening likens
+overstate overstated overstates overstating
+burgeon burgeoned burgeoning
+abet abets abetted abetting
+trifle trifled trifles trifling
+spay spayed spaying
+overrule overruled overrules overruling
+shriek shrieked shrieking shrieks
+skewer skewered skewering skewers
+disassemble disassembled disassembles disassembling
+preempt preempted preempting preempts
+tithe tithes tithing
+gouge gouged gouges gouging
+screech screeched screeches screeching
+volley volleyed volleying volleys
+aver averred avers
+centralise centralised centralising
+amass amassed amasses amassing
+retell retelling retells retold
+engulf engulfed engulfing engulfs
+dehydrate dehydrated dehydrating
+garb garbed garbs
+accentuate accentuated accentuates accentuating
+prophesy prophesied prophesies prophesying
+superimpose superimposed superimposes superimposing
+outnumber outnumbered outnumbering outnumbers
+sadden saddened saddening saddens
+maul mauled mauling mauls
+purr purred purring purrs
+mesmerize mesmerized mesmerizes mesmerizing
+invigorate invigorated invigorates invigorating
+thatch thatched thatching
+corroborate corroborated corroborates corroborating
+manoeuvre manoeuvred manoeuvres manoeuvring
+reassign reassigned reassigning reassigns
+encase encased encases encasing
+gobble gobbled gobbles gobbling
+speckle speckled speckles speckling
+proliferate proliferated proliferates proliferating
+slur slurred slurring slurs
+sputter sputtered sputtering sputters
+wobble wobbled wobbles wobbling
+chaperone chaperoned chaperones chaperoning
+liaise liaised liaises liaising
+behead beheaded beheading
+dimple dimpled dimples dimpling
+fend fended fending fends
+espouse espoused espouses espousing
+mutiny mutinied mutinies
+encircle encircled encircles encircling
+falsify falsified falsifies falsifying
+leer leered leering leers
+predispose predisposed predisposes predisposing
+fuzz fuzzed fuzzing
+douche douches douching
+cringe cringed cringes cringing
+quack quacked quacking quacks
+elude eluded eludes eluding
+consecrate consecrated consecrates consecrating
+hallow hallowed hallows
+waver wavered wavering wavers
+befriend befriended befriending befriends
+twine twined twines twining
+undercut undercuts undercutting
+dribble dribbled dribbles dribbling
+disdain disdained disdaining disdains
+repose reposed reposes reposing
+disintegrate disintegrated disintegrates disintegrating
+pinion pinioned pinions
+subsidise subsidised subsidises subsidising
+interlace interlaced interlacing
+debilitate debilitated debilitating
+enjoin enjoined enjoining enjoins
+apportion apportioned apportioning apportions
+sunburn sunburned sunburns
+gulp gulped gulping gulps
+consummate consummated consummating
+whittle whittled whittles whittling
+subvert subverted subverting subverts
+chock chocked chocking chocks
+stabilise stabilised stabilises stabilising
+fleck flecked flecks
+censure censured censures censuring
+depreciate depreciated depreciates depreciating
+abut abuts abutted abutting
+meld melded melding melds
+appease appeased appeasing
+mire mired mires
+pelt pelted pelting pelts
+reconstitute reconstituted reconstituting
+sanctify sanctified sanctifies sanctifying
+detonate detonated detonates detonating
+commercialize commercialized commercializes commercializing
+lull lulled lulling lulls
+finesse finessed finessing
+lope loped lopes loping
+molest molested molesting molests
+sanitize sanitized sanitizes sanitizing
+furrow furrowed furrowing furrows
+smudge smudged smudges smudging
+burp burped burping burps
+generalise generalised generalises generalising
+teem teemed teeming teems
+sicken sickened sickening sickens
+backtrack backtracked backtracking backtracks
+reproach reproached reproaches reproaching
+wreak wreaked wreaking wreaks
+holler hollered hollering hollers
+equalize equalized equalizes equalizing
+cordon cordoned cordons
+bereave bereaved bereft
+concatenate concatenated concatenates concatenating
+endear endeared endearing endears
+glisten glistened glistening glistens
+lop lopped lopping lops
+mope moped moping
+tinge tinged tinges
+modernise modernised modernising
+exhale exhaled exhales exhaling
+colonize colonized colonizes colonizing
+reprocess reprocessed reprocessing
+twirl twirled twirling twirls
+overestimate overestimated overestimates overestimating
+intersperse interspersed intersperses interspersing
+instil instilled instilling instills
+pressurize pressurized pressurizing
+contravene contravened contravenes contravening
+scuff scuffed scuffing scuffs
+smock smocked smocking smocks
+wile wiles wiling
+cloister cloistered cloisters
+splatter splattered splattering splatters
+hunch hunched hunches hunching
+backfire backfired backfires backfiring
+persevere persevered perseveres persevering
+yelp yelped yelping yelps
+incarnate incarnated incarnates incarnating
+intrude intruded intrudes intruding
+urinate urinated urinates urinating
+impregnate impregnated impregnates impregnating
+sterilize sterilized sterilizing
+quip quipped quips
+airlift airlifted airlifting airlifts
+retouch retouched retouching
+publicise publicised publicising
+throng thronged thronging throngs
+defraud defrauded defrauding
+cantilever cantilevered cantilevers
+snooze snoozes snoozing
+retake retaken retakes retaking retook
+honeycomb honeycombed honeycombs
+instigate instigated instigates instigating
+snarl snarled snarling snarls
+puree pureed purees
+medicate medicated medicating
+clench clenched clenches clenching
+disprove disproved disproves disproving
+punctuate punctuated punctuates punctuating
+pervade pervaded pervades pervading
+fondle fondled fondles fondling
+reactivate reactivated reactivates reactivating
+befall befallen befalling befalls befell
+overcharge overcharged overcharges overcharging
+inoculate inoculated inoculating
+caulk caulked caulking caulks
+ogle ogled ogling
+mobilise mobilised mobilises mobilising
+skirmish skirmishes skirmishing
+incapacitate incapacitated incapacitating
+squeal squealed squealing squeals
+harmonise harmonised harmonises harmonising
+consign consigned consigning consigns
+sliver slivered slivers
+obliterate obliterated obliterates obliterating
+transpire transpired transpires transpiring
+reminisce reminisced reminisces reminiscing
+debrief debriefed debriefing
+tatter tattered tatters
+quibble quibbles quibbling
+liquefy liquefied liquefying
+deface defaced defaces defacing
+enshrine enshrined enshrines enshrining
+perturb perturbed perturbing perturbs
+congregate congregated congregates congregating
+sojourn sojourned sojourning sojourns
+immigrate immigrated immigrating
+chirp chirped chirping chirps
+depose deposed deposes deposing
+accede acceded accedes acceding
+vindicate vindicated vindicates vindicating
+supplant supplanted supplanting supplants
+reinvest reinvested reinvesting
+parlay parlayed parlays
+immunize immunized immunizing
+scold scolded scolding scolds
+siphon siphoned siphoning siphons
+hamstring hamstrings hamstrung
+wring wringing wrings wrung
+confide confided confides confiding
+terrorize terrorized terrorizes terrorizing
+vanquish vanquished vanquishing
+predominate predominated predominates predominating
+stiffen stiffened stiffening stiffens
+snicker snickered snickering snickers
+scapegoat scapegoated scapegoating scapegoats
+defrost defrosted defrosting
+enrage enraged enrages enraging
+skylark skylarking skylarks
+prowl prowled prowling prowls
+strew strewed strewing strewn
+outgrow outgrew outgrowing outgrown outgrows
+prise prised prises prising
+fallow fallowing fallows
+squander squandered squandering squanders
+muddle muddled muddles muddling
+reassess reassessed reassessing
+reclassify reclassified reclassifying
+grope groped gropes groping
+divest divested divesting divests
+naturalize naturalized naturalizing
+peddle peddled peddles peddling
+amalgamate amalgamated amalgamating
+meddle meddled meddling
+knead kneaded kneading kneads
+capitalise capitalised capitalises capitalising
+mottle mottled mottles mottling
+cinch cinched cinches cinching
+stilt stilted stilts
+gusset gusseted gussets
+tog togged togs
+snub snubbed snubbing snubs
+decry decried decries decrying
+fizz fizzes fizzing
+mutilate mutilated mutilates mutilating
+spangle spangled spangles
+lampoon lampooned lampooning lampoons
+frolic frolicked frolicking frolics
+fib fibbing fibs
+litigate litigated litigates litigating
+impound impounded impounding impounds
+honk honked honking honks
+prorate prorated prorating
+sneer sneered sneering sneers
+misinterpret misinterpreted misinterpreting misinterprets
+immobilize immobilized immobilizing
+opine opined opines opining
+destabilize destabilized destabilizes destabilizing
+exterminate exterminated exterminates exterminating
+tine tined tines
+proffer proffered proffering proffers
+freckle freckled freckles
+downplay downplayed downplaying downplays
+squirm squirmed squirming squirms
+presuppose presupposed presupposes presupposing
+theorize theorized theorizes theorizing
+excrete excreted excretes excreting
+disillusion disillusioned disillusioning
+internalize internalized internalizes internalizing
+pout pouted pouting pouts
+imbue imbued imbues imbuing
+ladle ladled ladles
+disobey disobeyed disobeying disobeys
+wheeze wheezed wheezes wheezing
+untie untied unties untying
+refocus refocused refocuses refocusing
+batten battened battens
+inundate inundated inundating
+lunge lunged lunges lunging
+conceptualize conceptualized conceptualizes conceptualizing
+vouch vouched vouches vouching
+recoup recouped recouping
+retaliate retaliated retaliates retaliating
+annihilate annihilated annihilates annihilating
+scurry scurried scurries scurrying
+husk husked husking husks
+exude exuded exudes exuding
+muffle muffled muffles muffling
+budge budged budging
+expound expounded expounding expounds
+regroup regrouped regrouping regroups
+foretell foretelling foretells foretold
+hark harking harks
+localise localised localising
+uproot uprooted uprooting
+ravish ravished ravishing
+suffocate suffocated suffocates suffocating
+reestablish reestablished reestablishes reestablishing
+beseech beseeching besought
+rustle rustled rustles rustling
+impersonate impersonated impersonates impersonating
+infuriate infuriated infuriates infuriating
+digress digressed digressing
+reconvene reconvened reconvenes reconvening
+teeter teetered teetering teeters
+domesticate domesticated domesticating
+sublease subleased subleases subleasing
+reek reeked reeking reeks
+oxygenate oxygenated oxygenates oxygenating
+dovetail dovetailed dovetailing dovetails
+administrate administrated administrates administrating
+coalesce coalesced coalesces coalescing
+scab scabbed scabs
+delude deluded deluding
+strum strummed strumming strums
+bicker bickered bickering bickers
+overwork overworked overworking
+zigzag zigzagged zigzagging zigzags
+sympathize sympathized sympathizes sympathizing
+besiege besieged besieging
+bungle bungled bungles bungling
+usurp usurped usurping usurps
+sensitize sensitized sensitizes sensitizing
+thud thudded thudding thuds
+victimize victimized victimizing
+gawk gawked gawking
+prostrate prostrated prostrating
+choreograph choreographed choreographing choreographs
+encroach encroached encroaches encroaching
+shamble shambles shambling
+nullify nullified nullifies nullifying
+maim maimed maiming maims
+repackage repackaged repackaging
+defray defrayed defraying
+squint squinted squinting squints
+chafe chafed chafes chafing
+pounce pounced pounces pouncing
+predate predated predates predating
+disengage disengaged disengages disengaging
+hew hewed hewing hews
+dabble dabbled dabbles dabbling
+remarry remarried remarries remarrying
+reenter reentered reentering reenters
+overdo overdid overdoes overdoing overdone
+admonish admonished admonishes admonishing
+froth frothed frothing
+decompress decompressed decompresses decompressing
+rebut rebuts rebutted rebutting
+droop drooped drooping droops
+outdo outdid outdoes outdoing outdone
+yaw yawing yaws
+recollect recollected recollecting recollects
+implore implored implores imploring
+whimper whimpered whimpering whimpers
+decimate decimated decimates decimating
+undervalue undervalued undervalues undervaluing
+pulsate pulsates pulsating
+defuse defused defusing
+reenact reenacted reenacting
+dislocate dislocated dislocating
+germinate germinated germinates germinating
+ricochet ricocheted ricocheting ricochets
+blanch blanched blanches blanching
+languish languished languishes languishing
+dismount dismounted dismounting dismounts
+floodlight floodlighting floodlights floodlit
+swerve swerved swerves swerving
+whitewash whitewashed whitewashes whitewashing
+braise braised braising
+reformulate reformulated reformulating
+botch botched botches botching
+pander pandered pandering panders
+caw cawing caws
+deregulate deregulated deregulating
+sate sated sates sating
+beset besets besetting
+eschew eschewed eschewing eschews
+demean demeaned demeaning demeans
+synchronise synchronised synchronises synchronising
+defile defiled defiles defiling
+ameliorate ameliorated ameliorates ameliorating
+scoff scoffed scoffing scoffs
+reapply reapplied reapplying
+seethe seethed seethes seething
+exhort exhorted exhorting exhorts
+clobber clobbered clobbering clobbers
+dither dithered dithering dithers
+squall squalling squalls
+reallocate reallocated reallocates reallocating
+reassemble reassembled reassembles reassembling
+rekindle rekindled rekindles rekindling
+quash quashed quashes quashing
+burnish burnished burnishing
+metabolize metabolized metabolizes metabolizing
+tantalize tantalized tantalizing
+recast recasting recasts
+swig swigging swigs
+alight alighted alighting alights
+buttress buttressed buttresses buttressing
+haggle haggled haggling
+patronize patronized patronizing
+assail assailed assailing assails
+popularize popularized popularizing
+implode imploded implodes imploding
+bequeath bequeathed bequeathing bequeaths
+subsume subsumed subsumes subsuming
+rebuff rebuffed rebuffing rebuffs
+galvanise galvanised galvanising
+initialise initialised initialises initialising
+telecast telecasting telecasts
+idealize idealized idealizing
+mystify mystified mystifies mystifying
+agonize agonized agonizing
+scoot scooted scooting scoots
+misread misreading misreads
+broach broached broaches broaching
+retype retyped retyping
+doze dozed dozes dozing
+quell quelled quelling quells
+unblock unblocked unblocking unblocks
+evince evinced evinces evincing
+surmise surmised surmises surmising
+soundproof soundproofed soundproofing
+destruct destructed destructing destructs
+overpay overpaid overpaying
+lurch lurched lurches lurching
+sandblast sandblasted sandblasting
+subsist subsisted subsisting subsists
+malign maligned maligning
+redden reddened reddening
+flail flailed flailing flails
+disparage disparaged disparages disparaging
+canter cantered cantering
+chomp chomped chomping chomps
+offload offloaded offloading offloads
+redevelop redeveloped redeveloping
+pillage pillaged pillaging
+foreshadow foreshadowed foreshadowing foreshadows
+extol extolled extolling extols
+savour savoured savouring savours
+undulate undulated undulating
+condescend condescended condescending
+flaunt flaunted flaunting flaunts
+displease displeased displeases displeasing
+reroute rerouted reroutes rerouting
+fetter fettered fetters
+overburden overburdened overburdening
+realign realigned realigning realigns
+raze razed razing
+repudiate repudiated repudiates repudiating
+thresh threshed threshing
+slither slithered slithering slithers
+stammer stammered stammering stammers
+impale impaled impaling
+creak creaked creaking creaks
+slouch slouched slouches slouching
+feign feigned feigning feigns
+freshen freshened freshening freshens
+writhe writhed writhes writhing
+beautify beautified beautifies beautifying
+upturn upturned upturns
+fester festered festering festers
+glint glinted glinting glints
+swindle swindled swindles swindling
+irk irked irks
+annul annulled annulling annuls
+scavenge scavenged scavenging
+dissociate dissociated dissociates dissociating
+rummage rummaged rummages rummaging
+liberalize liberalized liberalizing
+retrace retraced retraces retracing
+trundle trundled trundles trundling
+flit flits flitted flitting
+gash gashed gashes
+guillotine guillotined guillotines
+granulate granulated granulating
+typify typified typifies typifying
+swoon swooned swooning swoons
+repossess repossessed repossessing
+pucker puckered puckering puckers
+scuttle scuttled scuttles scuttling
+gird girded girding girds girt
+stymie stymied stymies
+juxtapose juxtaposed juxtaposes juxtaposing
+mete meted metes meting
+abrogate abrogated abrogates abrogating
+encumber encumbered encumbering
+crumple crumpled crumples crumpling
+sedate sedated sedating
+handpick handpicked handpicks
+attune attuned attuning
+impinge impinged impinges impinging
+electroplate electroplated electroplating
+wrest wrested wresting
+detoxify detoxified detoxifies detoxifying
+refuel refuelled refuelling
+internationalize internationalized internationalizing
+shoplift shoplifted shoplifting
+wallow wallowed wallowing wallows
+misbehave misbehaved misbehaves misbehaving
+concoct concocted concocting concocts
+fantasize fantasized fantasizes fantasizing
+procrastinate procrastinated procrastinating
+deafen deafened deafening
+normalise normalised normalising
+personify personified personifies personifying
+fatten fattened fattening
+suckle suckled suckling
+exonerate exonerated exonerates exonerating
+piggyback piggybacked piggybacking piggybacks
+wrangle wrangled wrangles wrangling
+gravitate gravitated gravitates gravitating
+deplore deplored deplores deploring
+whet whets whetted whetting
+goad goaded goading goads
+moisten moistened moistening
+plop plopped plopping plops
+refit refits refitted refitting
+proscribe proscribed proscribes proscribing
+devalue devalued devalues devaluing
+crisscross crisscrossed crisscrossing
+outstrip outstripped outstripping outstrips
+belay belaying belays
+toughen toughened toughening toughens
+visualise visualised visualises visualising
+befit befits befitted befitting
+mistreat mistreated mistreating
+rehash rehashed rehashes rehashing
+gnaw gnawed gnawing gnaws
+counterbalance counterbalanced counterbalances counterbalancing
+whorl whorled whorls
+reevaluate reevaluated reevaluating
+unionize unionized unionizing
+belittle belittled belittles belittling
+arbitrate arbitrated arbitrates arbitrating
+aspirate aspirated aspirates aspirating
+lather lathered lathering lathers
+decentralise decentralised decentralising
+enliven enlivened enlivening enlivens
+disenfranchise disenfranchised disenfranchising
+constrict constricted constricting constricts
+denature denatured denaturing
+hobble hobbled hobbles hobbling
+corrode corroded corrodes corroding
+introvert introverted introverts
+absolve absolved absolves absolving
+misprint misprinted misprints
+dislodge dislodged dislodging
+legitimize legitimized legitimizes legitimizing
+chaff chaffed chaffing
+squabble squabbles squabbling
+defame defamed defames defaming
+reheat reheated reheating
+imbed imbedded imbedding
+disconcert disconcerted disconcerting
+repatriate repatriated repatriates repatriating
+incriminate incriminated incriminating
+wallop walloped walloping wallops
+detest detested detests
+scald scalded scalding scalds
+traumatize traumatized traumatizing
+crinkle crinkled crinkles crinkling
+reshuffle reshuffled reshuffles reshuffling
+callus callused calluses
+obfuscate obfuscated obfuscates obfuscating
+blurt blurted blurting blurts
+patter pattered pattering patters
+clank clanked clanking
+disorient disoriented disorienting
+repulse repulsed repulses repulsing
+scrawl scrawled scrawling scrawls
+jeer jeered jeering jeers
+purl purling purls
+flay flayed flaying flays
+exasperate exasperated exasperating
+outrun outran outrunning outruns
+privatise privatised privatising
+overshoot overshooting overshoots overshot
+formalise formalised formalises formalising
+fizzle fizzled fizzles fizzling
+clang clanged clanging clangs
+bide bides biding boded
+renegotiate renegotiated renegotiating
+trill trilled trilling trills
+peal pealed pealing peals
+dissuade dissuaded dissuading
+impel impelled impelling impels
+socialise socialised socialising
+apprise apprised apprising
+scull sculling sculls
+blare blared blares blaring
+segue segued segues
+grimace grimaced grimaces grimacing
+decapitate decapitated decapitating
+slog slogged slogging
+hybridize hybridized hybridizes hybridizing
+chequer chequered chequers
+abhor abhorred abhors
+croak croaked croaking croaks
+scrutinise scrutinised scrutinises scrutinising
+flinch flinched flinches flinching
+outlast outlasted outlasting outlasts
+spurn spurned spurning spurns
+shoo shooed shooing shoos
+demote demoted demoting
+politicize politicized politicizing
+scowl scowled scowling scowls
+reexamine reexamined reexamines reexamining
+rasp rasped rasping rasps
+baste basted basting
+unroll unrolled unrolling unrolls
+shuck shucked shucking shucks
+deride derided derides deriding
+obviate obviated obviates obviating
+slop slopped slopping slops
+leaven leavened leavening leavens
+tarry tarried tarrying
+chastise chastised chastises chastising
+squelch squelched squelching
+jut juts jutted jutting
+allay allayed allaying allays
+dishearten disheartened disheartening
+sequester sequestered sequestering
+stagnate stagnated stagnates stagnating
+scud scudding scuds
+reprieve reprieved reprieves
+shirk shirked shirking shirks
+swagger swaggered swaggering
+plod plodded plodding plods
+pester pestered pestering
+whizz whizzed whizzes whizzing
+revolutionise revolutionised revolutionising
+amble ambled ambles ambling
+effectuate effectuated effectuating
+joust jousting jousts
+surmount surmounted surmounting
+guzzle guzzled guzzles guzzling
+redecorate redecorated redecorating
+profiteer profiteering profiteers
+acquiesce acquiesced acquiesces acquiescing
+enthuse enthused enthuses enthusing
+billow billowed billowing billows
+entwine entwined entwining
+rebroadcast rebroadcasting rebroadcasts
+slink slinking slinks slunk
+overplay overplayed overplaying
+jiggle jiggled jiggles jiggling
+trudge trudged trudges trudging
+snitch snitches snitching
+mishandle mishandled mishandles mishandling
+unscrew unscrewed unscrewing unscrews
+penalise penalised penalises penalising
+unnerve unnerved unnerves unnerving
+rephrase rephrased rephrasing
+adduce adduced adduces adducing
+denigrate denigrated denigrates denigrating
+hearken hearkened hearkening hearkens
+rile riled riles riling
+circumscribe circumscribed circumscribes circumscribing
+alphabetize alphabetized alphabetizing
+bleat bleating bleats
+conscript conscripted conscripts
+vegetate vegetated vegetating
+bemoan bemoaned bemoaning bemoans
+outlive outlived outlives outliving
+affront affronted affronts
+extradite extradited extraditing
+symbolise symbolised symbolises symbolising
+wrack wracked wracking
+insinuate insinuated insinuates insinuating
+rewire rewired rewiring
+eke eked ekes eking
+atone atoned atones atoning
+expunge expunged expunging
+gloat gloated gloating gloats
+interpose interposed interposes interposing
+plagiarize plagiarized plagiarizing
+intermingle intermingled intermingling
+entreat entreated entreating entreats
+energise energised energises energising
+beguile beguiled beguiling
+belch belched belches belching
+waddle waddled waddles waddling
+interject interjected interjecting interjects
+digitise digitised digitising
+freewheel freewheeling freewheels
+plait plaited plaiting plaits
+metamorphose metamorphosed metamorphoses metamorphosing
+dramatize dramatized dramatizes dramatizing
+polarise polarised polarising
+retool retooled retooling
+epitomize epitomized epitomizes
+disbelieve disbelieved disbelieves disbelieving
+waft wafted wafting wafts
+brandish brandished brandishes brandishing
+liven livened livens
+transgress transgressed transgresses transgressing
+aerate aerated aerating
+jaunt jaunted jaunts
+presage presaged presages presaging
+occlude occluded occludes occluding
+embolden emboldened emboldening emboldens
+clatter clattered clattering
+relent relented relenting relents
+prance pranced prances prancing
+chide chided chides chiding
+haemorrhage haemorrhages haemorrhaging
+pollinate pollinated pollinating
+revitalise revitalised revitalising
+cower cowered cowering cowers
+loiter loitered loitering
+abdicate abdicated abdicates abdicating
+fixate fixated fixating
+synthesise synthesised synthesises synthesising
+emancipate emancipated emancipating
+disfigure disfigured disfiguring
+forewarn forewarned forewarning
+paralyse paralysed paralyses paralysing
+splurge splurged splurging
+monopolize monopolized monopolizes monopolizing
+avow avowed avows
+reverberate reverberated reverberates reverberating
+recuperate recuperated recuperating
+demoralize demoralized demoralizing
+untangle untangled untangling
+readjust readjusted readjusting readjusts
+disembark disembarked disembarking
+berate berated berates berating
+moulder mouldering moulders
+hitchhike hitchhiked hitchhiking
+matriculate matriculated matriculating
+recheck rechecked rechecking
+wriggle wriggled wriggles wriggling
+edify edified edifying
+enunciate enunciated enunciates enunciating
+disquiet disquieted disquieting
+incinerate incinerated incinerating
+sidetrack sidetracked sidetracks
+tinkle tinkled tinkles tinkling
+emote emotes emoting
+sandbag sandbagged sandbagging sandbags
+mistype mistyped mistyping
+outwit outwits outwitted outwitting
+fritter frittered fritters
+vandalize vandalized vandalizing
+memorialize memorialized memorializes memorializing
+hurtle hurtled hurtles hurtling
+overprint overprinted overprinting overprints
+gurgle gurgled gurgles gurgling
+squawk squawked squawking squawks
+antagonize antagonized antagonizes antagonizing
+splay splayed splays
+memorise memorised memorising
+jeopardise jeopardised jeopardises jeopardising
+exult exulted exulting exults
+blinker blinkered blinkers
+evangelize evangelized evangelizing
+cackle cackled cackles cackling
+refract refracted refracting refracts
+vaporize vaporized vaporizes vaporizing
+resettle resettled resettling
+bawl bawled bawling bawls
+parch parched parches
+counterattack counterattacked counterattacks
+incise incised incising
+pontificate pontificates pontificating
+unlearn unlearned unlearning
+shimmy shimmied shimmies shimmying
+bung bunged bungs
+familiarise familiarised familiarising
+humanize humanized humanizes humanizing
+amputate amputated amputating
+pacify pacified pacifying
+tiptoe tiptoed tiptoeing tiptoes
+dismember dismembered dismembering
+joyride joyrides joyriding
+uncork uncorked uncorking
+dote doted dotes doting
+homogenize homogenized homogenizing
+forestall forestalled forestalling
+moisturise moisturises moisturising
+clink clinked clinking
+sluice sluices sluicing
+magnetize magnetized magnetizing
+inculcate inculcated inculcates inculcating
+intercede interceded intercedes interceding
+douse doused dousing
+flunk flunked flunking flunks
+retread retreaded retreading retreads
+revile reviled reviling
+extort extorted extorting
+toboggan tobogganing toboggans
+reinterpret reinterpreted reinterpreting reinterprets
+empathize empathized empathizing
+misquote misquoted misquotes misquoting
+acclimate acclimated acclimating
+singe singed singes
+secede seceded seceding
+unfurl unfurled unfurling unfurls
+conjoin conjoined conjoining
+bulldoze bulldozed bulldozing
+warble warbled warbles warbling
+mortify mortified mortifying
+jostle jostled jostling
+liberalise liberalised liberalising
+cohabit cohabited cohabiting
+totter tottered tottering totters
+reassert reasserted reasserting reasserts
+exhume exhumed exhuming
+disown disowned disowning disowns
+subjugate subjugated subjugating
+monetize monetized monetizing
+resuscitate resuscitated resuscitating
+flout flouted flouting flouts
+materialise materialised materialises
+sulk sulked sulking sulks
+rationalise rationalised rationalising
+jettison jettisoned jettisoning
+legalise legalised legalising
+percolate percolated percolates percolating
+whelp whelped whelping whelps
+furlough furloughed furloughs
+scuffle scuffled scuffles scuffling
+pulverize pulverized pulverizes pulverizing
+levitate levitated levitating
+forbear forbearing forbears forbore forborne
+croon crooned crooning croons
+spatter spattered spattering spatters
+comport comported comports
+tamp tamped tamping tamps
+stigmatize stigmatized stigmatizing
+cluck clucked clucking clucks
+scamper scampered scampering scampers
+uncouple uncoupled uncoupling
+debar debarred debarring
+decontaminate decontaminated decontaminating
+nitpick nitpicking nitpicks
+embalm embalmed embalming
+frisk frisked frisking
+regurgitate regurgitated regurgitates regurgitating
+redeploy redeployed redeploying
+castrate castrated castrating
+sniffle sniffled sniffles sniffling
+fidget fidgeted fidgeting fidgets
+misfire misfired misfires misfiring
+catalyse catalysed catalyses catalysing
+sunder sundered sundering
+drawl drawled drawling drawls
+vilify vilified vilifying
+whir whirred whirring
+nationalize nationalized nationalizing
+saunter sauntered sauntering saunters
+connote connoted connotes connoting
+demarcate demarcated demarcates demarcating
+wend wended wending wends
+dethrone dethroned dethroning
+stipple stippled stippling
+redouble redoubled redoubling
+trounce trounced trounces trouncing
+regale regaled regales regaling
+reword reworded rewording
+bisect bisected bisecting bisects
+institutionalise institutionalised institutionalising
+extricate extricated extricating
+placate placated placating
+swathe swathed swathes
+entrap entrapped entrapping
+inure inured inures
+unseat unseated unseating
+desecrate desecrated desecrating
+propound propounded propounding propounds
+decelerate decelerated decelerates decelerating
+foment fomented fomenting
+ruminate ruminated ruminates ruminating
+indoctrinate indoctrinated indoctrinating
+ransack ransacked ransacking
+disentangle disentangled disentangling
+dally dallied dallying
+augur augured augurs
+reprove reproved reproves reproving
+commercialise commercialised commercialising
+blubber blubbered blubbering
+reorganise reorganised reorganising
+imbibe imbibed imbibing
+bluster blustered blustering
+disavow disavowed disavowing disavows
+preen preened preening
+overreact overreacted overreacting
+festoon festooned festoons
+gnash gnashed gnashing
+crossbreed crossbred crossbreeding
+democratize democratized democratizing
+desensitize desensitized desensitizing
+bludgeon bludgeoned bludgeoning bludgeons
+regularize regularized regularizing
+heckle heckled heckling
+pressurise pressurised pressurising
+bifurcate bifurcated bifurcating
+jangle jangled jangles jangling
+ovulate ovulated ovulating
+efface effaced effacing
+actualize actualized actualizing
+clamber clambered clambering
+patronise patronised patronising
+assuage assuaged assuaging
+impugn impugned impugning
+renege reneged reneges reneging
+countersink countersinks countersunk
+deign deigned deigns
+recombine recombined recombining
+rehire rehired rehiring
+clamour clamoured clamouring
+contort contorted contorting
+expropriate expropriated expropriating
+backstop backstopping backstops
+oversimplify oversimplified oversimplifies oversimplifying
+unbutton unbuttoned unbuttoning
+outsmart outsmarted outsmarting
+transmute transmuted transmutes transmuting
+deaden deadened deadening
+idolize idolized idolizes idolizing
+oversell overselling oversold
+overstep overstepped overstepping oversteps
+debase debased debasing
+accost accosted accosting
+capitulate capitulated capitulates capitulating
+winterize winterized winterizing
+permute permuted permutes permuting
+explicate explicated explicates explicating
+strafe strafed strafing
+oxidise oxidised oxidising
+cajole cajoled cajoling
+blab blabbed blabbing
+misconstrue misconstrued misconstrues
+hunker hunkered hunkering
+careen careened careening careens
+decant decanted decanting
+pigeonhole pigeonholed pigeonholes pigeonholing
+foist foisted foisting
+colonise colonised colonising
+emulsify emulsified emulsifying
+skimp skimped skimping
+outshine outshines outshone
+twiddle twiddles twiddling
+illumine illumined illumines
+remount remounted remounting
+reinsert reinserted reinserting
+intone intoned intones intoning
+sympathise sympathised sympathising
+upstage upstaged upstages
+overreach overreached overreaching
+slosh sloshed sloshing
+revalue revalued revaluing
+neutralise neutralised neutralising
+grovel groveling grovelling
+fertilise fertilised fertilising
+collude colluded colluding
+commandeer commandeered commandeering
+cheapen cheapened cheapening cheapens
+ensnare ensnared ensnares ensnaring
+trivialize trivialized trivializes trivializing
+swaddle swaddled swaddling
+connive connived conniving
+portend portended portends
+destabilise destabilised destabilising
+hallucinate hallucinated hallucinating
+recant recanted recanting
+elope eloped eloping
+lambast lambasted lambasting lambasts
+dehumanize dehumanized dehumanizing
+jilt jilted jilting
+conceptualise conceptualised conceptualising
+satiate satiated satiates
+waken wakened wakening
+relearn relearned relearning
+winnow winnowed winnowing
+enfold enfolded enfolding enfolds
+niggle niggles niggling
+slacken slackened slackening
+convulse convulsed convulsing
+roil roiled roiling
+titillate titillated titillating
+castigate castigated castigates castigating
+underachieve underachieved underachieving
+pummel pummelled pummelling pummels
+equalise equalised equalising
+interdict interdicted interdicting
+doff doffed doffing
+reawaken reawakened reawakening
+gerrymander gerrymandered gerrymandering
+blaspheme blasphemed blaspheming
+disassociate disassociated disassociating
+misjudge misjudged misjudging
+exorcise exorcised exorcising
+sterilise sterilised sterilising
+mismanage mismanaged mismanaging
+brutalize brutalized brutalizing
+lambaste lambasted lambasting
+coddle coddled coddling
+embezzle embezzled embezzling
+harangue harangued harangues haranguing
+scrounge scrounged scrounging
+acidify acidified acidifying
+misappropriate misappropriated misappropriating
+distend distended distending
+backdate backdated backdating
+curdle curdled curdling
+bilk bilked bilking
+slaver slavering slavers
+whirr whirred whirring
+abscond absconded absconding
+superintend superintended superintending
+redraft redrafted redrafting
+suffuse suffused suffuses
+pilfer pilfered pilfering
+overcook overcooked overcooking
+disambiguate disambiguated disambiguating
+glower glowered glowering glowers
+romanticize romanticized romanticizing
+unhook unhooked unhooking
+abrade abraded abrading
+verbalize verbalized verbalizing
+terrorise terrorised terrorising
+chasten chastened chastening
+systematize systematized systematizing
+wisecrack wisecracking wisecracks
+unscramble unscrambled unscrambling
+imperil imperilled imperils
+scrunch scrunched scrunching
+recapitulate recapitulated recapitulates
+coarsen coarsened coarsening
+popularise popularised popularising
+loll lolled lolling
+eviscerate eviscerated eviscerating
+nuzzle nuzzled nuzzling
+prejudge prejudged prejudging
+defecate defecated defecating
+deodorize deodorized deodorizes deodorizing
+decamp decamped decamps
+vocalize vocalized vocalizing
+victual victualling victuals
+sensitise sensitised sensitising
+despoil despoiled despoiling
+lacerate lacerated lacerating
+refile refiled refiling
+misstate misstated misstates misstating
+metastasize metastasized metastasizing
+derogate derogated derogating
+legitimise legitimised legitimising
+undersell underselling undersold
+satirize satirized satirizes satirizing
+straggle straggled straggling
+snigger sniggered sniggering sniggers
+overstay overstayed overstaying
+shortchange shortchanged shortchanging
+militate militated militates
+theorise theorised theorising
+internalise internalised internalising
+agglomerate agglomerated agglomerates
+appertain appertaining appertains
+bewail bewailed bewailing
+chaperon chaperoned chaperoning
+outclass outclassed outclasses
+guffaw guffawed guffaws
+sanitise sanitised sanitising
+gyrate gyrated gyrating
+interbreed interbred interbreeding
+quaff quaffed quaffing
+maltreat maltreated maltreats
+fumigate fumigated fumigating
+dissemble dissembled dissembling
+roughen roughened roughening
+coagulate coagulated coagulating
+humidify humidified humidifying
+shush shushed shushing
+scupper scuppered scuppers
+congeal congealed congealing
+deify deified deifying
+ennoble ennobled ennobling
+epitomise epitomised epitomises
+solemnize solemnized solemnizing
+commiserate commiserated commiserating
+prickle prickles prickling
+editorialize editorialized editorializing
+skulk skulked skulking
+manhandle manhandled manhandling
+emasculate emasculated emasculating
+splutter spluttered spluttering
+vacillate vacillated vacillating
+cannibalize cannibalized cannibalizing
+conciliate conciliated conciliating
+quaver quavered quavering quavers
+toddle toddled toddling
+circumnavigate circumnavigated circumnavigating
+vitalize vitalized vitalizing
+cauterize cauterized cauterizing
+rankle rankled rankles
+overproduce overproduced overproducing
+flagellate flagellated flagellates
+excoriate excoriated excoriating
+reemerge reemerged reemerging
+overcompensate overcompensated overcompensating
+decriminalize decriminalized decriminalizing
+oversleep oversleeping overslept
+stigmatise stigmatised stigmatising
+disrobe disrobed disrobing
+waggle waggled waggling
+flounce flounced flounces
+prefigure prefigured prefigures
+browbeat browbeaten browbeating
+fantasise fantasises fantasising
+upbraid upbraided upbraiding
+outrank outranked outranks
+declaim declaimed declaiming
+gainsay gainsaid gainsaying
+propagandize propagandized propagandizing
+found founded founding founds
+feed fed feeding feeds
+ground grounded grounding grounds
+rent rented renting rents
+saw sawed sawing saws
+lay laid laying lays
+bound bounded bounding bounds
+crew crewed crewing crews
+fell felled felling fells
+bore bored bores boring
+wound wounded wounding wounds
+rebound rebounded rebounding rebounds
+weed weeded weeding weeds
+overlay overlaid overlaying overlays
+resent resented resenting resents
+smelt smelted smelting smelts

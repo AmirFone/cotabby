@@ -110,6 +110,10 @@ final class HostDelegate: NSObject, NSApplicationDelegate {
             defer: false
         )
         window.title = "Cotabby E2E Host"
+        // macOS's own inline prediction is off for this app only (the setting is written to the test
+        // host's preferences), like the other typing help below, so that every character in the two
+        // texts was typed by the test or by Cotabby.
+        UserDefaults.standard.set(false, forKey: "NSAutomaticInlinePredictionEnabled")
         let scroll = NSTextView.scrollableTextView()
         let text = scroll.documentView as! NSTextView
         text.font = .systemFont(ofSize: 15)
@@ -128,6 +132,8 @@ final class HostDelegate: NSObject, NSApplicationDelegate {
         let field = NSTextField(frame: NSRect(x: 8, y: 288, width: 744, height: 24))
         field.autoresizingMask = [.width, .minYMargin]
         field.setAccessibilityIdentifier("e2e-field")
+        field.isAutomaticTextCompletionEnabled = false
+        text.inlinePredictionType = .no
         scroll.frame = NSRect(x: 0, y: 0, width: 760, height: 280)
         scroll.autoresizingMask = [.width, .height]
         container.addSubview(field)

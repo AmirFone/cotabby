@@ -32,6 +32,33 @@ nonisolated enum NextWordPredictor {
         var fuzzyCompletions: (_ prefix: String, _ limit: Int) -> [String] = { _, _ in [] }
         /// Words people commonly misspell; picking one also saves the fix that typing it would need.
         var isHardToSpell: (String) -> Bool = { _ in false }
+        /// The language model's answer for exactly this text before the caret, when it has one
+        /// (`WordLanguageModelService`). Nil while it is still working or not installed, and the
+        /// list then comes from the table alone.
+        var languageModel: (_ textBefore: String) -> LanguageModelScores? = { _ in nil }
+        /// How the language model's answer and the table are combined. The app uses the defaults;
+        /// the harness varies them to measure (`Tools/prediction/README.md`).
+        var mix = LanguageModelMix()
+    }
+
+    /// The numbers that combine the language model with the table.
+    struct LanguageModelMix: Equatable, Sendable {
+        /// A word's score is the model's log-probability plus this much of the table's log score.
+        /// The model reads the whole text and decides; the table adds what it has counted for the
+        /// exact last words and the writer's own phrases. Small: on the tuning passages 0.05 was as
+        /// good as or better than 0.15 and 0.3 with all three models the app can use.
+        var tableWeight = 0.05
+        /// Stands in for the table score of a word the table never saw here, so its log is finite.
+        var tableFloor = 1e-6
+        /// How many of the model's own best words join the table's candidates.
+        var modelCandidates = 12
+        /// What a word that does not start with the typed letters is multiplied by. The letters
+        /// typed are strong evidence: `smalle` is `smaller`, not the far more common `small`. Only
+        /// when nothing likely starts with them (`necc`, `wich`) should a near miss come first, and
+        /// then it is likelier by far more than this. 0.5 (the table's own penalty) cost four
+        /// points of first-suggestion accuracy from four letters on; 0.00001 cost five points of
+        /// "still offers the word after a misspelled start".
+        var slipPenalty = 0.005
     }
 
     static let maximumWords = 5
@@ -54,7 +81,6 @@ nonisolated enum NextWordPredictor {
     static let fuzzyPenalty = 0.5
     /// Extra value, in keys, of picking a commonly misspelled word: the correction avoided.
     static let hardWordBonusKeys = 3.0
-
     static func predict(textBefore: String, sources: Sources) -> NextWordPrediction? {
         guard let parsed = parse(textBefore), !isOtherLanguage(textBefore, model: sources.model) else { return nil }
         let prefix = parsed.prefix.lowercased().replacingOccurrences(of: "’", with: "'")
@@ -63,10 +89,17 @@ nonisolated enum NextWordPredictor {
         let fuzzyWords = prefix.count >= fuzzyMinimumPrefix ? sources.fuzzyCompletions(prefix, fuzzyLimit) : []
         let fuzzy = Set(fuzzyWords.filter { !$0.hasPrefix(prefix) })
         var scores = backoffScores(context: contextWords, prefix: prefix, fuzzy: fuzzy, sources: sources)
+            .filter { !UnofferedWords.contains($0.key) }
         scores.removeValue(forKey: prefix)
-        // Order by expected keys saved, not raw likelihood: a pick costs about one key, so a likely
-        // "a" (saves nothing) should not take the Tab slot from "restaurant". Long, hard words the
-        // writer would otherwise have to spell move forward.
+        if let languageModel = sources.languageModel(textBefore) {
+            let words = wordsRanked(
+                by: languageModel, tableScores: scores, prefix: prefix, fuzzyWords: fuzzyWords, mix: sources.mix
+            )
+            return prediction(words, parsed: parsed, textBefore: textBefore)
+        }
+        // Without the language model: order by expected keys saved, not raw likelihood. A pick
+        // costs about one key, so a likely "a" (saves nothing) should not take the Tab slot from
+        // "restaurant". Long, hard words the writer would otherwise have to spell move forward.
         let typedLength = prefix.count
         func value(_ word: String, _ score: Double) -> Double {
             let spellingRisk = sources.isHardToSpell(word) ? hardWordBonusKeys : 0
@@ -82,13 +115,20 @@ nonisolated enum NextWordPredictor {
             .map(\.word)
         if words.count < maximumWords, !prefix.isEmpty {
             for word in sources.completions(prefix, maximumWords * 2)
-            where words.count < maximumWords && matches(word, prefix: prefix) && word != prefix && !words.contains(word) {
+            where words.count < maximumWords && matches(word, prefix: prefix) && word != prefix
+                && !words.contains(word) && !UnofferedWords.contains(word) {
                 words.append(word)
             }
-            for word in fuzzyWords where words.count < maximumWords && word != prefix && !words.contains(word) {
+            for word in fuzzyWords
+            where words.count < maximumWords && word != prefix && !words.contains(word) && !UnofferedWords.contains(word) {
                 words.append(word)
             }
         }
+        return prediction(words, parsed: parsed, textBefore: textBefore)
+    }
+
+    /// The list as it is shown: recased for where the word will land. Nil for an empty list.
+    private static func prediction(_ words: [String], parsed: Parsed, textBefore: String) -> NextWordPrediction? {
         guard !words.isEmpty else { return nil }
         let atSentenceStart = parsed.context.last == NextWordModel.sentenceStart
         let shouting = isShouting(textBefore, typedPrefix: parsed.prefix)
@@ -98,6 +138,56 @@ nonisolated enum NextWordPredictor {
                 recase($0, typedPrefix: parsed.prefix, atSentenceStart: atSentenceStart, shouting: shouting)
             }
         )
+    }
+
+    /// The five likeliest words when the language model has an answer, likeliest first.
+    ///
+    /// Likeliest first, not "most keys saved" first: the model is right often enough that the first
+    /// slot should simply be the word, and it is what makes the right verb form come before the
+    /// wrong ones (`walked` before `walking` after `Yesterday I`).
+    ///
+    /// Candidates are everything the table scored for these letters, the model's own best words for
+    /// them, and the forgiven misspelled starts. A word the model's dictionary does not have (a name
+    /// the writer taught Cotabby) is scored by the table alone.
+    private static func wordsRanked(
+        by languageModel: LanguageModelScores,
+        tableScores: [String: Double],
+        prefix: String,
+        fuzzyWords: [String],
+        mix: LanguageModelMix
+    ) -> [String] {
+        var scores: [String: Double] = [:]
+        scores.reserveCapacity(tableScores.count + mix.modelCandidates)
+        let slip = log(mix.slipPenalty)
+        // A word more than a letter shorter than what is typed would mean the writer typed letters
+        // that belong to no word (`with` for `withou`); that is not a slip worth offering.
+        func isOffered(_ word: String) -> Bool {
+            word.hasPrefix(prefix) || word.count >= prefix.count - 1
+        }
+        func likelihood(of word: String, orElse fallback: Double) -> Double {
+            let known = languageModel.logProbability(of: word).map(Double.init) ?? -.infinity
+            return (known > -.infinity ? known : fallback) + (word.hasPrefix(prefix) ? 0 : slip)
+        }
+        for (word, table) in tableScores where isOffered(word) {
+            // The table already scaled a near miss down; that was tuned for the table alone and is
+            // undone here so the slip is charged once.
+            let counted = word.hasPrefix(prefix) ? table : table / fuzzyPenalty
+            scores[word] = likelihood(of: word, orElse: log(counted)) + mix.tableWeight * log(counted + mix.tableFloor)
+        }
+        let unseen = mix.tableWeight * log(mix.tableFloor)
+        for candidate in languageModel.best(prefix: prefix, limit: mix.modelCandidates)
+        where scores[candidate.word] == nil && candidate.word != prefix && !UnofferedWords.contains(candidate.word) {
+            scores[candidate.word] = Double(candidate.logProbability) + unseen
+        }
+        for word in fuzzyWords
+        where scores[word] == nil && word != prefix && isOffered(word) && !UnofferedWords.contains(word) {
+            scores[word] = likelihood(of: word, orElse: -.infinity) + unseen
+        }
+        return scores
+            .filter { $0.value > -.infinity }
+            .sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }
+            .prefix(maximumWords)
+            .map(\.key)
     }
 
     /// Stupid-backoff scores for every word that fits the typed prefix (or is a forgiven slip of it)
