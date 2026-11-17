@@ -25,7 +25,8 @@ struct PredictionHarness {
         resourceRoot: URL,
         corrector: SymSpellCorrector,
         adaptive: Bool = false,
-        languageModelPath: String? = nil
+        languageModelPath: String? = nil,
+        americanSpellings: AmericanSpellings? = nil
     ) -> PredictionHarness? {
         let url = resourceRoot.appendingPathComponent("next_word_model_en.bin")
         guard let data = try? Data(contentsOf: url, options: .alwaysMapped),
@@ -33,15 +34,20 @@ struct PredictionHarness {
         let phrases = adaptive ? PersonalPhraseModel(fileURL: nil) : nil
         var languageModel: SynchronousLanguageModel?
         if let languageModelPath {
+            // NO_SUPPLEMENT=1 leaves out prediction_words_en.txt, to measure what it adds.
+            let lists = ["frequency_dictionary_en_82_765.txt"] + (noSupplement ? [] : ["prediction_words_en.txt"])
             guard let core = WordLanguageModelCore(
                 modelURL: URL(fileURLWithPath: languageModelPath),
-                dictionaryURL: resourceRoot.appendingPathComponent("frequency_dictionary_en_82_765.txt")
+                wordListURLs: lists.map(resourceRoot.appendingPathComponent)
             ) else {
                 print("could not load the language model at \(languageModelPath)")
                 return nil
             }
             languageModel = SynchronousLanguageModel(core: core)
         }
+        let supplement = noSupplement ? [] : Set(
+            WordLanguageModelCore.entries(in: [resourceRoot.appendingPathComponent("prediction_words_en.txt")]).map(\.word)
+        )
         let hardWords = Set(((try? String(contentsOf: resourceRoot.appendingPathComponent("commonly_misspelled_en.txt"), encoding: .utf8)) ?? "")
             .split(separator: "\n").filter { !$0.hasPrefix("#") }.map(String.init))
         return PredictionHarness(sources: NextWordPredictor.Sources(
@@ -55,9 +61,13 @@ struct PredictionHarness {
             },
             isHardToSpell: { ProcessInfo.processInfo.environment["NO_HARD"] == nil && hardWords.contains($0) },
             languageModel: { languageModel?.scores(forTextBefore: $0) },
+            isKnownWord: { supplement.contains($0) },
+            americanSpellings: americanSpellings,
             mix: mixFromEnvironment()
         ), phrases: phrases, hardWords: hardWords, languageModel: languageModel)
     }
+
+    private static let noSupplement = ProcessInfo.processInfo.environment["NO_SUPPLEMENT"] != nil
 
     /// MIX_TABLE_WEIGHT, MIX_SLIP_PENALTY, MIX_CANDIDATES: try other numbers without rebuilding.
     private static func mixFromEnvironment() -> NextWordPredictor.LanguageModelMix {
@@ -233,8 +243,17 @@ final class SynchronousLanguageModel {
         self.core = core
     }
 
+    /// LM_REACH_CHARS and LM_REACH_STEP: how far back the model reads, to measure other reaches.
+    private static let reach: LanguageModelContext.Reach = {
+        let environment = ProcessInfo.processInfo.environment
+        var reach = LanguageModelContext.Reach.standard
+        if let value = environment["LM_REACH_CHARS"].flatMap(Int.init) { reach.maximumCharacters = value }
+        if let value = environment["LM_REACH_STEP"].flatMap(Int.init) { reach.step = value }
+        return reach
+    }()
+
     func scores(forTextBefore text: String) -> LanguageModelScores? {
-        guard let context = LanguageModelContext.make(textBefore: text) else { return nil }
+        guard let context = LanguageModelContext.make(textBefore: text, reach: Self.reach) else { return nil }
         if latest?.key != context.key {
             let started = DispatchTime.now().uptimeNanoseconds
             latest = core.scores(for: context.key)
@@ -243,15 +262,21 @@ final class SynchronousLanguageModel {
         // NO_REFINE=1 scores the first estimate alone, to measure what the exact pass adds.
         // The app asks again after each refinement until nothing is left to refine; so does this.
         var rounds = 0
-        while let current = latest, !Self.skipsRefinement, rounds < 4 {
+        while let current = latest, !Self.skipsRefinement, rounds < Self.maximumRounds {
             let started = DispatchTime.now().uptimeNanoseconds
             guard let refined = core.refine(current, forPrefix: context.prefix.lowercased()) else { break }
             latest = refined
             rounds += 1
             refineMilliseconds.append(Double(DispatchTime.now().uptimeNanoseconds - started) / 1_000_000)
         }
+        roundsPerMoment[rounds, default: 0] += 1
         return latest
     }
+
+    /// How many exact rounds each typing moment took, to check that they settle (REFINE_ROUNDS sets
+    /// the cap; the app has none and stops when nothing is left to refine).
+    private(set) var roundsPerMoment: [Int: Int] = [:]
+    private static let maximumRounds = ProcessInfo.processInfo.environment["REFINE_ROUNDS"].flatMap(Int.init) ?? 4
 
     private(set) var refineMilliseconds: [Double] = []
     private static let skipsRefinement = ProcessInfo.processInfo.environment["NO_REFINE"] != nil
@@ -287,6 +312,11 @@ extension PredictionHarness {
         var slipMoments = 0
         var slipFirst = 0
         var slipListed = 0
+        /// Names (capitalized inside a sentence) the text has already used, typed again: moments
+        /// with one or more letters typed, how often the name was first, and first with its capital.
+        var nameMoments = 0
+        var nameFirst = 0
+        var nameFirstAsWritten = 0
     }
 
     /// `--typing`: types every text as written and reports how often the first suggestion is the
@@ -333,6 +363,11 @@ extension PredictionHarness {
         if total.verbMoments > 0 {
             print(Self.tenseLine("tense test", total))
         }
+        if total.nameMoments > 0 {
+            print(String(format: "a name the text already used, typed again: first %.1f%%, first and capitalized as written %.1f%% (%d moments, not in the rows above)",
+                         100 * Double(total.nameFirst) / Double(total.nameMoments),
+                         100 * Double(total.nameFirstAsWritten) / Double(total.nameMoments), total.nameMoments))
+        }
         if total.slipMoments > 0 {
             print(String(format: "typing a misspelling, after the slip: word meant is first %.1f%%, listed %.1f%% (%d moments)",
                          100 * Double(total.slipFirst) / Double(total.slipMoments),
@@ -362,7 +397,24 @@ extension PredictionHarness {
                          refinements.count, Double(refinements.count) / Double(max(total.words, 1)),
                          refinements[refinements.count / 2], refinements[refinements.count * 9 / 10]))
         }
+        if let rounds = languageModel?.roundsPerMoment, ProcessInfo.processInfo.environment["REFINE_ROUNDS"] != nil {
+            print("exact rounds per typing moment: " + rounds.sorted { $0.key < $1.key }.map { "\($0.key): \($0.value)" }.joined(separator: ", "))
+        }
         print(String(format: "%.2f ms per prediction overall", 1000 * seconds / Double(max(total.predictions, 1))))
+        // The raw counts on one line, so runs over parts of a file (made at the same time) can be
+        // added up exactly instead of averaging percentages.
+        let counts: [String: Any] = [
+            "firstRight": total.firstRight, "listed": total.listed, "moments": total.moments,
+            "keys": total.keys, "characters": total.characters, "words": total.words,
+            "verbMoments": total.verbMoments, "verbFormFirst": total.verbFormFirst, "verbTop": total.verbTop,
+            "slipMoments": total.slipMoments, "slipFirst": total.slipFirst, "slipListed": total.slipListed,
+            "nameMoments": total.nameMoments, "nameFirst": total.nameFirst, "nameFirstAsWritten": total.nameFirstAsWritten,
+            "misspellings": spelling.words, "fixedRight": spelling.fixedRight, "fixedWrong": spelling.fixedWrong,
+            "offeredFirst": spelling.offeredFirst, "offeredLower": spelling.offeredLower, "notCaught": spelling.missed
+        ]
+        if let data = try? JSONSerialization.data(withJSONObject: counts, options: [.sortedKeys]) {
+            print("counts " + String(decoding: data, as: UTF8.self))
+        }
         return 0
     }
 
@@ -392,11 +444,15 @@ extension PredictionHarness {
         total.slipMoments += tally.slipMoments
         total.slipFirst += tally.slipFirst
         total.slipListed += tally.slipListed
+        total.nameMoments += tally.nameMoments
+        total.nameFirst += tally.nameFirst
+        total.nameFirstAsWritten += tally.nameFirstAsWritten
     }
 
     private func simulateTyping(_ text: String, families: [String: [String]], into tally: inout TypingTally) {
         var index = text.startIndex
         var startsSentence = true
+        var namesSeen = Set<String>()
         while index < text.endIndex {
             let character = text[index]
             guard character.isASCII, character.isLetter || character.isNumber else {
@@ -422,6 +478,8 @@ extension PredictionHarness {
             let isName = !startsSentence && raw.first?.isUppercase == true && raw != "I" && !raw.hasPrefix("I'")
             if !isNumber, !isName {
                 type(raw, after: String(text[..<index]), families: startsSentence ? [:] : families, into: &tally)
+            } else if isName, !raw.contains("'"), !namesSeen.insert(raw).inserted {
+                typeNameAgain(raw, after: String(text[..<index]), into: &tally)
             }
             startsSentence = false
             index = end
@@ -459,6 +517,19 @@ extension PredictionHarness {
             if firstForm == target { tally.verbFormFirst += 1 }
         } else {
             tally.verbUnlisted += 1
+        }
+    }
+
+    /// A name the text has used before, typed again: scored apart from the words, because a name
+    /// the text never showed cannot be guessed and one it did show can.
+    private func typeNameAgain(_ raw: String, after before: String, into tally: inout TypingTally) {
+        guard raw.count >= 3 else { return }
+        for letters in 1...min(raw.count - 1, Self.lettersTracked) {
+            tally.predictions += 1
+            let shown = NextWordPredictor.predict(textBefore: before + raw.prefix(letters), sources: sources)?.words ?? []
+            tally.nameMoments += 1
+            if shown.first?.lowercased() == raw.lowercased() { tally.nameFirst += 1 }
+            if shown.first == raw { tally.nameFirstAsWritten += 1 }
         }
     }
 

@@ -214,6 +214,8 @@ targets:
       - Cotabby/Services/Prediction/PersonalPhraseModel.swift
       - Cotabby/Support/Prediction/WordLanguageModel.swift
       - Cotabby/Support/Prediction/UnofferedWords.swift
+      - Cotabby/Support/Prediction/TextVocabulary.swift
+      - Cotabby/Support/Spelling/AmericanSpellings.swift
       - Cotabby/Services/Prediction/WordLanguageModelCore.swift
       - Cotabby/Services/Runtime/Llama/LlamaTokenModel.swift
       - Cotabby/Support/Spelling/SentenceModelCorrection.swift

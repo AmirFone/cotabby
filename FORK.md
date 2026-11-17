@@ -18,17 +18,17 @@ The app is named "Cotabby Dev" and keeps its own settings and permissions, so it
 What gives the best results, in order of how much it matters:
 
 1. **Run only one Cotabby.** The released Cotabby app and this fork are two typing assistants; with both running, the released one's ghost text also takes Tab and types words of its own. Quit it and take it out of System Settings → General → Login Items while you use this one.
-2. **Install the Gemma model for the word strip.** Settings → Engine & Model → download **tabby-2-base** (Gemma 4 E2B, 3.8 GB). The strip is ordered by a language model that reads your last few sentences, and it uses the best one installed, with no setting to change:
+2. **Install the Gemma model for the word strip.** Settings → Engine & Model → download **tabby-2-base** (Gemma 4 E2B, 3.8 GB). The strip is ordered by a language model that reads back what you have written, and it uses the best one installed, with no setting to change:
 
-   | Model (name in the app) | Size | First suggestion right, all typing moments | After 2 letters | After 3 letters | Right verb form first | Used when |
-   |---|---|---|---|---|---|---|
-   | Gemma 4 E2B (tabby-2-base) | 3.8 GB | 70% | 81% | 90% | 93% | installed, and the Mac has 16 GB of memory or more |
-   | Qwen 3.5 2B base (tabby-2-mini) | 1.3 GB | 67% | 77% | 87% | 91% | installed, 12 GB of memory or more |
-   | Qwen 3.5 0.8B base (tabby-2-nano) | 0.6 GB | 65% | 75% | 86% | 91% | installed |
-   | the built-in sentence model | already loaded | 58% | 67% | 80% | 84% | nothing else is installed |
-   | no language model (word table only) | | 38% | 43% | 57% | 54% | |
+   | Model (name in the app) | Size | First suggestion right while typing a word | After 2 letters | After 3 letters | Right verb form first | One pass | Used when |
+   |---|---|---|---|---|---|---|---|
+   | Gemma 4 E2B (tabby-2-base) | 3.8 GB | 83% | 83% | 90% | 94% | 11 ms | installed, and the Mac has 16 GB of memory or more |
+   | Qwen 3.5 2B base (tabby-2-mini) | 1.3 GB | 79% | 79% | 86% | 90% | 8 ms | installed, 12 GB of memory or more |
+   | Qwen 3.5 0.8B base (tabby-2-nano) | 0.6 GB | 76% | 76% | 84% | 89% | 6 ms | installed |
+   | the built-in sentence model | already loaded | 69% | 67% | 79% | 84% | 5 ms | nothing else is installed |
+   | no language model (word table only) | | 44% | 40% | 52% | 53% | | |
 
-   Measured on the held-back test passages (`Tools/prediction/README.md`). The larger Gemma (tabby-2-pro, 5.3 GB) was no better at this than tabby-2-base and takes half again as long per word.
+   Measured on the held-back long test documents (`Tools/prediction/README.md`); "while typing a word" is every moment with at least one letter typed. Before any letter is typed the first suggestion is right about 38% of the time with Gemma, and no model does much better there (a 12B model reached 39% where Gemma reached 36%), which is why the number over all moments is 72%. The larger Gemma (tabby-2-pro, 5.3 GB) is within half a point of tabby-2-base and takes half again as long per word.
 3. **Settings → Writing:** keep **Show Next-Word Predictions**, **Hide Suggestions on Typo**, **Offer Corrections on Typo** and **Automatically Fix Confident Typos** on (the defaults), and press the button under **macOS Autocorrect Is Also On** so macOS's own autocorrect is off.
 4. **Optional:** **Save Training Examples** (Settings → Writing → Training Data) if you want to train a model on your own writing later. It is off unless you turn it on.
 
@@ -94,7 +94,7 @@ type on, and an undo replaces a sentence that was already saved.
 
 ## Engine
 
-- 82k-word dictionary with SymSpell (edit distance 2), preloaded in memory at launch.
+- 82k-word dictionary with SymSpell (edit distance 2), preloaded in memory at launch, plus the common American and current words it lacks (see "American spelling and current words").
 - Sound-alike index over the 30k most common words (`skool` → school, `fisical` → physical), including words whose sound is one slip off once the word is finished (`apsolootly` → absolutely, `comfterbul` → comfortable).
 - A table of ~340 certain misspellings and dropped apostrophes (non-words only, no slang).
 - 242k English word pairs for context (`know wich` → which, `different form` → from).
@@ -122,6 +122,45 @@ Almost all of the median is waiting for the host app to show the key through Acc
 - the word strip leaves a key alone when the spelling gate already owns that word.
 
 The remaining slow cases (roughly one in ten above 35 ms) are the main thread blocked in the system's display flush or in an Accessibility read the host answers late. `E2E_SAMPLE=<file>` records stack samples during the run for digging further.
+
+## American spelling and current words
+
+The frequency dictionary leans British and is some years old: it has `neighbour`, `analyse` and
+`travelling` and no `neighbor`, `analyze`, `traveling`, `favorite`, `canceled`, `jewelry`, `dataset`
+or `onboarding`. For someone who spells the American way that had two effects: a slip was fixed to
+the British word (`neigborhood` → `neighbourhood`, unasked), and the word strip could not offer the
+American one at all.
+
+- **The words.** `prediction_words_en.txt` holds about 1,200 words the dictionary lacks, found in the
+  corpora the context table is built from: written in lowercase at least 25 times, more often than
+  capitalized, and accepted by the system spell checker
+  (`Tools/prediction/build_word_supplement.py`). The word strip uses all of them. The spelling
+  dictionary takes only the common ones of five letters or more (about 260;
+  `SymSpellCorrector.spellingLines`), because every word added there makes some slip look correct.
+- **The spelling.** `american_spellings_en.txt` pairs about 850 British spellings with their American
+  form (`Tools/prediction/build_american_spellings.py`: spelling rules, kept only where both forms are
+  known words and the American one is at least as common in the corpora, then read by a person; that
+  keeps `dialogue` and `glamour` and leaves out look-alikes such as `timbre`/`timber`). On a Mac
+  whose region is the United States a fix or a suggestion in the British spelling is given in the
+  American one (`AmericanSpellings`). Elsewhere nothing changes. To choose by hand:
+  `defaults write com.jacobfu.tabby.dev cotabbySpellingStyle american` (or `british`), then restart.
+  What you type yourself is judged as before, by the system's checker for your region.
+
+Measured on 394 misspellings of 200 words drawn at random from the list, written by four writers who
+were given only the words (`cotabby-spell --accuracy`):
+
+| | Right word first | Fixed unasked | Unasked fixes that were wrong |
+|---|---|---|---|
+| before | 18.8% | 4.1% | 16 of 16 (to the British spelling or another word) |
+| with the words | 81.5% | 34.3% | 6 of 135 |
+| with the words and the American spelling | 85.3% | 34.3% | 2 of 135 |
+
+On the general spelling tests nothing moves: 8,000 misspellings in sentences, right word first 73.0%
+before and 73.1% after, the same 49.8% fixed unasked with the same number wrong; the other test
+lists are within 0.3 points. In 40,000 words of untouched text, 24 are edited against 17 before, and
+all 7 new ones are British spellings turned American (`favourite`, `travelling`, `colourful`), which
+is what the app already did with `organisation`. The trained models were left as they are;
+retraining them on the larger dictionary gave the same first-guess accuracy.
 
 ## Context table
 
@@ -184,40 +223,63 @@ $CLI --proofread "He was to tired to walk."         # the sentence pass, wrong w
 ## Word strip language model
 
 The n-gram table sees the last three words of the current sentence. That is enough for `would like to`
-and blind to everything that sets a tense: `Yesterday`, the verbs earlier in the sentence, the sentence
-before. So the strip is ordered by a language model that reads the last four sentences.
+and blind to everything that sets a tense or a subject: `Yesterday`, the verbs earlier in the
+sentence, the paragraph before. So the strip is ordered by a language model that reads back up to
+1,600 characters of what you have written.
 
 - **Once per word, not per key.** The model's answer depends only on the text before the word being
-  typed, so it is asked when a word is finished (at the Space) and every letter after that reuses the
-  answer. One pass takes 5 to 11 ms in the harness and 15 to 25 ms inside the running app.
-- **No second redraw.** The strip waits up to 50 ms for the answer instead of showing the table's
-  order and swapping it; if the model is slower than that the table's order is shown.
+  typed, so every letter of a word reuses one answer. One pass takes 11 ms on its own and 15 to 25 ms
+  inside the running app.
+- **Ready at the space.** While you type a word's last letters the model already works out the list
+  for the word after it (for the word as typed if it is one, else for the strip's first word), so the
+  next list is there when the space is pressed instead of one pass later
+  (`WordLanguageModelService.lookAheadKey`). It runs only when nothing for the current word is waiting.
+- **No second redraw.** When the answer is not there yet, the strip waits up to 50 ms for it instead
+  of showing the table's order and swapping it.
+- **How far back it reads.** A text up to 1,600 characters is read whole; a longer one loses its
+  beginning in steps of 800 characters counted from the start, so the model re-reads once per 800
+  characters typed (about 25 ms), not once per sentence as before
+  (`LanguageModelContext.Reach`). Reading further back than the last four sentences is worth 2.6
+  points of first-suggestion accuracy on long text.
 - **From pieces to words.** A model predicts pieces, not words. A word's probability is its first
   piece's probability times the word's share of that piece; once the typed letters narrow the field
   to words sharing a piece (`shin`, `shins`, `shiny`), one more pass gives the exact numbers for them
   (`Support/Prediction/WordLanguageModel.swift`). Models that cannot take a piece back out of their
   memory (Qwen 3.5) skip that pass.
+- **Words the dictionary lacks.** The model can only put a word first that is in its list, and the
+  spelling dictionary leans British and predates current vocabulary. `prediction_words_en.txt` adds
+  about 1,200 everyday words it lacked (`neighbor`, `favorite`, `traveling`, `mom`, `you've`,
+  `dataset`, `onboarding`) and gives the dictionary's contractions their real counts (it carries
+  `that's`, `you're` and `don't` all at one placeholder).
+- **Your own words.** A name or term the text has already used (`Priyanka`, the project `Lantern`,
+  `cutover`, `ETL`) is offered again, spelled and capitalized as you wrote it
+  (`Support/Prediction/TextVocabulary.swift`). A name counts from its first use; a lowercase word
+  needs two, so an uncorrected slip is not offered back. Typed again, such a name is first at 91% of
+  the moments after its first letter; before, it was never offered.
+- **One spelling.** On a Mac whose region is the United States, `travelling` and `traveling` are one
+  suggestion, in the American spelling (see "American spelling and current words").
 - **Near misses.** A word that does not start with the typed letters (`small` for `smalle`) is charged
   heavily, so it only comes first when nothing likely starts with them (`necc` → necessary).
 - **Which model:** the best one installed (see "Recommended setup"). Nothing is downloaded for this;
   all of them are files the app already uses for ghost text or the sentence pass.
-- **Speed of everything else is unchanged:** key to automatic fix, median 22 ms; key to spelling bar,
-  27 ms (live, with the model running).
+- **Speed of everything else is unchanged:** see "Speed, measured live".
 
-Results on the held-back test passages, `cotabby-spell --typing` (first suggestion is the word):
+Results on the held-back long test documents, `cotabby-spell --typing` (first suggestion is the word):
 
-| Letters typed | 0 | 1 | 2 | 3 | 4 | all moments | right verb form first |
-|---|---|---|---|---|---|---|---|
-| word table only (before) | 12% | 34% | 43% | 57% | 57% | 38% | 54% |
-| Gemma 4 E2B | 34% | 69% | 81% | 90% | 92% | 70% | 93% |
-| Qwen 3.5 2B base | 32% | 66% | 77% | 87% | 90% | 67% | 91% |
-| Qwen 3.5 0.8B base | 30% | 62% | 75% | 86% | 90% | 65% | 91% |
-| built-in sentence model | 22% | 52% | 67% | 80% | 85% | 58% | 84% |
+| Letters typed | 0 | 1 | 2 | 3 | 4 | while typing a word | all moments | right verb form first |
+|---|---|---|---|---|---|---|---|---|
+| word table only | 12% | 32% | 40% | 52% | 55% | 44% | 36% | 53% |
+| Gemma 4 E2B | 38% | 71% | 83% | 90% | 93% | 83% | 72% | 94% |
+| Qwen 3.5 2B base | 34% | 67% | 79% | 86% | 88% | 79% | 68% | 90% |
+| Qwen 3.5 0.8B base | 31% | 63% | 76% | 84% | 87% | 76% | 65% | 89% |
+| built-in sentence model | 22% | 52% | 67% | 79% | 85% | 69% | 57% | 84% |
 
-Before any letter is typed no model gets far past a third: many words are possible there. What was
-tried and did not help: letting the model order the spelling bar's fixes (21.6% first against the
-engine's own 22.2%), a heavier weight on the word table, and the larger Gemma. Method, test data and
-how to run it are in `Tools/prediction/README.md`.
+On the held-back short passages Gemma 4 E2B scores 82% while typing a word and 70% over all moments
+(0.2.0: 82% and 70%); on the long documents 0.2.0 scored 81% and 70%. Before any letter is typed no
+model gets far past a third: many words are possible there. Larger models were measured and not made
+the default: a 12B model adds about three points while typing for two and a half times the time per
+word and twice the memory. Everything that was tried, the test data and how to run it are in
+`Tools/prediction/README.md`.
 
 ## Sentence model
 
@@ -247,6 +309,12 @@ word lists cannot: misspelled names and technical terms (`I drive a Tyoda Corola
   `holdTypingWhileEditsDrain`, `HeldKeyReplayer`). Without this, a key landing between the
   backspaces shifted the rest of the fix by one character (`Tyoyota`, a lost letter); the same hold
   now covers word fixes and the local sentence pass. `E2E_ONLY=flow` tests it.
+- **Checked again on sentences written later** (the misspelled copies of the prediction test
+  passages, by twenty writers, none of it seen in training): of 1,265 sentences with misspellings and
+  491 without, 74.1% of misspellings typed in place, 0.4% of them wrongly, no correct sentence
+  touched; on the tuning passages 72.5%, none wrong, 1 of 135 correct sentences touched. A bar of
+  0.85 instead of 0.9 would fix four points more and make wrong fixes about half again as common
+  (0.40% to 0.67%), so the bars stay.
 - **Measured through the app's own runtime** on the 1,040 sentences below, with the bars above:
   typed in place, 79.7% of misspellings (0.3% wrong), 22.7% of wrong words, 61.5% of names and
   terms, 0.1 correct words changed per 1,000 and no correct sentence touched. With the offered words

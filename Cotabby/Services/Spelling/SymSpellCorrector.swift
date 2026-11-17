@@ -234,8 +234,39 @@ nonisolated final class SymSpellCorrector: @unchecked Sendable {
         guard let url = resourceURL(for: language), let contents = try? String(contentsOf: url, encoding: .utf8) else {
             return nil
         }
-        return language == .english ? contents + "\n" + englishOverrides() : contents
+        return language == .english ? contents + "\n" + englishOverrides() + "\n" + englishSupplement() : contents
     }
+
+    /// The common, longer words of `prediction_words_en.txt`, as dictionary lines.
+    ///
+    /// The frequency list leans British and predates a lot of current vocabulary: it has
+    /// `neighbour` and no `neighbor`, `analyse` and no `analyze`, and no `dataset`. For a writer who
+    /// spells the American way that turned `neigborhood` into `neighbourhood` unasked and offered
+    /// `favourite` for `favorit`. The words come from the same file the word strip reads.
+    static func englishSupplement(in bundle: Bundle = .main) -> String {
+        guard let url = bundle.url(forResource: "prediction_words_en", withExtension: "txt"),
+              let contents = try? String(contentsOf: url, encoding: .utf8) else { return "" }
+        return spellingLines(ofSupplement: contents)
+    }
+
+    /// Which lines of the supplement the spelling dictionary takes: words of five letters or more,
+    /// without an apostrophe, counted at least `supplementMinimumCount`.
+    ///
+    /// Stricter than the word strip's use of the same file, because the two risks differ. A rare
+    /// word in the strip's list is merely never offered. A rare or short word in the spelling
+    /// dictionary (`mins`, `nori`) makes every slip that happens to spell it look correct, and gives
+    /// every nearby slip one more wrong word to be fixed to.
+    nonisolated static func spellingLines(ofSupplement contents: String) -> String {
+        contents.split(separator: "\n").filter { line in
+            let fields = line.split(separator: " ")
+            guard fields.count == 2, let count = Int(fields[1]) else { return false }
+            return fields[0].count >= supplementMinimumLength && count >= supplementMinimumCount && !fields[0].contains("'")
+        }.joined(separator: "\n")
+    }
+
+    nonisolated static let supplementMinimumLength = 5
+    /// About 100 uses in the 92 million words the supplement was counted in, on the dictionary's scale.
+    nonisolated static let supplementMinimumCount = 492_700
 
     /// Counts for everyday words the Google-derived frequency list undercounts or lacks: it splits
     /// `cannot` into `can not` (88k uses against 200M+ for `think`) and predates `instagram`.

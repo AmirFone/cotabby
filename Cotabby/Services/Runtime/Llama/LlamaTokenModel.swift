@@ -23,8 +23,9 @@ import llama
 /// the matching `free` calls in `deinit` give them back.
 nonisolated final class LlamaTokenModel: SentenceTokenModel {
     /// Pieces the memory holds. A finished sentence is at most 320 characters and the word language
-    /// model reads a few sentences back, so both stay far below this.
-    static let contextSize: Int32 = 1_024
+    /// model reads about 1,600 characters back (some 400 pieces of English, more for text that
+    /// splits badly), so both stay below this.
+    static let contextSize: Int32 = 2_048
     private static let batchCapacity: Int32 = 512
     /// llama.cpp asks for one process-wide setup call; a `static let` runs exactly once. The log
     /// callback is silenced the same way the ghost-text engine does it, or every load would print
@@ -147,19 +148,28 @@ nonisolated final class LlamaTokenModel: SentenceTokenModel {
         _ tokens: [Int32],
         _ body: (_ scores: UnsafeBufferPointer<Float>, _ normalizer: Float) -> Result
     ) -> Result? {
-        guard !tokens.isEmpty, tokens.count <= Int(Self.batchCapacity),
-              count + Int32(tokens.count) <= Self.contextSize else { return nil }
-        batch.n_tokens = Int32(tokens.count)
-        for (index, token) in tokens.enumerated() {
-            batch.token[index] = token
-            batch.pos[index] = count + Int32(index)
-            batch.n_seq_id[index] = 1
-            batch.seq_id[index]?[0] = 0
-            batch.logits[index] = index == tokens.count - 1 ? 1 : 0
+        guard !tokens.isEmpty, count + Int32(tokens.count) <= Self.contextSize else { return nil }
+        // A long text (the word language model re-reading up to a few hundred words) goes in as
+        // several batches; only the very last piece's prediction is wanted. If a batch fails the
+        // memory holds part of the text, and the caller resets it.
+        var start = 0
+        var lastBatchCount = 0
+        while start < tokens.count {
+            let end = min(start + Int(Self.batchCapacity), tokens.count)
+            lastBatchCount = end - start
+            batch.n_tokens = Int32(lastBatchCount)
+            for offset in 0..<lastBatchCount {
+                batch.token[offset] = tokens[start + offset]
+                batch.pos[offset] = count + Int32(offset)
+                batch.n_seq_id[offset] = 1
+                batch.seq_id[offset]?[0] = 0
+                batch.logits[offset] = start + offset == tokens.count - 1 ? 1 : 0
+            }
+            guard llama_decode(context, batch) == 0 else { return nil }
+            count += Int32(lastBatchCount)
+            start = end
         }
-        guard llama_decode(context, batch) == 0 else { return nil }
-        count += Int32(tokens.count)
-        guard let scores = llama_get_logits_ith(context, Int32(tokens.count - 1)) else { return nil }
+        guard let scores = llama_get_logits_ith(context, Int32(lastBatchCount - 1)) else { return nil }
         var best: Float = 0
         var bestIndex: vDSP_Length = 0
         vDSP_maxvi(scores, 1, &best, &bestIndex, vDSP_Length(vocabularySize))

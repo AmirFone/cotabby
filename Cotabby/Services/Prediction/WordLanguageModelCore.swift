@@ -22,20 +22,30 @@ nonisolated final class WordLanguageModelCore {
     /// summed probability of these.
     private let endsWord: [Float]
     private var scratch: [Float]
-    /// False once the model has refused to take a piece back out of its memory; see `refine`.
-    private var canRollBack = true
+    /// Whether the model can take pieces back out of its memory, which the exact pass and the
+    /// look-ahead need (they read a piece or a word and then put the memory back). Some models keep
+    /// a running state that cannot be wound back (Qwen 3.5). Asked once when the model loads, with
+    /// two throwaway pieces, so the answer does not cost a real text its place in the memory; set
+    /// false later too if the model ever refuses.
+    private(set) var canRollBack: Bool
 
-    /// Nil when the model file cannot be loaded or the dictionary cannot be read.
-    init?(modelURL: URL, dictionaryURL: URL) {
-        guard let model = LlamaTokenModel(url: modelURL),
-              let dictionary = try? String(contentsOf: dictionaryURL, encoding: .utf8) else { return nil }
+    /// Nil when the model file cannot be loaded or no word list can be read.
+    ///
+    /// - Parameter wordListURLs: files of one "word count" pair per line. The first is the file the
+    ///   spelling dictionary is built from; `prediction_words_en.txt` follows it with the everyday
+    ///   words that dictionary lacks (`neighbor`, `favorite`, `you've`, `dataset`), because the
+    ///   model can only put a word first that is in its list. A word listed twice takes the larger
+    ///   count: the dictionary carries every contraction at one placeholder count (`that's` and
+    ///   `don't` at 300,000), and the second file lists them again with their real ones.
+    init?(modelURL: URL, wordListURLs: [URL]) {
+        guard let model = LlamaTokenModel(url: modelURL) else { return nil }
+        let entries = Self.entries(in: wordListURLs)
+        guard !entries.isEmpty else { return nil }
         self.model = model
-        // One "word count" pair per line, the same file the spelling dictionary is built from.
-        let entries = dictionary.split(separator: "\n").compactMap { line -> (word: String, count: Double)? in
-            let fields = line.split(separator: " ")
-            guard fields.count >= 2, let count = Double(fields[1]) else { return nil }
-            return (String(fields[0]), count)
-        }
+        let start = model.startToken
+        let couldRead = model.appendForNextPieceScores([start, start]) { _, _ in true } ?? false
+        canRollBack = couldRead && model.rollBack(last: 1)
+        model.reset()
         lexicon = LanguageModelLexicon(entries: entries) { model.tokens(for: $0, parsingSpecial: false) }
         endsWord = (0..<model.vocabularyCount).map { piece in
             guard let first = model.bytes(for: Int32(piece)).first else { return 1 }
@@ -44,6 +54,28 @@ nonisolated final class WordLanguageModelCore {
             return isLetter || first == 0x27 || first >= 0x80 ? 0 : 1
         }
         scratch = [Float](repeating: 0, count: model.vocabularyCount)
+    }
+
+    /// The words of every list that can be read, each once, in the order first seen, with the
+    /// largest count any list gives it.
+    static func entries(in wordListURLs: [URL]) -> [(word: String, count: Double)] {
+        var entries: [(word: String, count: Double)] = []
+        var position: [String: Int] = [:]
+        for url in wordListURLs {
+            guard let contents = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            for line in contents.split(separator: "\n") {
+                let fields = line.split(separator: " ")
+                guard fields.count >= 2, let count = Double(fields[1]) else { continue }
+                let word = String(fields[0])
+                if let index = position[word] {
+                    entries[index].count = max(entries[index].count, count)
+                } else {
+                    position[word] = entries.count
+                    entries.append((word, count))
+                }
+            }
+        }
+        return entries
     }
 
     /// How likely each dictionary word is to follow `key.text`, or nil when the model could not run.
@@ -64,7 +96,7 @@ nonisolated final class WordLanguageModelCore {
         // A model that cannot wind its memory back has emptied it instead; read the text afresh.
         if !model.rollBack(last: memory.count - kept) { kept = 0 }
         let result = model.appendForNextPieceScores(Array(pieces[kept...])) { scores, normalizer in
-            lexicon.probabilities(scores: scores, normalizer: normalizer, isSpaced: key.isSpaced)
+            answer(for: key, scores: scores, normalizer: normalizer)
         }
         guard let result else {
             forgetEverything()
@@ -72,7 +104,86 @@ nonisolated final class WordLanguageModelCore {
         }
         memory = pieces
         memoryKey = key
-        return LanguageModelScores(key: key, lexicon: lexicon, probabilities: result)
+        return result
+    }
+
+    /// One pass's scores turned into an answer: every dictionary word, and the writer's own words
+    /// found in the text.
+    private func answer(
+        for key: LanguageModelContext.Key, scores: UnsafeBufferPointer<Float>, normalizer: Float
+    ) -> LanguageModelScores {
+        LanguageModelScores(
+            key: key,
+            lexicon: lexicon,
+            probabilities: lexicon.probabilities(scores: scores, normalizer: normalizer, isSpaced: key.isSpaced),
+            textWords: textWords(for: key, scores: scores, normalizer: normalizer)
+        )
+    }
+
+    /// The writer's own words in the text (`TextVocabulary`) with the model's estimate for each.
+    ///
+    /// The estimate is the probability of the word's first piece, halved when the word has more
+    /// pieces: the model has read this word in this very text and will most likely finish it the
+    /// same way, and `refine` replaces the guess with the model's own number once the typed letters
+    /// make the word a candidate. A word written in lowercase is also read capitalized, as it would
+    /// stand at a sentence start.
+    private func textWords(
+        for key: LanguageModelContext.Key, scores: UnsafeBufferPointer<Float>, normalizer: Float
+    ) -> [LanguageModelScores.TextWord] {
+        let lead = key.isSpaced ? " " : ""
+        func estimate(_ pieces: [Int32]) -> (first: Float, word: Float) {
+            guard let first = pieces.first, Int(first) < scores.count else { return (-.infinity, -.infinity) }
+            let logProbability = scores[Int(first)] - normalizer
+            return (logProbability, logProbability + (pieces.count > 1 ? Self.unreadPiecesLogProbability : 0))
+        }
+        return TextVocabulary.read(key.text) { lexicon.index(of: $0) != nil }.map { word in
+            guard word.isNew else { return .init(display: word.display, lowercased: word.lowercased) }
+            let pieces = model.tokens(for: lead + word.display, parsingSpecial: false)
+            let written = estimate(pieces)
+            var logProbability = written.word
+            let capitalized = LanguageModelLexicon.capitalized(word.display)
+            if capitalized != word.display {
+                let other = estimate(model.tokens(for: lead + capitalized, parsingSpecial: false)).word
+                let high = max(logProbability, other)
+                if high > -.infinity { logProbability = high + log1p(exp(min(logProbability, other) - high)) }
+            }
+            return .init(
+                display: word.display, lowercased: word.lowercased, logProbability: logProbability,
+                pieces: pieces, firstPieceLogProbability: written.first
+            )
+        }
+    }
+
+    /// log of what the pieces after the first are taken to be worth before an exact pass.
+    private static let unreadPiecesLogProbability = Float(log(0.5))
+
+    /// The answer for a text the writer has not reached yet: the current text plus the word they
+    /// are about to finish. Worked out while they type that word's last letters, so the next
+    /// word's list is there the moment the space is pressed instead of one pass later.
+    ///
+    /// The model's memory is left exactly as it was (the extra pieces are read and taken out
+    /// again), because the refinements for the word still being typed need it where it is. Nil
+    /// when `key` does not continue the text in memory, or the model cannot take pieces back out.
+    func lookAhead(to key: LanguageModelContext.Key) -> LanguageModelScores? {
+        guard canRollBack, memoryKey != nil, memoryKey != key else { return nil }
+        let pieces = [model.startToken] + model.tokens(for: key.text, parsingSpecial: false)
+        guard pieces.count > memory.count, pieces.count < Int(LlamaTokenModel.contextSize) - 8,
+              pieces.starts(with: memory) else { return nil }
+        let added = Array(pieces[memory.count...])
+        let result = model.appendForNextPieceScores(added) { scores, normalizer in
+            answer(for: key, scores: scores, normalizer: normalizer)
+        }
+        guard let result else {
+            forgetEverything()
+            return nil
+        }
+        guard model.rollBack(last: added.count) else {
+            canRollBack = false
+            memory = []
+            memoryKey = nil
+            return nil
+        }
+        return result
     }
 
     /// `scores` with the model's exact numbers for the words that matter now that `prefix` has
@@ -85,14 +196,24 @@ nonisolated final class WordLanguageModelCore {
         guard !pieces.isEmpty else { return nil }
         var probabilities = scores.probabilities
         var refined = scores.refinedPieces
+        var textWords = scores.textWords
         for piece in pieces {
             let next = model.appendForNextPieceScores([piece]) { continuation, normalizer in
-                lexicon.refined(
+                let logEnd = logEndProbability(continuation, normalizer: normalizer)
+                // The writer's own words starting with this piece get the model's number too.
+                for index in textWords.indices where textWords[index].pieces.first == piece && textWords[index].logProbability != nil {
+                    let word = textWords[index]
+                    if word.pieces.count == 1 {
+                        textWords[index].logProbability = word.firstPieceLogProbability + logEnd
+                    } else if Int(word.pieces[1]) < continuation.count {
+                        textWords[index].logProbability = word.firstPieceLogProbability
+                            + continuation[Int(word.pieces[1])] - normalizer
+                            + (word.pieces.count > 2 ? Self.unreadPiecesLogProbability : 0)
+                    }
+                }
+                return lexicon.refined(
                     probabilities, piece: piece, isSpaced: scores.key.isSpaced,
-                    after: .init(
-                        scores: continuation, normalizer: normalizer,
-                        logEnd: logEndProbability(continuation, normalizer: normalizer)
-                    )
+                    after: .init(scores: continuation, normalizer: normalizer, logEnd: logEnd)
                 )
             }
             guard let next else {
@@ -110,7 +231,9 @@ nonisolated final class WordLanguageModelCore {
                 break
             }
         }
-        return LanguageModelScores(key: scores.key, lexicon: lexicon, probabilities: probabilities, refinedPieces: refined)
+        return LanguageModelScores(
+            key: scores.key, lexicon: lexicon, probabilities: probabilities, refinedPieces: refined, textWords: textWords
+        )
     }
 
     /// log of the summed probability of the pieces that end a word.

@@ -746,7 +746,8 @@ extension SuggestionCoordinator {
             },
             personalWords: personalVocabulary.map { vocabulary in { vocabulary.matches(for: $0) } },
             autoFixModel: autoFixModel,
-            wrongWordModel: wrongWordModel
+            wrongWordModel: wrongWordModel,
+            americanSpellings: americanSpellings
         )
     }
 

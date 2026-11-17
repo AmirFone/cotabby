@@ -33,17 +33,28 @@ nonisolated struct LanguageModelContext: Equatable, Sendable {
     /// The letters of the current word typed so far ("" right after a space).
     let prefix: String
 
-    /// Sentences the model reads back, counting the unfinished one. More would follow the topic a
-    /// little better and cost a longer re-read every time the oldest sentence drops out.
-    static let maximumSentences = 4
-    static let maximumCharacters = 700
-    /// When one sentence alone is over the limit its start is cut in steps of this many characters,
-    /// so the cut stays put for a while and the model's memory of the text can be reused.
-    private static let cutStep = 200
+    /// How far back the model reads.
+    ///
+    /// A text up to `maximumCharacters` long is read whole, so the model follows the subject and the
+    /// words the writer has been using, not only the tense of the last sentence. A longer text loses
+    /// its beginning in steps of `step` characters, counted from the start of the text: the cut stays
+    /// where it is while the writer types the next `step` characters, and the model's memory of what
+    /// it has read stays valid for all of them. (Reading "the last N characters" instead would move
+    /// the start with every key and make the model re-read everything for every word.)
+    ///
+    /// Measured on long documents (`Tools/prediction/README.md`): reading up to 1,600 characters
+    /// instead of the last four sentences puts the first suggestion right more often, and the
+    /// re-read happens once per `step` characters instead of once per sentence.
+    struct Reach: Equatable, Sendable {
+        var maximumCharacters = 1_600
+        var step = 800
+
+        static let standard = Reach()
+    }
 
     /// Nil where no word is being typed or about to be: directly after punctuation, a digit, or a
     /// symbol (`3rd`, `@jo`, `word.`), the same places the n-gram predictor stays quiet.
-    static func make(textBefore: String) -> LanguageModelContext? {
+    static func make(textBefore: String, reach: Reach = .standard) -> LanguageModelContext? {
         var body = Substring(textBefore)
         var prefixStart = body.endIndex
         while prefixStart > body.startIndex {
@@ -64,51 +75,52 @@ nonisolated struct LanguageModelContext: Equatable, Sendable {
             end = previous
             isSpaced = true
         }
-        return LanguageModelContext(key: Key(text: window(of: body[..<end]), isSpaced: isSpaced), prefix: prefix)
+        return LanguageModelContext(key: Key(text: window(of: body[..<end], reach: reach), isSpaced: isSpaced), prefix: prefix)
     }
 
-    /// The last few sentences of `text`. The start is always a sentence start (or a stepped cut
-    /// inside one very long sentence), never "the last N characters": a start that moved with every
-    /// key would make the model re-read everything on every word.
-    private static func window(of text: Substring) -> String {
-        // Only the tail can matter; looking further back would cost time on a long document.
-        let tail = text.suffix(maximumCharacters * 3)
-        var starts: [Substring.Index] = []
-        var index = tail.startIndex
-        var previousEndsSentence = tail.startIndex == text.startIndex
-        while index < tail.endIndex {
-            let character = tail[index]
-            if previousEndsSentence, !character.isWhitespace {
-                starts.append(index)
-                previousEndsSentence = false
+    /// The end of `text` the model reads: all of it, or from the first sentence start after a cut
+    /// placed at a multiple of `reach.step` (see `Reach`).
+    private static func window(of text: Substring, reach: Reach) -> String {
+        // Lengths are counted in UTF-8 bytes: that is free to ask, where counting characters would
+        // walk the whole document on every key. For English text the two are nearly the same.
+        let bytes = text.utf8
+        let excess = bytes.count - reach.maximumCharacters
+        guard excess > 0, reach.step > 0 else { return String(text) }
+        let cut = (excess + reach.step - 1) / reach.step * reach.step
+        var index = bytes.index(bytes.startIndex, offsetBy: cut)
+        // A cut inside a multi-byte character moves on to the next whole one.
+        while index < bytes.endIndex, bytes[index] & 0b1100_0000 == 0b1000_0000 {
+            index = bytes.index(after: index)
+        }
+        let rest = text[index...]
+        // Start at a sentence start when one is near: text that begins mid-sentence reads as a
+        // fragment to the model. Failing that, at the next word.
+        let nearby = rest.prefix(sentenceSearch)
+        var previousEndsSentence = false
+        var afterSpace: Substring.Index?
+        var position = nearby.startIndex
+        while position < nearby.endIndex {
+            let character = nearby[position]
+            if character.isWhitespace {
+                if character.isNewline { previousEndsSentence = true }
+            } else {
+                if previousEndsSentence { return String(rest[position...]) }
+                let previous = position > nearby.startIndex ? nearby[nearby.index(before: position)] : nil
+                if afterSpace == nil, previous?.isWhitespace == true { afterSpace = position }
+                if ".!?".contains(character) {
+                    let next = nearby.index(after: position)
+                    previousEndsSentence = next < nearby.endIndex && nearby[next].isWhitespace
+                } else {
+                    previousEndsSentence = false
+                }
             }
-            if character.isNewline {
-                previousEndsSentence = true
-            } else if ".!?".contains(character) {
-                let next = tail.index(after: index)
-                previousEndsSentence = next == tail.endIndex || tail[next].isWhitespace
-            }
-            index = tail.index(after: index)
+            position = nearby.index(after: position)
         }
-        guard !starts.isEmpty else {
-            // One unbroken run longer than the look-back, with no sentence start to hold on to: cut
-            // at a step counted from the start of the text, which also stays put between steps.
-            let excess = text.count - maximumCharacters
-            guard excess > 0 else { return String(text) }
-            let cut = (excess / cutStep + 1) * cutStep
-            return String(text.dropFirst(cut).drop { !$0.isWhitespace }.drop { $0.isWhitespace })
-        }
-        var chosen = max(0, starts.count - maximumSentences)
-        while chosen + 1 < starts.count, tail[starts[chosen]...].count > maximumCharacters {
-            chosen += 1
-        }
-        var window = tail[starts[chosen]...]
-        if window.count > maximumCharacters {
-            let cut = ((window.count - maximumCharacters) / cutStep + 1) * cutStep
-            window = window.dropFirst(cut).drop { !$0.isWhitespace }.drop { $0.isWhitespace }
-        }
-        return String(window)
+        return String(rest[(afterSpace ?? rest.startIndex)...])
     }
+
+    /// How far past the cut a sentence start is looked for before settling for a word start.
+    private static let sentenceSearch = 300
 }
 
 /// Every dictionary word with the model pieces it starts with.
@@ -308,6 +320,24 @@ nonisolated struct LanguageModelScores: Sendable {
     let probabilities: LanguageModelLexicon.Probabilities
     /// First pieces whose words already carry the model's exact numbers (`LanguageModelLexicon.refined`).
     let refinedPieces: Set<Int32>
+    /// The writer's own words found in the text (`TextVocabulary`): names and terms the dictionary
+    /// lacks, each with how likely the model finds it next, and dictionary words to show capitalized.
+    let textWords: [TextWord]
+
+    /// A word from the text itself, as the strip should offer it.
+    struct TextWord: Sendable, Equatable {
+        /// Spelled and capitalized as the writer wrote it.
+        let display: String
+        let lowercased: String
+        /// log P(word next); nil for a dictionary word, which keeps the lexicon's number and only
+        /// takes its capital from here.
+        var logProbability: Float?
+        /// The model pieces of the word as it would be written here, so an exact pass over its first
+        /// piece can replace the estimate (`WordLanguageModelCore.refine`).
+        var pieces: [Int32] = []
+        /// log P of the first piece alone, kept to rebuild the word's number from.
+        var firstPieceLogProbability: Float = -.infinity
+    }
     /// The likeliest words overall, best first: what `best` returns before any letter is typed,
     /// worked out once on the model's queue instead of on every prediction.
     private let overallBest: [Int]
@@ -321,17 +351,34 @@ nonisolated struct LanguageModelScores: Sendable {
         key: LanguageModelContext.Key,
         lexicon: LanguageModelLexicon,
         probabilities: LanguageModelLexicon.Probabilities,
-        refinedPieces: Set<Int32> = []
+        refinedPieces: Set<Int32> = [],
+        textWords: [TextWord] = []
     ) {
         self.key = key
         self.lexicon = lexicon
         self.probabilities = probabilities
         self.refinedPieces = refinedPieces
+        self.textWords = textWords
         overallBest = Self.best(in: 0..<probabilities.combined.count, of: probabilities.combined, limit: Self.overallBestCount)
     }
 
     func logProbability(of word: String) -> Float? {
         lexicon.index(of: word).map { probabilities.combined[$0] }
+    }
+
+    /// The writer's own words (not in the dictionary) starting with `prefix`, with their
+    /// log-probabilities.
+    func textWords(prefix: String) -> [(word: String, logProbability: Float)] {
+        textWords.compactMap { word in
+            guard let logProbability = word.logProbability, word.lowercased.hasPrefix(prefix) else { return nil }
+            return (word.lowercased, logProbability)
+        }
+    }
+
+    /// How a word should be written when offered, for the words the text gives a spelling for
+    /// (`priyanka` → `Priyanka`); nil for every other word.
+    func display(of word: String) -> String? {
+        textWords.first { $0.lowercased == word }?.display
     }
 
     /// The likeliest words starting with `prefix`, best first.

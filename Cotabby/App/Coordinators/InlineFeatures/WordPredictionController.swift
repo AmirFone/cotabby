@@ -592,6 +592,13 @@ extension WordPredictionController {
         return Set(contents.split(separator: "\n").filter { !$0.hasPrefix("#") }.map(String.init))
     }
 
+    /// The words of `prediction_words_en.txt`: everyday words the spelling dictionary and the
+    /// n-gram table lack, which the language model can still offer.
+    static func supplementWords(in bundle: Bundle = .main) -> Set<String> {
+        guard let url = bundle.url(forResource: "prediction_words_en", withExtension: "txt") else { return [] }
+        return Set(WordLanguageModelCore.entries(in: [url]).map(\.word))
+    }
+
     static let enabledDefaultsKey = "cotabbyWordPredictionsEnabled"
 
     /// On unless the writer turned it off in Settings → Writing.
@@ -606,13 +613,15 @@ extension WordPredictionController {
         model: NextWordModel?,
         symSpellCorrector: SymSpellCorrector,
         phrases: PersonalPhraseModel,
-        languageModel: WordLanguageModelService? = nil
+        languageModel: WordLanguageModelService? = nil,
+        americanSpellings: AmericanSpellings? = nil
     ) -> (String) -> NextWordPrediction? {
         guard let model else {
             CotabbyLogger.app.error("Next-word model missing from the bundle; word predictions are off.")
             return { _ in nil }
         }
         let hardWords = commonlyMisspelledWords()
+        let supplement = supplementWords()
         let sources = NextWordPredictor.Sources(
             model: model,
             completions: { symSpellCorrector.completions(of: $0, limit: $1) },
@@ -620,7 +629,9 @@ extension WordPredictionController {
             personalWords: { phrases.words(startingWith: $0) },
             fuzzyCompletions: { symSpellCorrector.fuzzyCompletions(of: $0, limit: $1) },
             isHardToSpell: { hardWords.contains($0) },
-            languageModel: { languageModel?.scores(forTextBefore: $0) }
+            languageModel: { languageModel?.scores(forTextBefore: $0) },
+            isKnownWord: { supplement.contains($0) },
+            americanSpellings: americanSpellings
         )
         return { NextWordPredictor.predict(textBefore: $0, sources: sources) }
     }

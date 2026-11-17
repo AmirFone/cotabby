@@ -49,6 +49,55 @@ final class NextWordPredictorTests: XCTestCase {
         XCTAssertEqual(prediction?.words, ["walked", "walking", "walks", "walker"])
     }
 
+    func test_languageModel_offersANameTheTextAlreadyUsed_withItsCapital() {
+        // #given a name no dictionary has, which the model found in the text and expects again
+        let text = "I want Priyanka to go. I want to pri"
+        let model = LanguageModelFixture.scores(
+            textBefore: text, ["prior": 0.02, "price": 0.01], textWords: [("Priyanka", 0.3)]
+        )
+
+        // #when predicting with lowercase letters typed
+        let prediction = NextWordPredictor.predict(textBefore: text, sources: sources(languageModel: model))
+
+        // #then the name comes first, written as the writer wrote it
+        XCTAssertEqual(prediction?.words, ["Priyanka", "prior", "price"])
+    }
+
+    func test_languageModel_textWordThatDoesNotFitTheLetters_isNotOffered() {
+        let text = "I want Priyanka to go. I want to pro"
+        let model = LanguageModelFixture.scores(textBefore: text, ["problem": 0.02], textWords: [("Priyanka", 0.3)])
+
+        let prediction = NextWordPredictor.predict(textBefore: text, sources: sources(languageModel: model))
+
+        XCTAssertEqual(prediction?.words, ["problem"])
+    }
+
+    func test_languageModel_dictionaryWordTheWriterCapitalizes_isShownCapitalized() {
+        // #given a dictionary word the text uses as a name (no probability of its own: the lexicon has it)
+        let text = "I want Lantern to go to Lantern. I want the lan"
+        let model = LanguageModelFixture.scores(
+            textBefore: text, ["lantern": 0.2, "land": 0.05], textWords: [("Lantern", nil)]
+        )
+
+        let prediction = NextWordPredictor.predict(textBefore: text, sources: sources(languageModel: model))
+
+        XCTAssertEqual(prediction?.words, ["Lantern", "land"])
+    }
+
+    func test_americanSpelling_offersOneWordOnce_inTheAmericanSpelling() {
+        // #given a model that finds the British spelling likelier than the American one
+        let text = "I want to go trav"
+        let model = LanguageModelFixture.scores(textBefore: text, ["travelling": 0.3, "traveling": 0.2, "travel": 0.1])
+        var sources = sources(languageModel: model)
+        sources.americanSpellings = AmericanSpellings(contents: "travelling traveling")
+
+        // #when predicting for a writer who spells the American way
+        let prediction = NextWordPredictor.predict(textBefore: text, sources: sources)
+
+        // #then the word is offered once, first, in that spelling
+        XCTAssertEqual(prediction?.words, ["traveling", "travel"])
+    }
+
     func test_languageModel_ordersByLikelihoodNotByKeysSaved() {
         // #given "I want to ", where the table alone would put the longer word forward
         let text = "I want to "
@@ -218,6 +267,18 @@ final class NextWordPredictorTests: XCTestCase {
         XCTAssertTrue(NextWordPredictor.isOtherLanguage("Ich habe keine Zeit ", model: model))
         XCTAssertTrue(NextWordPredictor.isOtherLanguage("Привет как ", model: model))
         XCTAssertFalse(NextWordPredictor.isOtherLanguage("I want to go to Cancún ", model: model))
+    }
+
+    func test_wordsFromTheSupplement_doNotReadAsAnotherLanguage() {
+        // #given two English words in a row that the n-gram table has no entry for
+        let text = "the zorbling quexel "
+        XCTAssertTrue(NextWordPredictor.isOtherLanguage(text, model: model))
+
+        // #when the supplement knows them
+        let known: Set<String> = ["zorbling", "quexel"]
+
+        // #then the text is still English and the strip keeps predicting
+        XCTAssertFalse(NextWordPredictor.isOtherLanguage(text, model: model, isKnownWord: known.contains))
     }
 
     func test_allCapsTyping_readsAsWordsAndPredictsInCaps() {

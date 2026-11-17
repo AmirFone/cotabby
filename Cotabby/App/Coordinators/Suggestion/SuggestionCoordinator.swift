@@ -101,6 +101,8 @@ final class SuggestionCoordinator: ObservableObject {
     /// The trained judge of which spelling fix to put first and whether to apply it unasked; set by
     /// the app environment, nil in tests and when the bundled file does not match this build.
     var autoFixModel: TreeEnsembleModel?
+    /// The American spelling of words written two ways, when this Mac's region uses it.
+    var americanSpellings: AmericanSpellings?
     /// The trained judge of correctly spelled wrong words for the sentence pass.
     var wrongWordModel: TreeEnsembleModel?
     /// The writer's learned phrases, also used as spelling context. Nil in tests.

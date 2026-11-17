@@ -29,6 +29,9 @@ struct SpellingEngineDependencies {
     var autoFixModel: TreeEnsembleModel?
     /// The trained wrong-word judge for the sentence pass; nil falls back to the listed confusables.
     var wrongWordModel: TreeEnsembleModel?
+    /// Set where the writer spells the American way: fixes come in that spelling (`neighbur` →
+    /// `neighbor`, not `neighbour`). Nil leaves the ranker's choice alone.
+    var americanSpellings: AmericanSpellings?
 }
 
 @MainActor
@@ -156,8 +159,10 @@ final class TypoGateInputs {
                 sentenceContextScore: self.sentenceContextScore(),
                 limit: isMidWord ? SpellingCandidateRanker.maxCandidates : Self.rerankPoolSize
             )
-            guard !isMidWord else { return ranked.map { self.inPersonalCasing($0).candidate } }
-            let ordered = self.orderedByModel(ranked, word: word).map(self.inPersonalCasing)
+            guard !isMidWord else {
+                return self.inPreferredSpelling(ranked.map(self.inPersonalCasing)).map(\.candidate)
+            }
+            let ordered = self.inPreferredSpelling(self.orderedByModel(ranked, word: word).map(self.inPersonalCasing))
             self.rankedByFinishedWord[word] = ordered
             return ordered.prefix(SpellingCandidateRanker.maxCandidates).map(\.candidate)
         }
@@ -216,6 +221,22 @@ final class TypoGateInputs {
             candidate: SpellingCandidate(term: cased, score: ranked.candidate.score),
             signals: ranked.signals
         )
+    }
+
+    /// Candidates in the spelling the writer uses (see `AmericanSpellings`). A British candidate
+    /// becomes its American twin and keeps its place and evidence; if the twin was already listed
+    /// lower, that entry is dropped, so the word is offered once.
+    private func inPreferredSpelling(_ ranked: [RankedSpellingCandidate]) -> [RankedSpellingCandidate] {
+        guard let spellings = dependencies.americanSpellings else { return ranked }
+        var seen = Set<String>()
+        return ranked.compactMap { entry in
+            let term = spellings.american(for: entry.candidate.term) ?? entry.candidate.term
+            guard seen.insert(term.lowercased()).inserted else { return nil }
+            guard term != entry.candidate.term else { return entry }
+            return RankedSpellingCandidate(
+                candidate: SpellingCandidate(term: term, score: entry.candidate.score), signals: entry.signals
+            )
+        }
     }
 
     /// The model inputs for each candidate of a finished word ranked earlier in this cycle, in the

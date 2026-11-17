@@ -30,6 +30,10 @@ struct Harness {
         let root = arguments.resourceRoot
         let english = try String(contentsOf: root.appendingPathComponent("frequency_dictionary_en_82_765.txt"), encoding: .utf8)
             + "\n" + ((try? String(contentsOf: root.appendingPathComponent("frequency_overrides_en.txt"), encoding: .utf8)) ?? "")
+            // NO_SPELLING_SUPPLEMENT=1 leaves the added words out, to measure what they change.
+            + "\n" + (ProcessInfo.processInfo.environment["NO_SPELLING_SUPPLEMENT"] != nil ? "" : SymSpellCorrector.spellingLines(
+                ofSupplement: (try? String(contentsOf: root.appendingPathComponent("prediction_words_en.txt"), encoding: .utf8)) ?? ""
+            ))
         let corrector = SymSpellCorrector(preloadLanguage: nil) { language in
             let url = root.appendingPathComponent("SpellingDictionaries/\(language.resourceName).txt")
             return try? String(contentsOf: url, encoding: .utf8)
@@ -111,7 +115,8 @@ struct Harness {
                 },
                 personalWords: { vocabulary.matches(for: $0) },
                 autoFixModel: autoFixModel,
-                wrongWordModel: wrongWordModel
+                wrongWordModel: wrongWordModel,
+                americanSpellings: arguments.americanSpellings
             ),
             refiner: refiner,
             settings: {
@@ -247,6 +252,14 @@ struct Arguments {
     var wrote: [String] = []
     var rank: [String] = []
     var adaptive = false
+    /// `--american`: fixes and suggestions in American spelling, as the app does on a US Mac.
+    var american = false
+    var americanSpellings: AmericanSpellings? {
+        guard american, let contents = try? String(
+            contentsOf: resourceRoot.appendingPathComponent("american_spellings_en.txt"), encoding: .utf8
+        ) else { return nil }
+        return AmericanSpellings(contents: contents)
+    }
     var profile: [String] = []
     var cleanPath: String?
     var journalPath: String?
@@ -317,6 +330,7 @@ struct Arguments {
             case "--jev": useJev = true
             case "--jev-mock": mockJev = true
             case "--no-context": useContext = false
+            case "--american": american = true
             case "--no-auto": autoFix = false
             case "--verbose": break
             case "--resources": if let path = iterator.next() { resourceRoot = URL(fileURLWithPath: path) }
@@ -817,7 +831,8 @@ func main() async -> Int32 {
             resourceRoot: arguments.resourceRoot,
             corrector: harness.dependencies.symSpellCorrector,
             adaptive: arguments.adaptive,
-            languageModelPath: arguments.languageModelPath
+            languageModelPath: arguments.languageModelPath,
+            americanSpellings: arguments.americanSpellings
         ) else {
             print("could not load next_word_model_en.bin from \(arguments.resourceRoot.path)")
             return 2

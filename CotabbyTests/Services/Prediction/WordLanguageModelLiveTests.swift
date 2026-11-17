@@ -12,8 +12,9 @@ final class WordLanguageModelLiveTests: XCTestCase {
         guard let model = environment["WORD_LM_FILE"] else {
             throw XCTSkip("Set TEST_RUNNER_WORD_LM_FILE to run against a real model")
         }
-        let dictionary = try XCTUnwrap(Bundle.main.url(forResource: "frequency_dictionary_en_82_765", withExtension: "txt"))
-        return WordLanguageModelService(modelURL: URL(fileURLWithPath: model), dictionaryURL: dictionary)
+        let wordLists = WordLanguageModelService.bundledWordListURLs()
+        XCTAssertEqual(wordLists.count, 2, "the dictionary and the supplement should both be in the bundle")
+        return WordLanguageModelService(modelURL: URL(fileURLWithPath: model), wordListURLs: wordLists)
     }
 
     /// Asks until the service has an answer for `text`, the way the strip does: ask, get nil, be
@@ -25,6 +26,33 @@ final class WordLanguageModelLiveTests: XCTestCase {
             RunLoop.main.run(until: Date().addingTimeInterval(0.01))
         }
         return nil
+    }
+
+    /// Keeps asking for `text` (a word in progress), as the strip does on every key, until the
+    /// service has worked out the answer for the text with that word finished: `finished` when
+    /// given, otherwise whichever word the service chose to look ahead to.
+    private func waitForLookAhead(
+        _ service: WordLanguageModelService, typing text: String, finished: String? = nil, timeout: TimeInterval = 20
+    ) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            _ = service.scores(forTextBefore: text)
+            if let ready = service.lookAheadText, finished == nil || ready == finished { return true }
+            RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+        }
+        return false
+    }
+
+    /// Look-ahead needs a model that can take pieces back out of its memory; with one that cannot
+    /// (Qwen 3.5) the feature is off and its tests have nothing to check.
+    private func skipUnlessTheModelCanLookAhead() throws {
+        guard let path = ProcessInfo.processInfo.environment["WORD_LM_FILE"] else {
+            throw XCTSkip("Set TEST_RUNNER_WORD_LM_FILE to run against a real model")
+        }
+        let core = try XCTUnwrap(WordLanguageModelCore(
+            modelURL: URL(fileURLWithPath: path), wordListURLs: WordLanguageModelService.bundledWordListURLs()
+        ))
+        try XCTSkipUnless(core.canRollBack, "this model cannot wind its memory back, so it has no look-ahead")
     }
 
     func test_pastTenseContext_putsThePastFormFirst() throws {
@@ -91,5 +119,57 @@ final class WordLanguageModelLiveTests: XCTestCase {
         // a refused rollback empties the model's memory, and the next answer must read the text afresh
         XCTAssertEqual(service.scores(forTextBefore: text)?.key, first.key)
         XCTAssertNotNil(answer(service, for: "After the long run my shins were ", timeout: 10))
+    }
+
+    func test_lookAhead_hasTheNextWordsAnswerReadyAtTheSpace() throws {
+        // #given a writer who has typed a whole word, and a moment for the model to look ahead
+        try skipUnlessTheModelCanLookAhead()
+        let service = try makeService()
+        XCTAssertNotNil(answer(service, for: "Yesterday we walked"))
+        XCTAssertTrue(waitForLookAhead(service, typing: "Yesterday we walked", finished: "Yesterday we walked"))
+
+        // #when the space is pressed
+        let atOnce = service.scores(forTextBefore: "Yesterday we walked ")
+
+        // #then the next word's answer is there on the first ask, with nothing to wait for
+        XCTAssertEqual(atOnce?.key.text, "Yesterday we walked")
+        XCTAssertFalse(service.isAnswerPending(forTextBefore: "Yesterday we walked "))
+    }
+
+    func test_lookAhead_givesTheSameWordsAsReadingTheTextDirectly() throws {
+        // #given the answer a fresh service reads directly
+        try skipUnlessTheModelCanLookAhead()
+        let directService = try makeService()
+        let direct = try XCTUnwrap(answer(directService, for: "She said that he "))
+
+        // #when another service reaches the same text by looking ahead from the word before
+        let service = try makeService()
+        XCTAssertNotNil(answer(service, for: "She said that he"))
+        XCTAssertTrue(waitForLookAhead(service, typing: "She said that he", finished: "She said that he"))
+        let ahead = try XCTUnwrap(service.scores(forTextBefore: "She said that he "))
+
+        // #then both offer the same words in the same order
+        XCTAssertEqual(ahead.best(prefix: "", limit: 5).map(\.word), direct.best(prefix: "", limit: 5).map(\.word))
+    }
+
+    func test_lookAhead_leavesTheCurrentWordsRefinementsWorking() throws {
+        // #given a word in progress whose look-ahead has run (to whichever word the strip led with)
+        try skipUnlessTheModelCanLookAhead()
+        let service = try makeService()
+        XCTAssertNotNil(answer(service, for: "After the long run my s"))
+        XCTAssertTrue(waitForLookAhead(service, typing: "After the long run my s"))
+
+        // #when more letters single out words sharing a first piece, and the strip keeps asking
+        let text = "After the long run my shin"
+        let deadline = Date().addingTimeInterval(3)
+        var latest = try XCTUnwrap(service.scores(forTextBefore: text))
+        let refinedBefore = latest.refinedPieces
+        while Date() < deadline, latest.refinedPieces == refinedBefore {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+            latest = service.scores(forTextBefore: text) ?? latest
+        }
+
+        // #then the exact pass still happened: the look-ahead put the model's memory back
+        XCTAssertGreaterThan(latest.refinedPieces.count, refinedBefore.count)
     }
 }

@@ -41,39 +41,72 @@ final class WordLanguageModelTests: XCTestCase {
         XCTAssertNil(LanguageModelContext.make(textBefore: "mail @jo"))
     }
 
-    func test_context_keepsOnlyTheLastFewSentences() {
-        // #given six sentences and the start of a seventh
+    func test_context_textWithinReach_isReadWhole() {
+        // #given a text of many sentences that is shorter than the model's reach
         let text = "One is here. Two is here. Three is here. Four is here. Five is here. Six is here. Seven "
 
         // #when the text is split
         let context = LanguageModelContext.make(textBefore: text)
 
-        // #then the model reads the last three finished sentences and the unfinished one
-        XCTAssertEqual(context?.key.text, "Four is here. Five is here. Six is here. Seven")
+        // #then the model reads all of it: the subject set in the first sentence still counts
+        XCTAssertEqual(context?.key.text, "One is here. Two is here. Three is here. Four is here. Five is here. Six is here. Seven")
     }
 
-    func test_context_windowStartDoesNotMoveWhileASentenceIsTyped() {
-        // #given a long text, read at two moments a few words apart in the same sentence
-        let earlier = String(repeating: "This is a sentence. ", count: 30) + "And now we "
-        let later = earlier + "keep typing the same "
+    func test_context_textBeyondReach_startsAtASentenceAndFitsTheReach() {
+        // #given a text several times the reach, of sentences that are each different
+        let reach = LanguageModelContext.Reach(maximumCharacters: 400, step: 200)
+        let text = (0..<60).map { "Sentence number \($0) is here." }.joined(separator: " ") + " And now we "
 
-        // #when both are split
-        let first = LanguageModelContext.make(textBefore: earlier)?.key.text ?? ""
-        let second = LanguageModelContext.make(textBefore: later)?.key.text ?? ""
+        // #when the text is split
+        let read = LanguageModelContext.make(textBefore: text, reach: reach)?.key.text ?? ""
 
-        // #then the later text starts at the same place, so the model only reads what was added
-        XCTAssertTrue(second.hasPrefix(first), "\(first) | \(second)")
+        // #then what the model reads is the end of the text, within the reach, from a sentence start
+        XCTAssertTrue(text.hasSuffix(read + " "))
+        XCTAssertLessThanOrEqual(read.utf8.count, reach.maximumCharacters)
+        XCTAssertGreaterThan(read.utf8.count, reach.maximumCharacters - reach.step - 40)
+        XCTAssertTrue(read.hasPrefix("Sentence number"), read)
     }
 
-    func test_context_oneVeryLongSentence_isCutInStepsNotPerKey() {
-        // #given a single unbroken sentence far over the limit, at two moments one word apart
+    func test_context_startDoesNotMoveUntilAWholeStepHasBeenTyped() {
+        // #given a long text, read at every word while two more sentences are typed
+        let reach = LanguageModelContext.Reach(maximumCharacters: 400, step: 200)
+        var text = (0..<40).map { "Sentence number \($0) is here." }.joined(separator: " ") + " "
+        var starts: [String] = []
+        for word in "And now we keep typing the same thought for a while. Then one more short sentence follows it".split(separator: " ") {
+            text += word + " "
+            let read = LanguageModelContext.make(textBefore: text, reach: reach)?.key.text ?? ""
+            starts.append(String(read.prefix(24)))
+        }
+
+        // #then the start moved at most once: the model re-reads once per step, not once per word
+        let moves = zip(starts, starts.dropFirst()).filter { $0 != $1 }.count
+        XCTAssertLessThanOrEqual(moves, 1, "\(starts)")
+    }
+
+    func test_context_oneVeryLongSentence_isCutAtAWordInStepsNotPerKey() {
+        // #given a single unbroken sentence far over the reach, at two moments one word apart
+        let reach = LanguageModelContext.Reach(maximumCharacters: 400, step: 200)
         let long = (0..<250).map { "word\($0 % 7)a" }.joined(separator: " ")
-        let first = LanguageModelContext.make(textBefore: long + " ")?.key.text ?? ""
-        let second = LanguageModelContext.make(textBefore: long + " more ")?.key.text ?? ""
+        let first = LanguageModelContext.make(textBefore: long + " ", reach: reach)?.key.text ?? ""
+        let second = LanguageModelContext.make(textBefore: long + " more ", reach: reach)?.key.text ?? ""
 
-        // #then it is cut to size, and the cut does not move for one more word
-        XCTAssertLessThanOrEqual(first.count, LanguageModelContext.maximumCharacters)
+        // #then it is cut to size at the start of a word, and the cut does not move for one more word
+        XCTAssertLessThanOrEqual(first.utf8.count, reach.maximumCharacters)
+        XCTAssertTrue(first.hasPrefix("word"), first)
         XCTAssertTrue(second.hasPrefix(first), "the start moved by one word")
+    }
+
+    func test_context_cutInsideAnAccentedLetter_stillGivesWholeText() {
+        // #given text of two-byte letters, so a cut counted in bytes can land inside one
+        let reach = LanguageModelContext.Reach(maximumCharacters: 101, step: 51)
+        let text = String(repeating: "\u{E9}t\u{E9} ", count: 80)
+
+        // #when the text is split
+        let read = LanguageModelContext.make(textBefore: text, reach: reach)?.key.text ?? ""
+
+        // #then the result is made of whole words of the text
+        XCTAssertFalse(read.isEmpty)
+        XCTAssertTrue(read.split(separator: " ").allSatisfy { $0 == "\u{E9}t\u{E9}" }, read)
     }
 
     // MARK: - Lexicon

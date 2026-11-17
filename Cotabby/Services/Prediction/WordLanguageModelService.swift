@@ -27,9 +27,24 @@ final class WordLanguageModelService {
     /// True from the model's first answer until it fails to give one. Before that (still loading,
     /// or no model at all) nobody should wait for it.
     private var isAnswering = false
+    /// The answer worked out ahead for the text as it will be once the current word is finished
+    /// (`lookAheadKey`), and the text it was last asked for, so each is asked once.
+    private var ahead: LanguageModelScores?
+    private var aheadAsked: LanguageModelContext.Key?
+    /// The text whose answer the strip is waiting for; an answer worked out ahead for it is used
+    /// the moment it lands.
+    private var awaited: LanguageModelContext.Key?
 
-    init(modelURL: URL?, dictionaryURL: URL?) {
-        worker = Worker(modelURL: modelURL, dictionaryURL: dictionaryURL)
+    /// - Parameter wordListURLs: see `WordLanguageModelCore.init`. Empty means no model.
+    init(modelURL: URL?, wordListURLs: [URL]) {
+        worker = Worker(modelURL: modelURL, wordListURLs: wordListURLs)
+    }
+
+    /// The word lists in the app bundle, in the order the model reads them.
+    static func bundledWordListURLs(in bundle: Bundle = .main) -> [URL] {
+        ["frequency_dictionary_en_82_765", "prediction_words_en"].compactMap {
+            bundle.url(forResource: $0, withExtension: "txt")
+        }
     }
 
     /// A model the app can use for this, best first. All are files the app already installs for
@@ -40,13 +55,16 @@ final class WordLanguageModelService {
         let minimumMemoryBytes: UInt64
     }
 
-    /// Measured on the held-back test passages (`Tools/prediction/README.md`): first suggestion
-    /// right at all typing moments / right verb form first, and the time of one pass alone on an
-    /// M3 Max.
-    /// - Gemma 4 E2B (3.8 GB): 70% / 93%, 11 ms.
-    /// - Qwen 3.5 2B base (1.3 GB): 67% / 91%, about 13 ms.
-    /// - Qwen 3.5 0.8B base (0.6 GB): 65% / 91%, 6 ms.
-    /// - the sentence model's own file (already loaded): 58% / 84%, 5 ms. Always there in a release.
+    /// Measured on the held-back long test documents (`Tools/prediction/README.md`): first
+    /// suggestion right while a word is being typed / right verb form first, and the time of one
+    /// pass alone on an M3 Max.
+    /// - Gemma 4 E2B (3.8 GB): 83% / 94%, 11 ms.
+    /// - Qwen 3.5 2B base (1.3 GB): 79% / 90%, 8 ms.
+    /// - Qwen 3.5 0.8B base (0.6 GB): 76% / 89%, 6 ms.
+    /// - the sentence model's own file (already loaded): 69% / 84%, 5 ms. Always there in a release.
+    ///
+    /// Larger models were measured and left out: up to twice Gemma 4 E2B's size they add a point
+    /// or less, and a 12B model adds about three points for two and a half times the time per word.
     static let ghostTextCandidates = [
         Candidate(fileName: "gemma-4-E2B.i1-Q6_K.gguf", minimumMemoryBytes: 16 << 30),
         Candidate(fileName: "Qwen3.5-2B-Base.i1-Q4_K_M.gguf", minimumMemoryBytes: 12 << 30),
@@ -85,14 +103,51 @@ final class WordLanguageModelService {
     func scores(forTextBefore text: String) -> LanguageModelScores? {
         guard let context = LanguageModelContext.make(textBefore: text) else { return nil }
         guard let latest, latest.key == context.key else {
-            worker.request(.answer(context.key)) { [weak self] in self?.accept($0) }
-            return nil
+            awaited = context.key
+            // The model still reads the text itself (its memory has to move on to this word for
+            // the refinements), but the strip does not wait for that when the look-ahead got here
+            // first.
+            request(context.key)
+            guard let ahead, ahead.key == context.key else { return nil }
+            self.latest = ahead
+            CotabbyLogger.suggestion.debug("Word language model: ready ahead in 0 ms")
+            return ahead
         }
         let prefix = context.prefix.lowercased()
         if !latest.piecesWorthRefining(prefix: prefix).isEmpty {
             worker.request(.refinement(latest, prefix: prefix)) { [weak self] in self?.accept($0, wasRefinement: true) }
         }
+        if let next = Self.lookAheadKey(textBefore: text, context: context, scores: latest), next != aheadAsked {
+            aheadAsked = next
+            worker.request(.lookAhead(next)) { [weak self] in self?.acceptAhead($0) }
+        }
         return latest
+    }
+
+    /// The text the look-ahead answer in hand is for, if any. Tests wait on this instead of a fixed
+    /// time, which a busy machine would not keep to.
+    var lookAheadText: String? { ahead?.key.text }
+
+    /// The text the model will be asked about next if the writer finishes the current word the
+    /// likely way: the letters typed when they already spell a word (every word typed out in full
+    /// passes through this just before its space), otherwise the first word of the strip, which
+    /// is what a pick types. Nil before any letter, or when neither gives a word.
+    nonisolated static func lookAheadKey(
+        textBefore text: String, context: LanguageModelContext, scores: LanguageModelScores
+    ) -> LanguageModelContext.Key? {
+        let typed = context.prefix
+        guard !typed.isEmpty else { return nil }
+        let lowercased = typed.lowercased()
+        let finished: String
+        if scores.lexicon.index(of: lowercased) != nil {
+            finished = typed
+        } else if let best = scores.best(prefix: lowercased, limit: 1).first?.word {
+            // A pick keeps the letters the writer typed and adds the rest of the word.
+            finished = typed + best.dropFirst(lowercased.count)
+        } else {
+            return nil
+        }
+        return LanguageModelContext.make(textBefore: text.dropLast(typed.count) + finished + " ")?.key
     }
 
     /// True when an answer for this text has been asked for and is on its way: the strip holds its
@@ -106,12 +161,23 @@ final class WordLanguageModelService {
         worker.request(.answer(key)) { [weak self] in self?.accept($0) }
     }
 
+    private func acceptAhead(_ scores: LanguageModelScores?) {
+        guard let scores else { return }
+        ahead = scores
+        // The writer got there before the look-ahead finished: the strip is waiting for this.
+        guard awaited == scores.key, latest?.key != scores.key else { return }
+        latest = scores
+        onReady?()
+    }
+
     private func accept(_ scores: LanguageModelScores?, wasRefinement: Bool = false) {
         // A refinement with nothing to refine is not a failure of the model.
         if !wasRefinement { isAnswering = scores != nil }
         guard let scores else { return }
         // A refinement that arrives after the writer started another word is of no use.
         if !scores.refinedPieces.isEmpty, let latest, latest.key != scores.key { return }
+        // The same answer the look-ahead already gave the strip: nothing new to draw.
+        if !wasRefinement, let latest, latest.key == scores.key, awaited == scores.key { return }
         latest = scores
         onReady?()
     }
@@ -119,32 +185,35 @@ final class WordLanguageModelService {
     enum Job {
         case answer(LanguageModelContext.Key)
         case refinement(LanguageModelScores, prefix: String)
+        case lookAhead(LanguageModelContext.Key)
     }
 
     /// How an answer gets back to the main thread.
     typealias Delivery = @MainActor (LanguageModelScores?) -> Void
 
-    /// The queue side. It keeps at most one answer and one refinement waiting.
+    /// The queue side. It keeps at most one answer, one refinement and one look-ahead waiting.
     ///
     /// Only the newest answer request is worth working on: by the time an older one could finish,
     /// the writer has typed on and nobody will read it. A refinement never takes an answer's place
     /// (the answer is what the next word's strip is waiting for), and a new answer request drops a
-    /// waiting refinement, which belonged to the word before.
+    /// waiting refinement, which belonged to the word before. A look-ahead is a guess about the
+    /// word after this one, so it runs last, when nothing the strip is showing now is waiting.
     private final class Worker: @unchecked Sendable {
         private let modelURL: URL?
-        private let dictionaryURL: URL?
+        private let wordListURLs: [URL]
         private let queue = DispatchQueue(label: "com.cotabby.word-language-model", qos: .userInitiated)
         private let lock = NSLock()
         private var wantedAnswer: (key: LanguageModelContext.Key, deliver: Delivery)?
         private var wantedRefinement: (job: Job, deliver: Delivery)?
+        private var wantedLookAhead: (key: LanguageModelContext.Key, deliver: Delivery)?
         private var isRunning = false
         /// Touched only on `queue`.
         private var core: WordLanguageModelCore?
         private var didTryLoading = false
 
-        init(modelURL: URL?, dictionaryURL: URL?) {
+        init(modelURL: URL?, wordListURLs: [URL]) {
             self.modelURL = modelURL
-            self.dictionaryURL = dictionaryURL
+            self.wordListURLs = wordListURLs
         }
 
         func request(_ job: Job, deliver: @escaping Delivery) {
@@ -153,8 +222,11 @@ final class WordLanguageModelService {
             case .answer(let key):
                 wantedAnswer = (key, deliver)
                 wantedRefinement = nil
+                wantedLookAhead = nil
             case .refinement:
                 wantedRefinement = (job, deliver)
+            case .lookAhead(let key):
+                wantedLookAhead = (key, deliver)
             }
             let shouldStart = !isRunning
             if shouldStart { isRunning = true }
@@ -167,8 +239,15 @@ final class WordLanguageModelService {
                 lock.lock()
                 let answer = wantedAnswer
                 let refinement = answer == nil ? wantedRefinement : nil
-                if answer != nil { wantedAnswer = nil } else { wantedRefinement = nil }
-                if answer == nil, refinement == nil { isRunning = false }
+                let lookAhead = answer == nil && refinement == nil ? wantedLookAhead : nil
+                if answer != nil {
+                    wantedAnswer = nil
+                } else if refinement != nil {
+                    wantedRefinement = nil
+                } else {
+                    wantedLookAhead = nil
+                }
+                if answer == nil, refinement == nil, lookAhead == nil { isRunning = false }
                 lock.unlock()
 
                 let started = DispatchTime.now().uptimeNanoseconds
@@ -181,6 +260,9 @@ final class WordLanguageModelService {
                 } else if let refinement, case .refinement(let earlier, let prefix) = refinement.job {
                     scores = loadedCore()?.refine(earlier, forPrefix: prefix)
                     (kind, deliver) = (scores == nil ? "nothing to refine" : "refinement", refinement.deliver)
+                } else if let lookAhead {
+                    scores = loadedCore()?.lookAhead(to: lookAhead.key)
+                    (kind, deliver) = (scores == nil ? "no look-ahead" : "look-ahead", lookAhead.deliver)
                 } else {
                     return
                 }
@@ -193,9 +275,9 @@ final class WordLanguageModelService {
         private func loadedCore() -> WordLanguageModelCore? {
             if !didTryLoading {
                 didTryLoading = true
-                guard let modelURL, let dictionaryURL else { return nil }
+                guard let modelURL, !wordListURLs.isEmpty else { return nil }
                 let started = DispatchTime.now().uptimeNanoseconds
-                core = WordLanguageModelCore(modelURL: modelURL, dictionaryURL: dictionaryURL)
+                core = WordLanguageModelCore(modelURL: modelURL, wordListURLs: wordListURLs)
                 let milliseconds = (DispatchTime.now().uptimeNanoseconds - started) / 1_000_000
                 if core == nil {
                     CotabbyLogger.runtime.error("Word language model: could not load \(modelURL.lastPathComponent)")

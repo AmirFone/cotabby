@@ -36,6 +36,13 @@ nonisolated enum NextWordPredictor {
         /// (`WordLanguageModelService`). Nil while it is still working or not installed, and the
         /// list then comes from the table alone.
         var languageModel: (_ textBefore: String) -> LanguageModelScores? = { _ in nil }
+        /// English words the n-gram table has no entry for (`prediction_words_en.txt`: `neighbor`,
+        /// `dataset`). Without this, two of them in a row read as another language and the strip
+        /// went quiet.
+        var isKnownWord: (String) -> Bool = { _ in false }
+        /// Set where the writer spells the American way: `travelling` is offered as `traveling`,
+        /// once. Nil offers whatever the lists hold.
+        var americanSpellings: AmericanSpellings?
         /// How the language model's answer and the table are combined. The app uses the defaults;
         /// the harness varies them to measure (`Tools/prediction/README.md`).
         var mix = LanguageModelMix()
@@ -82,7 +89,8 @@ nonisolated enum NextWordPredictor {
     /// Extra value, in keys, of picking a commonly misspelled word: the correction avoided.
     static let hardWordBonusKeys = 3.0
     static func predict(textBefore: String, sources: Sources) -> NextWordPrediction? {
-        guard let parsed = parse(textBefore), !isOtherLanguage(textBefore, model: sources.model) else { return nil }
+        guard let parsed = parse(textBefore),
+              !isOtherLanguage(textBefore, model: sources.model, isKnownWord: sources.isKnownWord) else { return nil }
         let prefix = parsed.prefix.lowercased().replacingOccurrences(of: "’", with: "'")
         // Read `dont` and `becos` as the words they certainly are, so the context still matches.
         let contextWords = parsed.context.map { KnownMisspellings.fix(for: $0)?.lowercased() ?? $0 }
@@ -92,10 +100,11 @@ nonisolated enum NextWordPredictor {
             .filter { !UnofferedWords.contains($0.key) }
         scores.removeValue(forKey: prefix)
         if let languageModel = sources.languageModel(textBefore) {
-            let words = wordsRanked(
+            let ranked = wordsRanked(
                 by: languageModel, tableScores: scores, prefix: prefix, fuzzyWords: fuzzyWords, mix: sources.mix
             )
-            return prediction(words, parsed: parsed, textBefore: textBefore)
+            let words = inPreferredSpelling(ranked, prefix: prefix, sources: sources)
+            return prediction(words, parsed: parsed, textBefore: textBefore, display: languageModel.display(of:))
         }
         // Without the language model: order by expected keys saved, not raw likelihood. A pick
         // costs about one key, so a likely "a" (saves nothing) should not take the Tab slot from
@@ -124,18 +133,31 @@ nonisolated enum NextWordPredictor {
                 words.append(word)
             }
         }
-        return prediction(words, parsed: parsed, textBefore: textBefore)
+        return prediction(inPreferredSpelling(words, prefix: prefix, sources: sources), parsed: parsed, textBefore: textBefore)
+    }
+
+    /// The first five of `words` in the spelling the writer uses (see `AmericanSpellings`): a
+    /// British spelling becomes the American one, a word then listed twice is listed once, and the
+    /// letters typed are never offered back as the whole suggestion.
+    private static func inPreferredSpelling(_ words: [String], prefix: String, sources: Sources) -> [String] {
+        guard let spellings = sources.americanSpellings else { return Array(words.prefix(maximumWords)) }
+        return Array(spellings.preferring(words).filter { $0 != prefix }.prefix(maximumWords))
     }
 
     /// The list as it is shown: recased for where the word will land. Nil for an empty list.
-    private static func prediction(_ words: [String], parsed: Parsed, textBefore: String) -> NextWordPrediction? {
+    ///
+    /// - Parameter display: the writer's own spelling of a word found in the text (`Priyanka`,
+    ///   `ETL`), which wins over the lowercase the lists hold.
+    private static func prediction(
+        _ words: [String], parsed: Parsed, textBefore: String, display: (String) -> String? = { _ in nil }
+    ) -> NextWordPrediction? {
         guard !words.isEmpty else { return nil }
         let atSentenceStart = parsed.context.last == NextWordModel.sentenceStart
         let shouting = isShouting(textBefore, typedPrefix: parsed.prefix)
         return NextWordPrediction(
             prefix: parsed.prefix,
             words: words.map {
-                recase($0, typedPrefix: parsed.prefix, atSentenceStart: atSentenceStart, shouting: shouting)
+                recase(display($0) ?? $0, typedPrefix: parsed.prefix, atSentenceStart: atSentenceStart, shouting: shouting)
             }
         )
     }
@@ -183,10 +205,17 @@ nonisolated enum NextWordPredictor {
         where scores[word] == nil && word != prefix && isOffered(word) && !UnofferedWords.contains(word) {
             scores[word] = likelihood(of: word, orElse: -.infinity) + unseen
         }
+        // The writer's own words from this text (a name, a term): no table has counted them, and
+        // the model that just read them knows how likely each is to come again.
+        for candidate in languageModel.textWords(prefix: prefix)
+        where candidate.word != prefix && !UnofferedWords.contains(candidate.word) {
+            scores[candidate.word] = max(scores[candidate.word] ?? -.infinity, Double(candidate.logProbability) + unseen)
+        }
         return scores
             .filter { $0.value > -.infinity }
             .sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }
-            .prefix(maximumWords)
+            // A few more than are shown: two spellings of one word may fold into one slot.
+            .prefix(maximumWords + 3)
             .map(\.key)
     }
 
@@ -225,7 +254,9 @@ nonisolated enum NextWordPredictor {
     /// True when the writer is typing in another language, where English predictions are noise: at
     /// least two of the last four words are neither in the English table nor capitalized names, or
     /// are written in another script. One foreign name (`Cancún`) in an English sentence does not count.
-    static func isOtherLanguage(_ text: String, model: NextWordModel) -> Bool {
+    static func isOtherLanguage(
+        _ text: String, model: NextWordModel, isKnownWord: (String) -> Bool = { _ in false }
+    ) -> Bool {
         // Only finished words count: the word being typed is usually just unfinished, not foreign.
         let finished = text.last?.isWhitespace == true ? Substring(text) : text.dropLast(text.reversed().prefix { !$0.isWhitespace }.count)
         let recent = finished.split(whereSeparator: { $0.isWhitespace }).suffix(4)
@@ -239,7 +270,8 @@ nonisolated enum NextWordPredictor {
                 return !first.isUppercase
             }
             let lowered = word.lowercased().replacingOccurrences(of: "’", with: "'")
-            return !first.isUppercase && !model.contains(lowered) && KnownMisspellings.fix(for: lowered) == nil
+            return !first.isUppercase && !model.contains(lowered) && !isKnownWord(lowered)
+                && KnownMisspellings.fix(for: lowered) == nil
         }
         return foreign.count >= 2
     }

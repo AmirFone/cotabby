@@ -504,6 +504,8 @@ final class CotabbyAppEnvironment {
         let nextWordModel = NextWordModel.bundled(prewarm: true)
         suggestionCoordinator.nextWordModel = nextWordModel
         suggestionCoordinator.autoFixModel = AutoFixFeatures.bundledModel()
+        let americanSpellings = AmericanSpellings.preferredOnThisMac()
+        suggestionCoordinator.americanSpellings = americanSpellings
         suggestionCoordinator.wrongWordModel = WrongWordDetector.bundledModel()
         // A model file trained on another feature list is rejected, and the hand rules take over
         // silently; this line is how a stale file shows up in the logs.
@@ -514,7 +516,7 @@ final class CotabbyAppEnvironment {
         // loaded in the background so the first word does not wait for it.
         let wordLanguageModel = WordLanguageModelService(
             modelURL: WordLanguageModelService.defaultModelURL(),
-            dictionaryURL: Bundle.main.url(forResource: "frequency_dictionary_en_82_765", withExtension: "txt")
+            wordListURLs: WordLanguageModelService.bundledWordListURLs()
         )
         wordLanguageModel.warmUp()
         let wordPredictionController = WordPredictionController(
@@ -525,7 +527,8 @@ final class CotabbyAppEnvironment {
                 model: nextWordModel,
                 symSpellCorrector: symSpellCorrector,
                 phrases: personalPhraseModel,
-                languageModel: wordLanguageModel
+                languageModel: wordLanguageModel,
+                americanSpellings: americanSpellings
             ),
             isEnabled: {
                 suggestionSettings.snapshot.isGloballyEnabled && WordPredictionController.isEnabledInDefaults

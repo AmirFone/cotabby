@@ -43,3 +43,22 @@ Requirements:
 - Use one or two of the seed words per passage, naturally, rotating through all of them.
 - Invented first names only. No real people, addresses, phone numbers or emails.
 - Do not copy text from anywhere. Avoid stock phrases and avoid sounding like an AI assistant.
+
+Long documents (documents-dev.jsonl, documents-test.jsonl)
+
+A second set, written later by ten more writers (20 to 29), to test what the short passages cannot:
+whether the predictor follows the subject and the vocabulary of a longer text. Each writer got a
+theme and seed words as above and wrote ten documents of 200 to 320 words in two to four
+paragraphs, each about one specific thing whose terms come back through the document. No
+misspelled copy; these are for prediction only. Themes:
+  20 engineering design notes and code review comments in prose
+  21 long emails to a team or manager about status and decisions, in many kinds of workplace
+  22 long chat messages to coworkers explaining a problem and what happens next
+  23 personal emails to friends and relatives
+  24 writing about oneself: cover letters, self-reviews, application answers
+  25 how-to explanations written for a forum or a friend
+  26 meeting recaps and weekly updates, mostly third person
+  27 journal entries about hobbies and ordinary days
+  28 a customer writing at length: complaints, requests, reviews
+  29 short essays and opinions on everyday subjects
+Even-numbered writers are the tuning half, odd-numbered the test half (merge_documents.py).

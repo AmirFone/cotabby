@@ -378,7 +378,7 @@ tense_cases() {
   tense_case "Last week I bou" "bought" "Last week I bought "
   tense_case "They were eat" "eating" "They were eating "
   # How long the model took, from the app's own log.
-  grep -oE "Word language model: (answer|refinement) in [0-9.]+ ms" "$LOG" | awk '{ print $4, $6 }' | sort \
+  grep -oE "Word language model: (answer|refinement|look-ahead|ready ahead) in [0-9.]+ ms" "$LOG" | sed 's/ready ahead/ready-ahead/' | awk '{ print $4, $6 }' | sort -k1,1 -k2,2n \
     | awk '{ n[$1]++; v[$1, n[$1]] = $2 } END { for (k in n) printf "TIME  word language model, %s: median %.1f ms over %d\n", k, v[k, int((n[k] + 1) / 2)], n[k] }'
 }
 
