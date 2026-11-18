@@ -26,3 +26,62 @@ Hello, world is here.	=	Hello ,world is here.
 # `i.e.` starts with the letter, not the pronoun; `i’m` with a curly apostrophe is the pronoun
 =	=	Use the first one, i.e. this one.
 And then I’m sure it works.	=	And then i’m sure it works.
+# Code-like text inside a sentence: a word typed against something else (a path, a dotted, slashed,
+# hyphenated or underscored name, a flag, a bracket, a digit) is neither fixed nor offered
+=	=	Then cat /etc/passwd to check it. ok
+=	=	Then call fs.readdir on it. ok
+=	=	Then pass --forse to the command and wait. ok
+=	=	Open app.tsx and check the loop. ok
+=	=	Open src/App.tsx and config.yml and Cargo.toml today.
+=	=	The cnt_val and tmp_buf fields are unused today.
+=	=	The http.Referer header and wp_usermeta table are fine today.
+=	=	Loop with arr[i] over the whole list today.
+=	=	Pull the fix-sentense-rules branch and test it today.
+=	=	Use the btn-primry class and the nav-bar class today.
+Open /etc/hosts and the config.yml file today.	=	Open /etc/hosts and teh config.yml file today.
+It was late—the bus had left already.	=	It was late—teh bus had left already.
+# `i` is the pronoun only as a word on its own
+=	=	My new laptop has an i7 processor and it is fast.
+=	=	We use i18n for the translations here today.
+=	=	Take the i3 window manager for a spin today.
+=	=	Read the i/o docs before you start today.
+=	=	See items (i) and (ii) in the list below please.
+=	=	Set a[i] to zero for each element in the list.
+(I think so) and so do you today.	=	(i think so) and so do you today.
+# The spacing rules only act between ordinary words
+=	=	Use the ternary x ? y : z in the code today.
+=	=	Run chmod u+x,g+r on the script today.
+=	=	Run ls a,b and then cd src;ls today.
+=	=	Then call foo(a,b) and bar(x,y) in main today.
+=	=	Pass the values a,b,c to the function now.
+=	=	The coords are x,y and z,w in the file.
+=	=	TL;DR the plan works and we ship it on Friday.
+=	=	Type a;b;c into the box and see it today.
+=	=	The key : value pairs are in the file today.
+=	=	Then run git add . and commit it today.
+Wait, what; ok then we go today.	=	Wait , what ; ok then we go today.
+Yes, we can do that for you today.	=	Yes ,we can do that for you today.
+Is it ready?	=	Is it ready ?
+# `could of` → `could have` only before a past participle, and `might`/`must` only after a subject
+=	=	They feared the might of Rome and its army then.
+=	=	The might of the Roman army was feared by all.
+=	=	They feared the might of armed men back then.
+=	=	Hamlet is a must of any reading list for school.
+=	=	We would of necessity wait for it.
+=	=	I could of course go later.
+He must have been tired after the trip.	=	He must of been tired after the trip.
+You mustn't have seen it yet today.	=	You mustn't of seen it yet today.
+She would have never known about it today.	=	She would of never known about it today.
+The team should have asked first before it.	=	The team should of asked first before it.
+# Doubled words: names and repeats made on purpose stay; only words never doubled are collapsed
+=	=	We flew to Bora Bora and then to Tahiti for fun.
+=	=	The Duran Duran concert was loud and great fun.
+=	=	The Walla Walla onions are sweet and mild now.
+=	=	Mahi mahi is on the menu at the place today.
+=	=	She sang Row row row your boat all night.
+=	=	Please please let me know when it is done today.
+=	=	It was a long long time ago in the past.
+=	=	He said bye bye and no no to the kids today.
+=	=	Who do I talk to to get this fixed today.
+=	=	Use a a b c layout for the grid in the page.
+It is made of wood and it works today.	=	It is made of of wood and it it works today.

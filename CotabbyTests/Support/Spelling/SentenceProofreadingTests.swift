@@ -134,4 +134,142 @@ final class SentenceProofreadingTests: XCTestCase {
 
         XCTAssertEqual(result.autoCorrected, "Yesterday Koko learned new words.")
     }
+
+    // MARK: - Code-like text inside a sentence
+
+    func test_wordToken_isJoinedUnlessItStandsAloneAsAPlainWord() {
+        // #given a sentence with a path, a dotted name, a flag, a hyphenated name and a digit in it
+        let sentence = "Then “cat” /etc/passwd, fs.readdir (now) --force aws-sdk i7 tmp_buf today."
+
+        // #when
+        let joined = WordToken.tokens(in: sentence).filter(\.isJoined).map(\.text)
+
+        // #then only the words with nothing but quotes, brackets or sentence punctuation around them are plain
+        XCTAssertEqual(joined, ["etc", "passwd", "fs", "readdir", "force", "aws", "sdk", "i", "tmp", "buf"])
+    }
+
+    func test_proofread_neverFixesAPieceOfAPathANameOrAFlag() {
+        // #given pieces the spelling engine is certain about, each inside something that is not prose
+        let typos = ["passwd": ("passed", true), "readdir": ("reader", true), "forse": ("force", true), "sentense": ("sentence", true)]
+        let sentence = "Then cat /etc/passwd and call fs.readdir with --forse on the fix-sentense-rules branch today."
+
+        // #when
+        let result = proofread(sentence, typos: typos)
+
+        // #then
+        XCTAssertEqual(result.autoCorrected, sentence)
+    }
+
+    func test_proofread_neverOffersAPieceOfAFileNameOrAnIdentifierOnTheCard() {
+        // #given pieces the spelling engine would offer a fix for
+        let typos = ["tsx": ("tax", false), "yml": ("yaml", false), "buf": ("buff", false), "arr": ("area", false)]
+
+        // #when
+        let result = proofread("Open src/App.tsx and config.yml and the tmp_buf field of arr[n] today.", typos: typos)
+
+        // #then
+        XCTAssertFalse(result.hasSuggestions)
+    }
+
+    func test_proofread_plainWordNextToCodeIsStillFixed() {
+        // #given a certain typo standing on its own between a path and a file name
+        let result = proofread("Open /etc/hosts and teh config.yml file today.", typos: ["teh": ("the", true)])
+
+        // #then
+        XCTAssertEqual(result.autoCorrected, "Open /etc/hosts and the config.yml file today.")
+    }
+
+    func test_pronounIsNotCapitalized_whenTheLetterIsPartOfSomethingElse() {
+        // #given the letter against a digit, a slash, a bracket, in a list marker, and quoted
+        let sentences = [
+            "My laptop has an i7 processor and it is fast.",
+            "We use i18n for the translations here today.",
+            "Read the i/o docs before you start today.",
+            "See items (i) and (ii) in the list below.",
+            "Set a[i] to zero for each element today.",
+            "The letter \"i\" is the loop index here today."
+        ]
+
+        // #then each sentence comes back as written
+        XCTAssertEqual(sentences.map { proofread($0).autoCorrected }, sentences)
+    }
+
+    func test_pronounIsCapitalized_rightAfterAnOpeningBracketOrQuote() {
+        // #when the pronoun starts a bracketed aside and a quotation
+        let result = proofread("He said (i think) that \"i will come\" later today.")
+
+        // #then
+        XCTAssertEqual(result.autoCorrected, "He said (I think) that \"I will come\" later today.")
+    }
+
+    func test_spacingRules_leaveCodeInASentenceAlone() {
+        // #given lists, calls, a mode string, an acronym, a ternary and a lone dot, all typed on purpose
+        let sentences = [
+            "Pass the values a,b,c to the function now.",
+            "Call print(a,b) to show both values here.",
+            "Run chmod u+x,g+r on the script today.",
+            "Run cd src;ls and see the files today.",
+            "TL;DR the plan works and we ship it.",
+            "Use the ternary x ? y : z in the code today.",
+            "The key : value pairs are in the file today.",
+            "Then run git add . and commit it today.",
+            "We need name,email,phone in the form today."
+        ]
+
+        // #then each sentence comes back as written
+        XCTAssertEqual(sentences.map { proofread($0).autoCorrected }, sentences)
+    }
+
+    func test_spacingRules_stillFixSlipsBetweenOrdinaryWords() {
+        // #when a comma has no space after it, a space on the wrong side, and a space in front
+        let result = proofread("Yes,we can and yes ,we will ; so , are we ready ?")
+
+        // #then
+        XCTAssertEqual(result.autoCorrected, "Yes, we can and yes, we will; so, are we ready?")
+    }
+
+    func test_couldOf_isLeftAlone_whenTheModalIsANounOrOfIsAPreposition() {
+        // #given `might` and `must` as nouns, and `of` starting a phrase of its own
+        let sentences = [
+            "They feared the might of Rome back then.",
+            "They feared the might of armed men then.",
+            "Hamlet is a must of any reading list.",
+            "We would of necessity wait for it.",
+            "Who could of the three do it today?"
+        ]
+
+        // #then each sentence comes back as written
+        XCTAssertEqual(sentences.map { proofread($0).autoCorrected }, sentences)
+    }
+
+    func test_couldOf_becomesHave_beforeAPastParticiple() {
+        // #when a subject comes before `must`, `n’t` marks the verb, and an adverb sits before the participle
+        let result = proofread("He must of been tired, she wouldn’t of gone, and we should of never asked them.")
+
+        // #then
+        XCTAssertEqual(result.autoCorrected, "He must have been tired, she wouldn’t have gone, and we should have never asked them.")
+    }
+
+    func test_doubledWord_isKept_whenItIsANameOrARepeatMadeOnPurpose() {
+        // #given reduplicated names, emphasis, and function words that double in correct English
+        let sentences = [
+            "We flew to Bora Bora and saw Duran Duran there.",
+            "Mahi mahi is on the menu at the place today.",
+            "Please please say bye bye to the long long day.",
+            "She saw The The play live last year.",
+            "Who do I talk to to get this fixed today?",
+            "Use a a b c layout for the grid today."
+        ]
+
+        // #then each sentence comes back as written
+        XCTAssertEqual(sentences.map { proofread($0).autoCorrected }, sentences)
+    }
+
+    func test_doubledWord_isCollapsed_whenTheWordIsNeverDoubled() {
+        // #when
+        let result = proofread("It is made of of wood and it it works with with care.")
+
+        // #then
+        XCTAssertEqual(result.autoCorrected, "It is made of wood and it works with care.")
+    }
 }
