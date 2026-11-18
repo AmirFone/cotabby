@@ -169,11 +169,25 @@ press_option() { send "$(printf 'key\t%s\toption' "$1")"; }
 check() { # name expected actual
   if [ "$2" = "$3" ]; then echo "PASS  $1"; pass=$((pass+1)); else echo "FAIL  $1: expected [$2] got [$3]"; fail=$((fail+1)); fi
 }
-log_has() { grep -q "$1" "$LOG"; }
+# Waits until the log file holds what the app has written up to this moment. `log stream` hands
+# lines over in batches, so a line the app wrote a second ago may not be in the file yet, and a
+# check that read the file once reported a bar that was on screen as never shown. The lines are in
+# order and carry their time, so once one from after this moment is there, everything before it is
+# too. The app logs a read of the focused field several times a second, so the wait is short; it
+# gives up after three seconds for a run where nothing is being logged.
+log_settle() {
+  local now waited=0
+  now=$(date '+%Y-%m-%d %H:%M:%S')
+  # The line before the last: the last one may still be half written.
+  while [[ "$(tail -n 2 "$LOG" | head -n 1 | cut -c1-19)" < "$now" ]] && [ $waited -lt 30 ]; do
+    sleep 0.1; waited=$((waited + 1))
+  done
+}
+log_has() { log_settle; grep -q "$1" "$LOG"; }
 # `log stream` owns the file offset, so markers are line counts rather than written lines.
 MARK=0
 mark() { MARK=$(wc -l < "$LOG"); }
-since_mark() { tail -n +"$((MARK + 1))" "$LOG"; }
+since_mark() { log_settle; tail -n +"$((MARK + 1))" "$LOG"; }
 
 # Waits until the document reads as expected, for at most the given tenths of a second. A fix lands
 # within tens of milliseconds, so a fixed pause was mostly waiting; a slow Mac gets longer than the
