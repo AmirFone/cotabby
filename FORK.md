@@ -103,7 +103,15 @@ type on, and an undo replaces a sentence that was already saved.
 - A second tree model (300 trees, 444 KB) judges every correctly spelled word against words one slip away or sounding the same, using the words on both sides in a finished sentence and the words before it at the caret.
 - Optional: Jev (TypeSafe) can re-rank unsure words from the full sentence; Groq can add a grammar check. Both off unless you add a key.
 
-Measured with `cotabby-spell` (below): 166/166 edge cases, 23/23 sentence cases, 176 automatic fixes on three test lists with 0 wrong, per-keystroke cost p50 < 0.1 ms, p99 ≈ 14 ms. Live test in the real app: 34/34.
+Measured with `cotabby-spell` (below): 166/166 edge cases, 23/23 sentence cases, 176 automatic fixes on three test lists with 0 wrong, per-keystroke cost p50 < 0.1 ms, 95% within 2.0 ms, 99% within 7.9 ms. Live test in the real app: 34/34.
+
+Three things keep that cost down and the start short (all give results identical to the plain versions they replaced, which the tests pin):
+
+- **Dictionary scans compare bytes.** The scans that run on every key (which words start like this, which start nearly like this) walk a bucket of several thousand words. They used to build a `Character` array per word and three table rows per comparison; an English word is ASCII, so its letters now sit end to end in one byte array and one set of rows serves the whole scan. The strip's own work per key fell from 1.21 to 0.43 ms, and the slowest spelling keystrokes from 4.7 to 2.0 ms (95%) and 11.2 to 7.9 ms (99%).
+- **The index is built on all cores.** The delete-variants of every word and the sound keys of the common ones are worked out in parallel and filed in word order on one thread: about 0.4 s instead of 1.5 s, at user-initiated priority instead of utility. Until it is built there is no spelling help.
+- **The word-pair table is read as bytes** (0.3 s to under 0.1 s).
+
+Together the spelling engine is ready about 0.5 s after launch instead of 1.9 s.
 
 ### Speed, measured live
 

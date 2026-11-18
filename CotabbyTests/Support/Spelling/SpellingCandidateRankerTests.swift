@@ -209,4 +209,36 @@ final class SpellingCandidateRankerTests: XCTestCase {
 
         XCTAssertEqual(PersonalCorrectionMemory(userDefaults: defaults).acceptedReplacements(for: "WICH"), ["which": 2])
     }
+
+    func test_prefixMatches_bytePath_givesExactlyWhatTheCharacterPathGives() throws {
+        // #given the bundled dictionary with everything the app adds, and prefixes of many kinds:
+        // correct starts, slips, swapped openings, apostrophes, one with an accent
+        let url = try XCTUnwrap(Bundle.main.url(forResource: "frequency_dictionary_en_82_765", withExtension: "txt"))
+        let symSpell = SymSpell()
+        symSpell.loadDictionary(
+            contents: try String(contentsOf: url, encoding: .utf8) + "\n" + SymSpellCorrector.englishOverrides()
+                + "\n" + SymSpellCorrector.englishSupplement() + "\ncaf\u{E9} 500000\nna\u{EF}ve 400000\n"
+        )
+        let prefixes = [
+            "th", "hte", "recie", "neccess", "wich", "becuase", "definat", "seperat", "goverm", "enviro", "tomoro",
+            "wen", "frend", "beleiv", "acomod", "restar", "neigb", "favor", "travl", "don'", "i'", "you'v", "caf",
+            "na\u{EF}", "zz", "qx", "embarras", "occured", "untill", "adress", "calender", "priv", "s", "aa", "strenght",
+        ]
+
+        // #then every prefix gets the same matches, in the same order, from both paths
+        for prefix in prefixes {
+            for distance in [0, 1, 2] {
+                let fast = symSpell.prefixMatches(for: prefix, maxEditDistance: distance, limit: 40)
+                let reference = symSpell.prefixMatches(for: prefix, maxEditDistance: distance, limit: 40, comparingCharacters: true)
+                XCTAssertEqual(fast, reference, "\(prefix) at distance \(distance)")
+            }
+        }
+        // #and the plain completions and the "word in progress" test agree with the dictionary itself
+        XCTAssertTrue(symSpell.completions(of: "neighb", limit: 20).contains("neighborhood"))
+        XCTAssertEqual(symSpell.completions(of: "caf", limit: 50).contains("caf\u{E9}"), true)
+        XCTAssertFalse(symSpell.completions(of: "the", limit: 50).contains("the"))
+        XCTAssertTrue(symSpell.isCommonWordPrefix("restau"))
+        XCTAssertFalse(symSpell.isCommonWordPrefix("restaz"))
+        XCTAssertEqual(symSpell.count(of: "cannot"), 60_000_000)
+    }
 }

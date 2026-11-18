@@ -182,7 +182,10 @@ nonisolated final class SymSpellCorrector: @unchecked Sendable {
     }
 
     private func loadInBackground(_ language: SpellingDictionaryLanguage) {
-        DispatchQueue.global(qos: .utility).async { [self] in
+        // Until the index is built there is no spelling help at all, so this is work the writer is
+        // waiting on, not housekeeping: at utility priority it could sit behind everything else a
+        // login starts.
+        DispatchQueue.global(qos: .userInitiated).async { [self] in
             guard let contents = resourceLoader(language) else {
                 lock.lock()
                 loadingLanguages.remove(language)

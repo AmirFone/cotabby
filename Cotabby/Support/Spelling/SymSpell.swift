@@ -83,6 +83,19 @@ nonisolated final class SymSpell {
     private var words: [String: Int64] = [:]
     /// index -> word, so the delete buckets can store compact `Int32` indices rather than strings.
     private var wordsList: [String] = []
+    /// index -> count, beside `wordsList`, so a scan over a bucket reads a count without hashing the
+    /// word.
+    private var countsList: [Int64] = []
+    /// The letters of every ASCII word laid end to end, with where each word starts and how long it
+    /// is (0 for a word with any non-ASCII letter, which is compared as characters instead).
+    ///
+    /// The scans below run on every keystroke over a bucket of several thousand words. Comparing
+    /// Swift `Character`s there meant building an array per word and walking grapheme clusters;
+    /// for ASCII, which is every English word, a letter is a byte and the comparison is a few
+    /// machine instructions on memory that is already in the cache.
+    private var asciiLetters: [UInt8] = []
+    private var asciiStart: [Int32] = []
+    private var asciiLength: [UInt8] = []
     /// FNV-1a hash of a delete-variant -> the dictionary word indices that produce it. Hash
     /// collisions are harmless: every candidate is verified with a real bounded edit-distance check,
     /// so a colliding entry is simply discarded.
@@ -122,12 +135,19 @@ nonisolated final class SymSpell {
 
     /// Parses `word<space-or-tab>count` lines (the SymSpell frequency-dictionary format). Malformed
     /// lines are skipped. Call once, off the main thread — building the index is the expensive part.
+    ///
+    /// The two slow parts, the delete-variants of every word and the sound keys of the common ones,
+    /// are worked out on all cores and then put into the buckets on this thread in word order, so
+    /// the index is the same one a single thread would build, in about a third of the time. Until
+    /// it is built the app has no spelling help, which is why the time matters at launch.
     func loadDictionary(contents: String) {
+        var added: [Int32] = []
         for line in contents.split(separator: "\n", omittingEmptySubsequences: true) {
             let parts = line.split(whereSeparator: { $0 == " " || $0 == "\t" })
             guard parts.count >= 2, let count = Int64(parts[1]) else { continue }
-            createDictionaryEntry(key: String(parts[0]), count: count)
+            if let index = registerWord(key: String(parts[0]), count: count) { added.append(index) }
         }
+        insertDeletes(for: added)
         let sortedCounts = words.values.sorted(by: >)
         if !sortedCounts.isEmpty {
             commonWordCountFloor = sortedCounts[min(Self.commonVocabularySize, sortedCounts.count) - 1]
@@ -139,17 +159,55 @@ nonisolated final class SymSpell {
         phoneticBuckets = [:]
         vowelKeyBuckets = [:]
         nearPhoneticBuckets = [:]
-        for (index, word) in wordsList.enumerated() where (words[word] ?? 0) >= commonWordCountFloor {
+        struct Sounds {
+            var keys: [(key: String, near: [String])] = []
+            var vowelKey = ""
+        }
+        let common = wordsList.indices.filter { countsList[$0] >= commonWordCountFloor }
+        let sounds: [Sounds] = Self.inParallel(count: common.count) { position in
+            let word = self.wordsList[common[position]]
+            var result = Sounds()
             for key in PhoneticKey.keys(for: word) {
-                phoneticBuckets[key, default: []].append(Int32(index))
-                guard key.count >= Self.minimumApproximateKeyLength else { continue }
-                for variant in Self.keyWithEachSoundRemoved(key) {
-                    nearPhoneticBuckets[variant, default: []].append(Int32(index))
+                let near = key.count >= Self.minimumApproximateKeyLength ? Array(Self.keyWithEachSoundRemoved(key)) : []
+                result.keys.append((key, near))
+            }
+            result.vowelKey = PhoneticKey.vowelKey(for: word)
+            return result
+        }
+        for (position, wordIndex) in common.enumerated() {
+            let index = Int32(wordIndex)
+            for entry in sounds[position].keys {
+                phoneticBuckets[entry.key, default: []].append(index)
+                for variant in entry.near {
+                    nearPhoneticBuckets[variant, default: []].append(index)
                 }
             }
-            let vowelKey = PhoneticKey.vowelKey(for: word)
-            if !vowelKey.isEmpty {
-                vowelKeyBuckets[vowelKey, default: []].append(Int32(index))
+            if !sounds[position].vowelKey.isEmpty {
+                vowelKeyBuckets[sounds[position].vowelKey, default: []].append(index)
+            }
+        }
+    }
+
+    /// `work(0)` to `work(count - 1)`, run on all cores, results in order. `work` must only read
+    /// shared state. A handful of items is done on the calling thread: starting threads would cost
+    /// more than the work.
+    private static func inParallel<Result>(count: Int, _ work: (Int) -> Result) -> [Result] {
+        guard count >= 256 else { return (0..<count).map(work) }
+        let chunk = 256
+        let chunks = (count + chunk - 1) / chunk
+        return withoutActuallyEscaping(work) { work in
+            [Result](unsafeUninitializedCapacity: count) { buffer, initialized in
+                // Each iteration fills its own stretch of the buffer, so no two threads touch the
+                // same element; the buffer's address is passed as a plain number because a pointer
+                // is not something Swift lets a concurrent closure capture.
+                let base = UInt(bitPattern: buffer.baseAddress)
+                DispatchQueue.concurrentPerform(iterations: chunks) { chunkIndex in
+                    guard let pointer = UnsafeMutablePointer<Result>(bitPattern: base) else { return }
+                    for position in (chunkIndex * chunk)..<min(count, (chunkIndex + 1) * chunk) {
+                        (pointer + position).initialize(to: work(position))
+                    }
+                }
+                initialized = count
             }
         }
     }
@@ -262,22 +320,50 @@ nonisolated final class SymSpell {
     /// A word seen again keeps the larger count, so a correction list appended after the main
     /// dictionary (`frequency_overrides_en.txt`) can raise words the corpus undercounts.
     func createDictionaryEntry(key: String, count: Int64) {
-        guard count > 0 else { return }
+        guard let index = registerWord(key: key, count: count) else { return }
+        insertDeletes(for: [index])
+    }
+
+    /// Adds `key` to the word list and the letter buckets and returns its index; nil when the word
+    /// was already there (its count is raised if this one is larger) or the count is not positive.
+    /// The delete-variants are added separately (`insertDeletes`), so a whole dictionary's can be
+    /// worked out together.
+    private func registerWord(key: String, count: Int64) -> Int32? {
+        guard count > 0 else { return nil }
         if let existing = words[key] {
             words[key] = max(existing, count)
-            return
+            // The slot beside the word list follows; a repeated word is rare (the override lists).
+            if count > existing, let index = wordsList.firstIndex(of: key) { countsList[index] = count }
+            return nil
         }
         words[key] = count
         let index = Int32(wordsList.count)
         wordsList.append(key)
+        countsList.append(count)
+        let bytes = key.utf8
+        asciiStart.append(Int32(asciiLetters.count))
+        if bytes.count <= Int(UInt8.max), bytes.allSatisfy({ $0 < 0x80 }) {
+            asciiLetters.append(contentsOf: bytes)
+            asciiLength.append(UInt8(bytes.count))
+        } else {
+            asciiLength.append(0)
+        }
         if let first = key.first {
             initialBuckets[first, default: []].append(index)
         }
+        maxDictionaryWordLength = max(maxDictionaryWordLength, key.count)
+        return index
+    }
 
-        let chars = Array(key)
-        if chars.count > maxDictionaryWordLength { maxDictionaryWordLength = chars.count }
-        for delete in editsPrefix(chars) {
-            deletes[Self.hash(delete), default: []].append(index)
+    /// Files the words at `indices` under each of their delete-variants, in the order given.
+    private func insertDeletes(for indices: [Int32]) {
+        let variants: [[Int]] = Self.inParallel(count: indices.count) { position in
+            self.editsPrefix(Array(self.wordsList[Int(indices[position])])).map { Self.hash($0) }
+        }
+        for (position, index) in indices.enumerated() {
+            for hash in variants[position] {
+                deletes[hash, default: []].append(index)
+            }
         }
     }
 
@@ -461,14 +547,35 @@ nonisolated final class SymSpell {
     /// dictionary is sorted by frequency, so a bucket in load order is already ranked.
     func completions(of prefix: String, limit: Int) -> [String] {
         guard let first = prefix.first, let bucket = initialBuckets[first] else { return [] }
+        let prefixBytes = Self.asciiBytes(of: prefix)
         var result: [String] = []
         for index in bucket {
-            let term = wordsList[Int(index)]
-            guard term != prefix, term.hasPrefix(prefix) else { continue }
-            result.append(term)
+            let position = Int(index)
+            if let prefixBytes, asciiLength[position] > 0 {
+                // A longer word that starts with the same letters; equal length would be the prefix itself.
+                guard Int(asciiLength[position]) > prefixBytes.count, startsWith(prefixBytes, wordAt: position) else { continue }
+            } else {
+                let term = wordsList[position]
+                guard term != prefix, term.hasPrefix(prefix) else { continue }
+            }
+            result.append(wordsList[position])
             if result.count == limit { break }
         }
         return result
+    }
+
+    /// The bytes of `text` when it is all ASCII, else nil (and the character comparison is used).
+    private static func asciiBytes(of text: String) -> [UInt8]? {
+        let bytes = Array(text.utf8)
+        return bytes.allSatisfy { $0 < 0x80 } ? bytes : nil
+    }
+
+    /// True when the ASCII word at `position` begins with `prefix`.
+    private func startsWith(_ prefix: [UInt8], wordAt position: Int) -> Bool {
+        guard Int(asciiLength[position]) >= prefix.count else { return false }
+        let start = Int(asciiStart[position])
+        for offset in 0..<prefix.count where asciiLetters[start + offset] != prefix[offset] { return false }
+        return true
     }
 
     // MARK: - Prefix matching
@@ -478,9 +585,13 @@ nonisolated final class SymSpell {
     func isCommonWordPrefix(_ partial: String) -> Bool {
         let lowered = partial.lowercased()
         guard let first = lowered.first, let bucket = initialBuckets[first] else { return false }
+        let prefixBytes = Self.asciiBytes(of: lowered)
         for index in bucket {
-            let term = wordsList[Int(index)]
-            if term.hasPrefix(lowered), (words[term] ?? 0) >= commonWordCountFloor {
+            let position = Int(index)
+            guard countsList[position] >= commonWordCountFloor else { continue }
+            if let prefixBytes, asciiLength[position] > 0 {
+                if startsWith(prefixBytes, wordAt: position) { return true }
+            } else if wordsList[position].hasPrefix(lowered) {
                 return true
             }
         }
@@ -490,22 +601,48 @@ nonisolated final class SymSpell {
     /// Words whose opening letters are within `maxEditDistance` of `partial`, best first (lowest
     /// distance, then most frequent). Scans the bucket for the partial's first letter plus the bucket
     /// for its second letter, so a swapped opening pair (`hte`) still finds `the`.
-    func prefixMatches(for partial: String, maxEditDistance: Int, limit: Int) -> [SymSpellPrefixMatch] {
-        let query = Array(partial.lowercased())
+    ///
+    /// - Parameter comparingCharacters: true takes the general character-by-character path for
+    ///   every word. It is what non-ASCII words always get; tests pass it to check that the byte
+    ///   path, which every English word takes, gives exactly the same answer.
+    func prefixMatches(
+        for partial: String, maxEditDistance: Int, limit: Int, comparingCharacters: Bool = false
+    ) -> [SymSpellPrefixMatch] {
+        let lowered = partial.lowercased()
+        let query = Array(lowered)
         guard query.count >= 2, maxEditDistance >= 0, limit > 0 else { return [] }
+        let queryBytes = comparingCharacters ? nil : Self.asciiBytes(of: lowered)
+        // One set of rows for the whole scan, instead of three arrays per word.
+        var rows = PrefixDistanceRows(columns: query.count + maxEditDistance + 1)
 
         var matches: [SymSpellPrefixMatch] = []
         var bucketKeys = [query[0]]
         if query[1] != query[0] { bucketKeys.append(query[1]) }
         for (bucketPosition, key) in bucketKeys.enumerated() {
             for index in initialBuckets[key] ?? [] {
-                let term = wordsList[Int(index)]
-                let target = Array(term.prefix(query.count + maxEditDistance))
-                if bucketPosition == 1, !(target.count > 1 && target[1] == query[0]) { continue }
-                if target.count + maxEditDistance < query.count { continue }
-                let distance = Self.bestPrefixHalfEditDistance(query, target, maxHalfEdits: maxEditDistance * 2)
+                let position = Int(index)
+                let distance: Int
+                if let queryBytes, asciiLength[position] > 0 {
+                    let start = Int(asciiStart[position])
+                    let length = min(Int(asciiLength[position]), queryBytes.count + maxEditDistance)
+                    if bucketPosition == 1, !(length > 1 && asciiLetters[start + 1] == queryBytes[0]) { continue }
+                    if length + maxEditDistance < queryBytes.count { continue }
+                    distance = asciiLetters.withUnsafeBufferPointer { letters in
+                        Self.bestPrefixHalfEditDistance(
+                            queryBytes, UnsafeBufferPointer(rebasing: letters[start..<(start + length)]),
+                            maxHalfEdits: maxEditDistance * 2, rows: &rows
+                        )
+                    }
+                } else {
+                    let target = Array(wordsList[position].prefix(query.count + maxEditDistance))
+                    if bucketPosition == 1, !(target.count > 1 && target[1] == query[0]) { continue }
+                    if target.count + maxEditDistance < query.count { continue }
+                    distance = Self.bestPrefixHalfEditDistance(query, target, maxHalfEdits: maxEditDistance * 2)
+                }
                 if distance >= 0 {
-                    matches.append(SymSpellPrefixMatch(term: term, halfEditDistance: distance, count: words[term] ?? 0))
+                    matches.append(SymSpellPrefixMatch(
+                        term: wordsList[position], halfEditDistance: distance, count: countsList[position]
+                    ))
                 }
             }
         }
@@ -553,6 +690,53 @@ nonisolated final class SymSpell {
         guard lower <= upper else { return -1 }
         let best = prev[lower...upper].min() ?? Int.max
         return best <= maxDistance ? best : -1
+    }
+
+    /// The three rows of the distance table, kept between words of one scan.
+    struct PrefixDistanceRows {
+        var beforePrevious: [Int]
+        var previous: [Int]
+        var current: [Int]
+
+        init(columns: Int) {
+            beforePrevious = [Int](repeating: 0, count: columns)
+            previous = [Int](repeating: 0, count: columns)
+            current = [Int](repeating: 0, count: columns)
+        }
+    }
+
+    /// `bestPrefixHalfEditDistance` over bytes, with the rows handed in. Same table, same result.
+    static func bestPrefixHalfEditDistance(
+        _ query: [UInt8], _ target: UnsafeBufferPointer<UInt8>, maxHalfEdits: Int, rows: inout PrefixDistanceRows
+    ) -> Int {
+        let rowCount = query.count
+        let cols = target.count
+        guard rowCount > 0, cols > 0 else { return -1 }
+        for col in 0...cols { rows.previous[col] = col * 2 }
+        for row in 1...rowCount {
+            rows.current[0] = row * 2
+            var rowMin = rows.current[0]
+            let letter = query[row - 1]
+            for col in 1...cols {
+                let other = target[col - 1]
+                var value = min(rows.previous[col] + 2, rows.current[col - 1] + 2, rows.previous[col - 1] + (letter == other ? 0 : 2))
+                if row > 1, col > 1, letter != other, letter == target[col - 2], query[row - 2] == other {
+                    value = min(value, rows.beforePrevious[col - 2] + 1)
+                }
+                rows.current[col] = value
+                rowMin = min(rowMin, value)
+            }
+            if rowMin > maxHalfEdits { return -1 }
+            swap(&rows.beforePrevious, &rows.previous)
+            swap(&rows.previous, &rows.current)
+        }
+        let letterSlack = maxHalfEdits / 2
+        let lower = max(1, rowCount - letterSlack)
+        let upper = min(cols, rowCount + letterSlack)
+        guard lower <= upper else { return -1 }
+        var best = Int.max
+        for col in lower...upper { best = min(best, rows.previous[col]) }
+        return best <= maxHalfEdits ? best : -1
     }
 
     /// The single best correction for `input`, or nil when nothing is within `maxDictionaryEditDistance`.
