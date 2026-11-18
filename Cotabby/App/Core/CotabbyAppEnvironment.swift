@@ -633,6 +633,7 @@ final class CotabbyAppEnvironment {
         suggestionCoordinator.personalPhraseModel = personalPhraseModel
         suggestionCoordinator.personalVocabulary = personalVocabulary
         suggestionCoordinator.technicalTerms = TechnicalVocabulary.spellingTerms()
+        suggestionCoordinator.technicalCapitals = WordPredictionController.technicalCapitals()
 
         Self.answerToggleShortcut(inputMonitor: inputMonitor, settings: suggestionSettings, focusModel: focusModel)
         let otherCotabbyNotice = OtherCotabbyNoticeController(panel: CandidateListPanelController())

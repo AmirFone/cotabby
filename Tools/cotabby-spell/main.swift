@@ -52,6 +52,10 @@ struct Harness {
                 contentsOf: root.appendingPathComponent("\(TechnicalVocabulary.spellingListName).txt"), encoding: .utf8
             )) ?? ""
         )
+        let technicalCapitals: [String: String] = ProcessInfo.processInfo.environment["NO_TECHNICAL"] != nil ? [:]
+            : TechnicalVocabulary.capitals(inStripList: (try? String(
+                contentsOf: root.appendingPathComponent("\(TechnicalVocabulary.stripListName).txt"), encoding: .utf8
+            )) ?? "")
         let corrector = SymSpellCorrector(preloadLanguage: nil) { language in
             let url = root.appendingPathComponent("SpellingDictionaries/\(language.resourceName).txt")
             return try? String(contentsOf: url, encoding: .utf8)
@@ -135,7 +139,8 @@ struct Harness {
                 autoFixModel: autoFixModel,
                 wrongWordModel: wrongWordModel,
                 americanSpellings: arguments.americanSpellings,
-                technicalTerms: technicalTerms
+                technicalTerms: technicalTerms,
+                usualCasing: { technicalCapitals[$0] ?? vocabulary.preferredCasing(of: $0) }
             ),
             refiner: refiner,
             settings: {

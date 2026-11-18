@@ -155,6 +155,9 @@ final class SuggestionCoordinator: ObservableObject {
     /// The bundled software terms the spelling dictionary took (lowercase); the sentence model
     /// leaves them as typed. Empty when that vocabulary is off.
     var technicalTerms: Set<String> = []
+    /// How the bundled software terms are usually capitalized (`github` → `GitHub`), so a case
+    /// fix lands on that form and a term typed in lowercase is not given a capital nobody uses.
+    var technicalCapitals: [String: String] = [:]
     /// Auto-fixes waiting for the writer's reaction; only kept fixes teach the personal history.
     var autoFixOutcomes = AutoFixOutcomeTracker()
     /// Watches for the writer retyping a misspelled word themselves.

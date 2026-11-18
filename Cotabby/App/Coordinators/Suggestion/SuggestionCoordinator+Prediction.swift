@@ -832,7 +832,11 @@ extension SuggestionCoordinator {
             autoFixModel: autoFixModel,
             wrongWordModel: wrongWordModel,
             americanSpellings: americanSpellings,
-            technicalTerms: technicalTerms
+            technicalTerms: technicalTerms,
+            // The strip's own lookup: a listed term's capitals (`api` is API), else the writer's.
+            usualCasing: { [technicalCapitals, personalVocabulary] word in
+                technicalCapitals[word] ?? personalVocabulary?.preferredCasing(of: word)
+            }
         )
     }
 

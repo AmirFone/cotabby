@@ -27,6 +27,16 @@ nonisolated enum SentenceCapitalization {
         "approx.", "no.", "fig.", "inc.", "ltd.", "co.", "dept.", "est.", "a.m.", "p.m."
     ]
 
+    /// Names of commands a software engineer types first on a line (`ls -la`, `pwd`, `kubectl get
+    /// pods`). They are only ever written in lowercase, and a capital turns them into something
+    /// that is not the command (`Ls`, `Pwd`). Only names that are not also ordinary English words:
+    /// `make`, `cat`, `echo` and `touch` start real sentences far more often than command lines.
+    static let commandNames: Set<String> = [
+        "ls", "pwd", "cd", "mv", "cp", "rm", "ln", "df", "du", "ps", "awk", "sed", "grep", "git", "npm", "npx",
+        "pnpm", "pip", "uv", "brew", "ssh", "scp", "sudo", "chmod", "chown", "mkdir", "rmdir", "kubectl",
+        "docker", "cargo", "tar", "vim", "tmux", "jq", "psql", "rsync", "wget", "xargs", "gh", "ffmpeg"
+    ]
+
     /// The capitalized form of `word` given the text before it, or nil when it should stay as typed.
     /// - Parameters:
     ///   - textBefore: everything before `word` (not including it).

@@ -199,6 +199,7 @@ final class TypoGateInputs {
     private func isWrittenInLowercase(_ word: String) -> Bool {
         let lowered = word.lowercased()
         if dependencies.technicalTerms.contains(lowered) || memory?.isKept(word) == true { return true }
+        if SentenceCapitalization.commandNames.contains(lowered) { return true }
         guard let usual = dependencies.usualCasing?(lowered) else { return false }
         return usual != word.prefix(1).uppercased() + word.dropFirst()
     }
