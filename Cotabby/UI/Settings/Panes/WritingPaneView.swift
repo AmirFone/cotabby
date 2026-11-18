@@ -103,6 +103,9 @@ struct WritingPaneView: View {
                         systemImage: "text.word.spacing"
                     )
                 }
+                // Not disabled with the toggle above: the same two choices also set the look of the
+                // spelling bar and the sentence cards, which show whether or not the strip is on.
+                PanelAppearanceRows()
                 Toggle(isOn: $learnsPhrases) {
                     SettingsRowLabel(
                         title: "Learn From My Sentences",

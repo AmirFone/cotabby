@@ -211,9 +211,37 @@ elif [ -f "$HOME/Library/Application Support/Cotabby Dev/SentenceModel/$SENTENCE
 elif [ -f "/Applications/Cotabby Dev.app/Contents/Resources/$SENTENCE_MODEL_FILE" ]; then
   STRIP_LM="/Applications/Cotabby Dev.app/Contents/Resources/$SENTENCE_MODEL_FILE"
 fi
+# Every text the cases below ask the tool about, fixed in advance. They are answered by ONE run of
+# the tool the first time any of them is asked for: each run loads the language model, and a run
+# per question cost the suite about half a minute.
+STRIP_TEXTS=(
+  "I would like " "Yesterday we walk" "She is still walk" "He has already finish" "Every morning she walk"
+  "Last week I bou" "They were eat" "It is read/wri"
+)
+STRIP_CACHE=$(mktemp -d -t cotabby-strip)
+strip_key() { printf '%s' "$1" | md5; }
+strip_words_of() { sed -E 's/.*→ +//; s/ +\[.*//'; }
+strip_line() { # text: the tool's word list for it
+  local key text arguments=() index=0
+  key=$(strip_key "$1")
+  if [ ! -f "$STRIP_CACHE/$key" ]; then
+    if [ ! -f "$STRIP_CACHE/asked" ] && printf '%s\n' "${STRIP_TEXTS[@]}" | grep -qxF -- "$1"; then
+      : > "$STRIP_CACHE/asked"
+      for text in "${STRIP_TEXTS[@]}"; do arguments+=(--predict "$text|"); done
+      (cd "$REPO_ROOT" && "$SPELL_CLI" "${arguments[@]}" ${STRIP_LM:+--lm "$STRIP_LM"}) 2>/dev/null | grep -F "→" > "$STRIP_CACHE/all"
+      for text in "${STRIP_TEXTS[@]}"; do
+        index=$((index + 1))
+        sed -n "${index}p" "$STRIP_CACHE/all" | strip_words_of > "$STRIP_CACHE/$(strip_key "$text")"
+      done
+    fi
+    # A text that is only known once an earlier answer is (the word after the first pick).
+    [ -f "$STRIP_CACHE/$key" ] || (cd "$REPO_ROOT" && "$SPELL_CLI" --predict "$1|" ${STRIP_LM:+--lm "$STRIP_LM"}) 2>/dev/null \
+      | head -n 1 | strip_words_of > "$STRIP_CACHE/$key"
+  fi
+  cat "$STRIP_CACHE/$key"
+}
 strip_word() { # text, slot (1-based)
-  (cd "$REPO_ROOT" && "$SPELL_CLI" --predict "$1|" ${STRIP_LM:+--lm "$STRIP_LM"}) 2>/dev/null | head -n 1 \
-    | sed -E 's/.*→ +//; s/ +\[.*//' | awk -F ' · ' -v slot="$2" '{ print $slot }'
+  strip_line "$1" | awk -F ' · ' -v slot="$2" '{ print $slot }'
 }
 
 predict_cases() {

@@ -27,4 +27,25 @@ final class CandidateListPanelLayoutTests: XCTestCase {
 
         XCTAssertGreaterThanOrEqual(frame.minY, low.maxY)
     }
+
+    func test_regularPanel_keepsTheOffsetsItAlwaysHad() {
+        // #given a panel at the Regular size, the one every panel had before sizes existed
+
+        // #when it is placed with the size named and with the size left out
+        let named = CandidateListPanelLayout.frame(caretRect: caret, contentSize: size, visibleFrame: screen, size: .regular)
+        let unnamed = CandidateListPanelLayout.frame(caretRect: caret, contentSize: size, visibleFrame: screen)
+
+        // #then both start 12 pt left of the caret and 6 pt above its line
+        XCTAssertEqual([named.origin, unnamed.origin], [CGPoint(x: 88, y: 424), CGPoint(x: 88, y: 424)])
+    }
+
+    func test_compactPanel_sitsCloserToTheCaret() {
+        // #given a Compact panel, whose own padding is three quarters of the Regular one
+
+        // #when it is placed at the caret
+        let frame = CandidateListPanelLayout.frame(caretRect: caret, contentSize: size, visibleFrame: screen, size: .compact)
+
+        // #then its offsets shrink by the same three quarters: 9 pt left, 4.5 pt above
+        XCTAssertEqual(frame.origin, CGPoint(x: 91, y: 422.5))
+    }
 }

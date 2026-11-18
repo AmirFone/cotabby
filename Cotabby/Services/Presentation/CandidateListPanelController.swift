@@ -192,7 +192,10 @@ final class CandidateListPanelController: CandidateListPanelPresenting {
             caretRect: placement.caretRect,
             contentSize: size,
             visibleFrame: visibleFrame(for: placement.caretRect),
-            preferBelow: placement.preferBelow
+            preferBelow: placement.preferBelow,
+            // Read on every placement, like the view reads it on every draw, so the window and
+            // its content always agree on the size the writer picked.
+            size: PanelSize.current()
         ).integral
         // A focus update often repeats the caret position it already had; skipping the unchanged
         // frame and the redundant ordering avoids a window-server round trip per keystroke.
@@ -255,18 +258,31 @@ private final class CandidateListPanel: NSPanel {
 
 /// Places the list just above the line being typed (so it never covers the ghost text to the right
 /// of the caret or the next lines), dropping below the caret only when there is no room above.
+///
+/// The two distances this owns, the gap to the line and how far the panel starts left of the caret,
+/// are given at the Regular panel size and scaled by `size` exactly as the view scales its padding.
+/// The leading offset is there to put the first word about over the caret, past the panel's own
+/// padding; when that padding shrinks, an unscaled offset would leave the word hanging to the left.
 enum CandidateListPanelLayout {
     static let caretGap: CGFloat = 6
+    static let leadingOffset: CGFloat = 12
 
-    static func frame(caretRect: CGRect, contentSize: CGSize, visibleFrame: CGRect, preferBelow: Bool = false) -> CGRect {
-        var originX = caretRect.minX - 12
+    static func frame(
+        caretRect: CGRect,
+        contentSize: CGSize,
+        visibleFrame: CGRect,
+        preferBelow: Bool = false,
+        size: PanelSize = .regular
+    ) -> CGRect {
+        let gap = size.space(caretGap)
+        var originX = caretRect.minX - size.space(leadingOffset)
         if originX + contentSize.width > visibleFrame.maxX {
             originX = visibleFrame.maxX - contentSize.width
         }
         originX = max(originX, visibleFrame.minX)
 
-        let aboveOriginY = caretRect.maxY + caretGap
-        let belowOriginY = caretRect.minY - caretGap - contentSize.height
+        let aboveOriginY = caretRect.maxY + gap
+        let belowOriginY = caretRect.minY - gap - contentSize.height
         let fitsAbove = aboveOriginY + contentSize.height <= visibleFrame.maxY
         let fitsBelow = belowOriginY >= visibleFrame.minY
         let originY = (preferBelow && fitsBelow) || !fitsAbove

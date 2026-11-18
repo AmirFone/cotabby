@@ -17,7 +17,8 @@ import SwiftUI
 /// 2. The body of the slab and its sheen (`PopupTheme.glassShade` or `PopupTheme.materialTint`,
 ///    and `PopupTheme.gloss`): a thin wash, and a highlight over the upper half.
 /// 3. The content, with a raised bright key behind the selected slot (`PopupSelectionChip`) and,
-///    on macOS 14 and 15 only, a halo behind its text (`popupTextHalo`).
+///    where the surface does not adapt to the page, a halo or an outline behind its text
+///    (`popupTextHalo`).
 /// 4. The edges (`PopupGlassEdges`): outline, lit rim, shaded inner edge.
 /// 5. The drop shadow, which is the panel window's own (`hasShadow`, set by the panel controllers
 ///    that want one), not something drawn here.
@@ -53,6 +54,31 @@ import SwiftUI
 /// where the surface follows the system setting and cannot change under the content. The green
 /// and amber word colors are the exception that remains, because they carry meaning.
 ///
+/// The glass is the writer's choice (`PanelGlass`, Settings → Writing). Everything above describes
+/// Standard, and Standard still draws exactly that. The other two exist because one glass cannot
+/// suit everyone: Clear shows more of the document, Solid shows almost none of it.
+///
+/// On macOS 26 both give up the regular glass. Regular glass is readable with no tint because it
+/// adapts to the page, but it is also as see-through as it will ever be: it has no setting for
+/// letting more through, and anything laid over it only hides more. A veil heavy enough for Solid
+/// would also work against the adapting, because the content can turn light or dark while a veil
+/// in a fixed color stays as it was. So Clear and Solid use the clear variant, which passes more
+/// light and never changes under the content, and each lays one even veil in the color of the
+/// surface over the whole slab (`PanelGlass.veil`): near-opaque for Solid, about half strength for
+/// Clear, which makes it smoked glass. Under both the surface follows the system setting, as it
+/// always has on macOS 14 and 15, so the appearance-switched colors are safe there and are used.
+///
+/// Clear's veil is deliberately too thin to carry text alone (about 3:1 over the worst page; that
+/// is the same wall the 3.5:1 measurement above ran into). What carries it is local to the
+/// letters: an outline around every stroke in the color of the surface (`PanelGlass.textOutline`)
+/// and a heavier weight for the words. It is not a shape behind the word. A first version put a
+/// blurred patch of surface color behind each word and kept the slab nearly bare; on a real
+/// screen that read as a row of smudges on a pane, so the ground has to be even or follow the
+/// letters, never something in between.
+///
+/// On macOS 14 and 15 there is one system material and Standard already uses it as thin as its
+/// measured contrast allows, so Clear is drawn as Standard there (`PanelGlass.onSystemMaterial`).
+///
 /// The writer this fork serves is dyslexic. If a change here trades legibility for clarity, give
 /// the text better ground locally before thickening the tint, and never thicken the tint back into
 /// a card.
@@ -84,6 +110,27 @@ enum PopupTheme {
         startPoint: .top,
         endPoint: .bottom
     )
+
+    /// The body of the slab for the Clear and Solid glass: a wash in the color of the surface, at
+    /// the strength the choice asks for (`PanelGlass.veil`). Surface-colored rather than plain black
+    /// like `glassShade`, because under these two the slab follows the system setting and its text
+    /// is white in dark mode and black in light mode whatever the page is.
+    static func veil(_ veil: PanelGlassVeil) -> LinearGradient {
+        LinearGradient(
+            colors: [
+                adaptive(light: NSColor(white: 1, alpha: veil.lightTop), dark: NSColor(white: 0, alpha: veil.darkTop)),
+                adaptive(light: NSColor(white: 1, alpha: veil.lightBottom), dark: NSColor(white: 0, alpha: veil.darkBottom))
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    /// The color of the outline around letters on Clear glass (`PanelGlass.textOutline`): the color
+    /// of the surface, so it reads as the veil gathering along each stroke rather than as a shadow.
+    static func textOutline(_ outline: PanelTextOutline) -> Color {
+        adaptive(light: NSColor(white: 1, alpha: outline.opacity), dark: NSColor(white: 0, alpha: outline.opacity))
+    }
 
     /// The sheen across the upper half, as if a soft light above the desk reflected off the top
     /// face of the slab. Gone by mid-height so it never sits behind the lower half of the text.
@@ -208,17 +255,41 @@ enum PopupTheme {
 struct PopupHUDChrome: ViewModifier {
     var cornerRadius: CGFloat = PopupTheme.cornerRadius
 
+    /// The writer's glass, as stored. `@AppStorage` reads one UserDefaults key and redraws the view
+    /// when the key changes, so a panel that is already built picks up a new choice the next time it
+    /// is shown. Kept as the raw string so that `PanelGlass(storedValue:)` is the only place that
+    /// decides what an unknown or missing value means.
+    @AppStorage(PanelGlass.defaultsKey) private var storedGlass: String?
+
+    /// The glass this system can draw: the writer's choice on macOS 26, and on macOS 14 and 15 the
+    /// nearest thing the single system material offers.
+    private var glass: PanelGlass {
+        let chosen = PanelGlass(storedValue: storedGlass)
+        if #available(macOS 26.0, *) {
+            return chosen
+        }
+        return chosen.onSystemMaterial
+    }
+
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        let glass = self.glass
+        // The chrome is the one place that knows the glass; the text inside asks for it through the
+        // environment (`PopupTextHalo`, the word slots) instead of each reading the setting again.
+        let content = content.environment(\.popupGlass, glass)
         if #available(macOS 26.0, *) {
             // One effect per panel, so no `GlassEffectContainer` (that exists to merge several
             // effects) and no `interactive()` (that adds pointer-driven animation).
-            slab(content, in: shape, body: PopupTheme.glassShade)
-                .glassEffect(.regular, in: shape)
+            slab(content, in: shape, glass: glass, stockBody: PopupTheme.glassShade)
+                .glassEffect(glass.adaptsToPage ? Glass.regular : Glass.clear, in: shape)
         } else {
-            slab(content, in: shape, body: PopupTheme.materialTint)
+            slab(content, in: shape, glass: glass, stockBody: PopupTheme.materialTint)
                 .background(
                     PopupMaterialBackdrop(cornerRadius: cornerRadius)
+                        // The backdrop builds its corner mask once, when it is created. The radius
+                        // is part of its identity so that a new radius (the writer picked another
+                        // panel size) makes SwiftUI build a new backdrop with a new mask.
+                        .id(cornerRadius)
                         // The backdrop is an AppKit view; keep it out of hit testing so a click on a
                         // slot always reaches the SwiftUI tap handler above it.
                         .allowsHitTesting(false)
@@ -227,13 +298,19 @@ struct PopupHUDChrome: ViewModifier {
     }
 
     /// Everything about the slab that this file draws itself, shared by both kinds of glass.
-    private func slab(_ content: Content, in shape: RoundedRectangle, body: LinearGradient) -> some View {
-        content
-            .background(PopupTheme.gloss, in: shape)
+    ///
+    /// The glass decides two things here. Its veil, when it has one, replaces `stockBody`, the tint
+    /// this system's Standard glass uses. And its `highlightStrength` scales the two white cues, the
+    /// sheen and the lit rim; at 1 both gradients are drawn exactly as `PopupTheme` defines them.
+    private func slab(_ content: some View, in shape: RoundedRectangle, glass: PanelGlass, stockBody: LinearGradient) -> some View {
+        let body = if let veil = glass.veil { PopupTheme.veil(veil) } else { stockBody }
+        let highlight = glass.highlightStrength
+        return content
+            .background(PopupTheme.gloss.opacity(highlight), in: shape)
             .background(body, in: shape)
             // The edges are decoration over the content's border; keep them out of hit testing so a
             // click near the rim still reaches the slot under it.
-            .overlay(PopupGlassEdges(shape: shape).allowsHitTesting(false))
+            .overlay(PopupGlassEdges(shape: shape, highlight: highlight).allowsHitTesting(false))
             .clipShape(shape)
     }
 }
@@ -246,11 +323,14 @@ struct PopupHUDChrome: ViewModifier {
 /// cut half of it away.
 private struct PopupGlassEdges<S: InsettableShape>: View {
     let shape: S
+    /// How strongly the lit rim is drawn, from 0 to 1. The outline and the inner shade are dark
+    /// and stay at full strength on every glass: they are what separates the slab from the page.
+    let highlight: Double
 
     var body: some View {
         ZStack {
             shape.inset(by: 1.5).strokeBorder(PopupTheme.innerShade, lineWidth: 1.5)
-            shape.inset(by: 0.5).strokeBorder(PopupTheme.rimHighlight, lineWidth: 1)
+            shape.inset(by: 0.5).strokeBorder(PopupTheme.rimHighlight.opacity(highlight), lineWidth: 1)
             shape.strokeBorder(PopupTheme.outline, lineWidth: 0.5)
         }
     }
@@ -329,30 +409,56 @@ extension View {
         background(PopupSelectionChip(cornerRadius: cornerRadius).opacity(isSelected ? 1 : 0))
     }
 
-    /// Draws the halo behind the text in this view on macOS 14 and 15, and nothing on macOS 26,
-    /// where the glass adapts to the page and a halo can end up in the wrong color (see the file
-    /// overview). Text on the selection key passes `onKey`: the key is its own solid ground, and a
-    /// halo there would only smudge the letters.
+    /// Gives the text in this view its ground wherever the surface follows the system setting: the
+    /// outline on Clear glass, the halo on Solid glass and on macOS 14 and 15. Draws nothing on the
+    /// Standard glass of macOS 26: that glass adapts to the page, and a halo on it can end up in
+    /// the wrong color (see the file overview). Text on the selection key passes `onKey`: the key
+    /// is its own solid ground, and a halo there would only smudge the letters.
     func popupTextHalo(onKey: Bool = false) -> some View {
         modifier(PopupTextHalo(isOnKey: onKey))
     }
 }
 
-/// The text halo as a modifier of its own, so the choice between "halo" and "nothing" is made once,
-/// by OS version, instead of at every call site.
+/// The text halo as a modifier of its own, so the choice between "outline", "halo" and "nothing" is
+/// made once, by OS version and glass, instead of at every call site.
+///
+/// The outline and the halo are both shadows of the text in the color of the surface, and differ
+/// in reach. The halo's wide pass settles a cloud a few points across behind each word, which
+/// suits a slab whose tint is already most of the ground. On Clear's thin veil the same cloud
+/// would show as a dark patch per word, so the outline stays within two points of the strokes.
 private struct PopupTextHalo: ViewModifier {
     let isOnKey: Bool
+    @Environment(\.popupGlass) private var glass
 
+    // The shadows stay in the tree with a clear color on the key, so that selecting a slot does
+    // not change the tree's shape.
     @ViewBuilder
     func body(content: Content) -> some View {
-        if #available(macOS 26.0, *) {
+        if #available(macOS 26.0, *), glass.adaptsToPage {
             content
+        } else if let outline = glass.textOutline {
+            content
+                .shadow(color: isOnKey ? .clear : PopupTheme.textOutline(outline), radius: outline.tightRadius)
+                .shadow(color: isOnKey ? .clear : PopupTheme.textOutline(outline), radius: outline.softRadius)
         } else {
-            // The shadows stay in the tree with a clear color on the key, so that selecting a slot
-            // does not change the tree's shape.
             content
                 .shadow(color: isOnKey ? .clear : PopupTheme.textHaloTight, radius: 1)
                 .shadow(color: isOnKey ? .clear : PopupTheme.textHaloWide, radius: 4)
         }
+    }
+}
+
+/// The glass of the chrome a view sits in. `PopupHUDChrome` sets it; the default is for text drawn
+/// outside any chrome, which gets the stock treatment.
+private struct PopupGlassKey: EnvironmentKey {
+    static let defaultValue = PanelGlass.standard
+}
+
+extension EnvironmentValues {
+    /// Read by the text halo and by views that set words differently per glass (the word slots of
+    /// `CandidateListView` set them semibold on Clear).
+    var popupGlass: PanelGlass {
+        get { self[PopupGlassKey.self] }
+        set { self[PopupGlassKey.self] = newValue }
     }
 }
