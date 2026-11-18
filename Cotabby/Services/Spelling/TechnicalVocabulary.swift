@@ -11,8 +11,9 @@ import Foundation
 /// which term goes where:
 /// - `technical_words_en.txt` for the word strip: every term with a count and its usual capitals
 ///   (`json 3000000 JSON`). The strip's sources read it like any other word list.
-/// - `technical_spelling_en.txt` for the spelling dictionary: only the longer terms the dictionary
-///   lacks, because a short term there makes a slip that spells it look right (`aws` for `was`).
+/// - `technical_spelling_en.txt` for the spelling dictionary: the terms the dictionary lacks,
+///   without those that are one ordinary slip from a common word, because such a term there makes
+///   the slip look right (`aws` for `was`).
 ///
 /// It is on unless turned off (`defaults write <app> cotabbyTechnicalVocabularyEnabled -bool false`):
 /// the terms only compete where the text calls for them, and measured on ordinary text nothing

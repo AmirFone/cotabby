@@ -53,14 +53,14 @@ On a Mac with less than 16 GB of memory, install tabby-2-mini (or tabby-2-nano u
   - also fixed automatically: `could of` → could have (not `of course`);
   - reviewed in one pass: likely wrong words judged from both sides (`went their yesterday` → there, `to tired` → too, `I want to by a car` → buy) and uncertain typos. The card steps through them: Tab takes the fix and moves on, ←/→ pick another option, Esc keeps your word (and it is not flagged there again). Typing closes it with no change. Wrong words are never changed without asking.
 - **Learns you:** a fix you pick or retype ranks higher next time. Once you have made the same fix for the same slip twice, that word leads the bar whatever the dictionary thinks is likelier, and from the third time it is made for you (`wich` → which, for someone who always means *which*, even though *with* is the commoner word). A slip you correct to two different words about as often has no habit and stays a choice. Undoing a fix marks the word as meant; correcting it yourself later takes that back. A fix only counts as undone once it has been seen in the field and is gone again, so a fix that never landed is not read as you rejecting it.
-- **Knows software terms:** about 900 engineering words are built in, so `backend`, `kubectl` and `jsonb` are not flagged, slips go to the term (`frontned` → frontend), and the strip offers `Kubernetes`, `JSON` or `repo` where the text calls for them (see "Software-engineering vocabulary").
+- **Knows software terms:** about 1,100 engineering words are built in, so `backend`, `kubectl` and `jsonb` are not flagged, slips go to the term (`frontned` → frontend), and the strip offers `Kubernetes`, `JSON` or `repo` where the text calls for them (see "Software-engineering vocabulary").
 - **Learns your working vocabulary** (Settings → Writing → Learn From My Sentences, on by default). Three things, all on this Mac:
   - every word of a sentence you finish is counted, with the words before it. A sentence with a system name or a term in it used to teach nothing; now only the unknown spelling itself is left out, so a slip is never offered back;
   - the strip's order then leans toward the words you use far more than general English does (`replay`, `tenant`, `backfill` for someone who writes them all day) and toward what you wrote after the same words before, without overruling the model where it is sure;
   - the word model reads your last few finished sentences before the field you are typing in, so in a chat box it starts a new message already knowing the subject, the terms and the names of the last ones. Those sentences are kept in memory only, about a page, and are gone when Cotabby quits.
 
-  On a day of real work sentences this took the first suggestion from right 44% of the time after one typed letter to 54%, and from 54% to 65% after two (see "Learning the writer"). "Clear Learned Phrases" clears all three.
-- **Learns your words:** a name or term the dictionary lacks, once you have written it twice, becomes a correction target in your capitals (`lindqvsit` → Lindqvist instead of Lundqvist). Stored locally; "Clear Learned Phrases" clears it.
+  On a day of real work sentences this took the first suggestion from right 44% of the time after one typed letter to 54%, and from 54% to 65% after two (see "Learning the writer"). "Clear Learned Words, Phrases and Fixes" clears all three, and with them the fixes you accepted and the words you kept as typed. Nothing new is learned while Show Next-Word Predictions is off.
+- **Learns your words:** a name or term the dictionary lacks, once you have written it twice, becomes a correction target in your capitals (`lindqvsit` → Lindqvist instead of Lundqvist). Stored locally; "Clear Learned Words, Phrases and Fixes" clears it.
 
 ## Training data (opt-in)
 
@@ -250,7 +250,7 @@ The dictionary is general English: it has `server` and `database` but not `backe
 someone who writes about software the strip then never offered the word being typed, and the
 spelling engine flagged it or changed it into an ordinary word (`kuberntes` was offered `currents`).
 
-`Tools/prediction/build_technical_words.py` holds about 900 terms (languages, tools, protocols, data
+`Tools/prediction/build_technical_words.py` holds about 1,100 terms (languages, tools, protocols, data
 formats, cloud services, and the everyday jargon of code review and operations) and writes two lists:
 
 - **`technical_words_en.txt`, for the word strip:** every term with a count and its usual capitals.
@@ -258,13 +258,16 @@ formats, cloud services, and the everyday jargon of code review and operations) 
   `kubectl` or `repo` first where the text calls for it, shown the way it is written. A term that is
   also an ordinary word (`swift`, `spring`, `react`, `rust`) gets no capitals, so a sentence about
   the weather is not offered a programming language.
-- **`technical_spelling_en.txt`, for the spelling dictionary:** the 382 terms the dictionary lacks
-  that are five letters or longer, plus `json`, `yaml`, `html`, `http`, `repo`, `enum` and `sudo`.
+- **`technical_spelling_en.txt`, for the spelling dictionary:** the 640 terms the dictionary lacks
+  that can be accepted as typed without hiding a real slip.
   These are no longer flagged (the system checker calls most of them misspelled), slips are fixed
   toward them (`frontned` → frontend, `josn` → json, `kuberntes` → kubernetes), and the sentence
-  model leaves them as typed. Short terms stay out on purpose: `aws` is how `was` comes out with two
-  keys swapped, `iam` is `I am` run together, `util` is `until` with a letter dropped, and as
-  dictionary words they would make those slips look right. The strip still offers them.
+  model leaves them as typed. A term that is one ordinary slip from a common word stays out on
+  purpose: `aws` is how `was` comes out with two keys swapped, `iam` is `I am` run together, `util`
+  is `until` with a letter dropped, and as dictionary words they would make those slips look right
+  (the builder prints the ones it keeps out). The strip still offers them. Other short terms (`ttl`,
+  `sdk`, `rpc`, `cdn`) go in at a count low enough that they are accepted as typed and never the
+  target of a fix.
 
 The counts are three tiers set by hand (used daily, weekly, now and then), not measured in a corpus;
 where the dictionary also has the word the larger count is used, and a word the dictionary has keeps
@@ -428,7 +431,7 @@ is in `Tools/prediction/README.md` ("Round three").
   model's score in small amounts and cannot overrule it where it is sure. The recent sentences are
   only ones the proofreader would not change, and a pasted block longer than half a page is not kept.
 - **Not covered yet.** Counts do not fade, so the vocabulary of a job you left stays boosted until
-  "Clear Learned Phrases". Text you paste and then send is learned like text you typed.
+  "Clear Learned Words, Phrases and Fixes". Text you paste and then send is learned like text you typed.
 
 ## Sentence model
 
@@ -608,6 +611,44 @@ depth is drawn: a lit rim, a gloss, and a shaded lower edge. The selected slot i
 with dark text. On macOS 26 the panel turns light over a light window and dark over a dark one, and
 the text follows. Checked by picture (spelling bar and word strip) over white, dark and colorful test
 windows; the macOS 14–15 fallback compiles but has not been run.
+
+## Battle test (0.4.3)
+
+Before 0.4.3 the whole app was attacked on purpose: 36 readers went through the code one area each,
+28 testers drove the real engine from the command line with inputs of one kind each (contractions,
+code, names, mix-ups, dyslexic spellings, chat shorthand, capitals, numbers, symbols, other
+languages), and 36 skeptics then tried to reproduce or refute every report. Of 172 reports 93 were
+confirmed, 55 refuted or intended, the rest unproven. What was fixed, each with a test that failed
+before:
+
+- **A sentence fix could delete too much next to an emoji.** Deletions were counted in UTF-16 units
+  and typed as Backspace keys; an emoji is one key and two to seven units. Keys are now counted as
+  the field's own text needs them, and where that depends on the app (letters with a separate
+  accent mark) nothing is edited.
+- **The sentence pass rewrote code-like text.** `/etc/passwd` became `/etc/passed`, `i7` and `i18n`
+  got a capital `I`, `a,b,c` and `TL;DR` were respaced. A token that is part of a path, a dotted or
+  hyphenated name, a flag, or touches a digit is now neither fixed nor offered. `must of` and
+  `might of` are rewritten only where they are certainly verbs, and a doubled name (`Bora Bora`)
+  stays.
+- **Capitals.** `OAuth`, `GHz` and `JUnit` are left alone; `IPhone` becomes `iPhone`. A command or a
+  lowercase term typed first on a line keeps its case (`pwd`, `git`, `kubectl`, `json`). A word
+  after `eg.` or `ie.` is not capitalized.
+- **Words with two readings are no longer forced to one.** `wher`, `whos`, `brot` and a few more
+  left the table of certain fixes and go to the bar. About 200 software terms were added, and
+  short ones (`ttl`, `sdk`, `rpc`) are accepted as typed.
+- **The strip.** One acronym no longer makes every suggestion ALL CAPS, fragments (`th`, `s`,
+  `didn`) are never offered, ordinals and hyphenated words no longer silence it, and no strip
+  shows while the caret is inside a word. A pick refuses to type when the field is not the text
+  the strip was drawn for, and adds no space before text that is already there.
+- **Only what you just typed is corrected.** A click into a document that ends in a misspelled
+  word used to get that word fixed when a background event arrived; fixes now need a key of yours.
+- **Settings do what they say.** Reset All Settings resets every switch and brings a hidden menu
+  bar icon back. The clear button also forgets accepted fixes and kept words. The training pane
+  shows what is on disk. Turning the strip off stops its learning.
+
+Known and not fixed: a capitalized `Ive` (a name) is still read as `I've`; a few two-edit slips
+pick the commoner neighbour (`was bord` → born); `asan` is read as `as an`; text you paste and send
+is learned like text you typed; counts of words you no longer use do not fade.
 
 ## Building from source on another Mac
 

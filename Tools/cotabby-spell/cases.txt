@@ -305,3 +305,45 @@ auto:serve	I will serev |
 auto:next	the nxet |
 auto:server	the setver |
 auto:server	the segver |
+
+## Battle test: capitals, terms typed first on a line, and other kinds of space
+# A mixed-case term typed right is left alone; a real Shift slip is still fixed, to the known form.
+proceed	use the OAuth |
+proceed	use OAuth, |
+proceed	we use JUnit |
+proceed	we use GHz |
+!auto	we use OSes |
+auto:iPhone	my IPhone |
+auto:iPad	my IPad |
+auto:The	I saw THe |
+auto:Hello	HEllo |
+# A command or a term whose name is lowercase is not given a capital at the start of a sentence.
+proceed	kubectl |
+proceed	json |
+proceed	pwd |
+proceed	git |
+proceed	ls |
+proceed	api |
+proceed	Done. mongodb |
+proceed	Done. javascript |
+proceed	Done. docker |
+proceed	It was fine. node-gyp |
+proceed	It was fine. k-means |
+auto:Then	It ended. then |
+auto:Hello	hello |
+# An abbreviation's period does not start a sentence.
+proceed	Use fruit eg. apples |
+proceed	Bring items, ie. the |
+proceed	cf. there |
+proceed	ex. there |
+proceed	min. two |
+proceed	max. there |
+proceed	et al. there |
+# A word finished with the space a web editor stores (no-break, narrow no-break, figure) is checked
+# like one finished with a plain space; two of them, or a thin space, are not a finished word.
+auto:the	I saw teh |
+auto:the	I saw teh |
+auto:the	I saw teh |
+auto:the	I saw teh, |
+proceed	I saw teh  |
+proceed	I saw teh |
