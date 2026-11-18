@@ -32,6 +32,8 @@ struct Harness {
     /// What the engine learns from the writer as they go; the replay teaches these as the app would.
     let vocabulary: PersonalVocabulary
     let phrases: PersonalPhraseModel
+    /// The bundled software terms in the spelling dictionary (empty with NO_TECHNICAL=1).
+    let technicalTerms: Set<String>
 
     static func make(arguments: Arguments) throws -> Harness {
         let root = arguments.resourceRoot
@@ -41,6 +43,15 @@ struct Harness {
             + "\n" + (ProcessInfo.processInfo.environment["NO_SPELLING_SUPPLEMENT"] != nil ? "" : SymSpellCorrector.spellingLines(
                 ofSupplement: (try? String(contentsOf: root.appendingPathComponent("prediction_words_en.txt"), encoding: .utf8)) ?? ""
             ))
+            // NO_TECHNICAL=1 leaves the software-engineering terms out, to measure what they change.
+            + "\n" + (ProcessInfo.processInfo.environment["NO_TECHNICAL"] != nil ? "" : (try? String(
+                contentsOf: root.appendingPathComponent("\(TechnicalVocabulary.spellingListName).txt"), encoding: .utf8
+            )) ?? "")
+        let technicalTerms: Set<String> = ProcessInfo.processInfo.environment["NO_TECHNICAL"] != nil ? [] : TechnicalVocabulary.terms(
+            inSpellingList: (try? String(
+                contentsOf: root.appendingPathComponent("\(TechnicalVocabulary.spellingListName).txt"), encoding: .utf8
+            )) ?? ""
+        )
         let corrector = SymSpellCorrector(preloadLanguage: nil) { language in
             let url = root.appendingPathComponent("SpellingDictionaries/\(language.resourceName).txt")
             return try? String(contentsOf: url, encoding: .utf8)
@@ -123,7 +134,8 @@ struct Harness {
                 personalWords: { vocabulary.matches(for: $0) },
                 autoFixModel: autoFixModel,
                 wrongWordModel: wrongWordModel,
-                americanSpellings: arguments.americanSpellings
+                americanSpellings: arguments.americanSpellings,
+                technicalTerms: technicalTerms
             ),
             refiner: refiner,
             settings: {
@@ -138,7 +150,8 @@ struct Harness {
                 return settings
             }(),
             vocabulary: vocabulary,
-            phrases: phrases
+            phrases: phrases,
+            technicalTerms: technicalTerms
         )
     }
 

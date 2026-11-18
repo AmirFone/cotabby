@@ -115,6 +115,9 @@ final class SuggestionCoordinator: ObservableObject {
     var personalPhraseModel: PersonalPhraseModel?
     /// The writer's own words (names, jargon) as correction targets; set by the app environment.
     var personalVocabulary: PersonalVocabulary?
+    /// The bundled software terms the spelling dictionary took (lowercase); the sentence model
+    /// leaves them as typed. Empty when that vocabulary is off.
+    var technicalTerms: Set<String> = []
     /// Auto-fixes waiting for the writer's reaction; only kept fixes teach the personal history.
     var autoFixOutcomes = AutoFixOutcomeTracker()
     /// Watches for the writer retyping a misspelled word themselves.

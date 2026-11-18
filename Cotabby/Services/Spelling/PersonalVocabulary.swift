@@ -57,7 +57,12 @@ final class PersonalVocabulary {
     ///   - isDictionaryWord: the bundled dictionary has the (lowercased) word, so it needs no learning.
     ///   - isAcceptedSpelling: the system checker accepts the word as typed, or the writer kept it.
     func learn(sentence: String, isDictionaryWord: (String) -> Bool, isAcceptedSpelling: (String) -> Bool) {
-        var changed = false
+        // A word the dictionary has does not belong here. Some got in on earlier builds, learned
+        // in the moment after launch before the dictionary was read; they leave the first time
+        // something is learned.
+        let before = uses.count
+        uses = uses.filter { !isDictionaryWord($0.key.lowercased()) }
+        var changed = uses.count != before
         for token in WordToken.tokens(in: sentence) {
             let word = token.text
             guard word.count >= Self.minimumLength, !word.contains("'"), !word.contains("’"),

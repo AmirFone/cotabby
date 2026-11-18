@@ -128,6 +128,21 @@ proceed	go to src/main/jva |
 proceed	path /usr/lcal |
 proceed	version v1.2.x |
 
+## Software-engineering terms: not flagged, and slips go to the term. Short terms that are common
+## slips for everyday words (`aws`) are not in the spelling dictionary.
+proceed	we store it as jsonb |
+proceed	run it with kubectl |
+proceed	we need an upsert |
+proceed	update the backend |
+bar:frontend	the frontned |
+bar:json	parse the josn |
+bar:kubernetes	check the kuberntes |
+bar:config	edit the confg |
+bar:webhook	add a webhok |
+auto:endpoint	add an endpiont |
+auto:namespace	check the namepsace |
+auto:was	I think it aws |
+
 ## Whitespace and boundaries
 proceed	|
 proceed	   |

@@ -35,6 +35,20 @@ final class NextWordPredictorTests: XCTestCase {
         )
     }
 
+    // MARK: - Words with usual capitals
+
+    func test_wordWithUsualCapitals_isShownTheWayItIsWritten() {
+        // #given a list word that is conventionally written with capitals
+        var withCapitals = sources()
+        withCapitals.usualCapitals = { $0 == "go" ? "Go" : nil }
+
+        let prediction = NextWordPredictor.predict(textBefore: "I want to g", sources: withCapitals)
+
+        // #then it is offered that way even after a lowercase letter, and other words are untouched
+        XCTAssertEqual(prediction?.words.first, "Go")
+        XCTAssertTrue(prediction?.words.dropFirst().allSatisfy { $0 == $0.lowercased() } ?? false)
+    }
+
     // MARK: - After a dot, a slash or a hyphen
 
     func test_wordStartedRightAfterADotOrSlash_isCompletedFromTheWordsBeforeIt() {

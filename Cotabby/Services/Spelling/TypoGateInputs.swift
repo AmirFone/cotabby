@@ -32,6 +32,9 @@ struct SpellingEngineDependencies {
     /// Set where the writer spells the American way: fixes come in that spelling (`neighbur` →
     /// `neighbor`, not `neighbour`). Nil leaves the ranker's choice alone.
     var americanSpellings: AmericanSpellings?
+    /// The bundled software terms in the spelling dictionary, lowercase (see `TechnicalVocabulary`).
+    /// The system checker calls most of them misspelled (`kubectl`, `upsert`); they are not.
+    var technicalTerms: Set<String> = []
 }
 
 @MainActor
@@ -147,7 +150,7 @@ final class TypoGateInputs {
     }
 
     func isTypo(_ word: String) -> Bool {
-        guard memory?.isKept(word) != true else { return false }
+        guard memory?.isKept(word) != true, !dependencies.technicalTerms.contains(word.lowercased()) else { return false }
         // `cant` and `thats` pass the system checker but are almost always a dropped apostrophe;
         // every `KnownMisspellings` key is a non-word or near-certain slip.
         if KnownMisspellings.fix(for: word) != nil { return true }

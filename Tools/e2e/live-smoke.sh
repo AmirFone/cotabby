@@ -52,6 +52,10 @@ defaults export "$DOMAIN" "$SNAPSHOT"
 PHRASES="$HOME/Library/Application Support/Cotabby/personal_phrases.json"
 JOURNAL="$HOME/Library/Application Support/Cotabby/correction-journal.jsonl"
 TRAINING="$HOME/Library/Application Support/Cotabby/training-log.jsonl"
+# The writer's learned words too: a test that keeps a misspelling (`teh`, `Tyoda`) teaches it as one
+# of their own words, and it stayed in their file after the run.
+WORDS="$HOME/Library/Application Support/Cotabby/personal_words.json"
+[ -f "$WORDS" ] && cp "$WORDS" "$SNAPSHOT.words"
 [ -f "$PHRASES" ] && cp "$PHRASES" "$SNAPSHOT.phrases"
 [ -f "$JOURNAL" ] && cp "$JOURNAL" "$SNAPSHOT.journal"
 [ -f "$TRAINING" ] && cp "$TRAINING" "$SNAPSHOT.training"
@@ -66,6 +70,7 @@ restore_history() {
       && defaults write "$DOMAIN" "$key" "$(sed -n '/<plist/,/<\/plist>/p' "$SNAPSHOT.$key")"
   done
   restore_file "$PHRASES" "$SNAPSHOT.phrases"
+  restore_file "$WORDS" "$SNAPSHOT.words"
   restore_file "$JOURNAL" "$SNAPSHOT.journal"
   restore_file "$TRAINING" "$SNAPSHOT.training"
   open "/Applications/Cotabby Dev.app"
@@ -351,9 +356,11 @@ toggle_cases() {
     echo "PASS  toggle: the shortcut reached Cotabby"; pass=$((pass+1))
   else echo "FAIL  toggle: no sign of the shortcut in the log"; fail=$((fail+1)); fi
   check "toggle: the shortcut itself types nothing" "I have a questoi" "$(doc)"
-  case_type "toggle: off leaves a misspelling alone" "I saw teh cat. " "I saw teh cat. "
+  # Not `teh`: the learning cases above keep it on purpose, and a kept word is left alone by every
+  # stage from then on, the sentence model included.
+  case_type "toggle: off leaves a misspelling alone" "Did you recieve it. " "Did you recieve it. "
   send "$toggle"; sleep 1.0
-  case_type "toggle: on fixes it again" "I saw teh dog. " "I saw the dog. "
+  case_type "toggle: on fixes it again" "Did you recieve mine. " "Did you receive mine. "
 }
 
 # Tense in the word strip: with the letters that several forms of a verb share typed, Tab takes

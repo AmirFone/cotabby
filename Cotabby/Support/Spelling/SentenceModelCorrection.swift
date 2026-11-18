@@ -199,8 +199,8 @@ nonisolated enum SentenceModelGate {
         /// The word is one the app's own dictionary (or the writer's vocabulary) has. Stricter
         /// than `isKnownWord`, which also takes the system checker's word for it.
         var isInDictionary: (String) -> Bool
-        /// The writer kept this word when a fix was offered, or has written it often enough for it
-        /// to be in their vocabulary.
+        /// The word is to be left exactly as typed: the writer kept it when a fix was offered, or
+        /// it is a term of the bundled technical vocabulary.
         var isWritersOwn: (String) -> Bool = { _ in false }
     }
 
@@ -216,9 +216,8 @@ nonisolated enum SentenceModelGate {
     /// Two limits come from what the model cannot know. It may only type in place a word that
     /// `words.isInDictionary` has: turning a term the dictionary lacks into another it lacks
     /// (`kubectl` into `kubelet`) is a guess about a term, not a spelling fix, and is asked about at
-    /// most. And a word `words.isWritersOwn` names (one the writer chose to keep, or has made their
-    /// own by writing it again and again) is never changed and never asked about: they have
-    /// already answered.
+    /// most. And a word `words.isWritersOwn` names (one the writer chose to keep, or a term of the
+    /// technical vocabulary) is never changed and never asked about.
     static func result(
         typed sentence: String,
         output: SentenceModelOutput,

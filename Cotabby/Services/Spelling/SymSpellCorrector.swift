@@ -131,6 +131,13 @@ nonisolated final class SymSpellCorrector: @unchecked Sendable {
         cachedIndexOrRequestLoad(for: language)?.contains(word.lowercased()) ?? false
     }
 
+    /// False until the dictionary has been read, about half a second after launch. Until then
+    /// `isDictionaryWord` says no to every word, so a caller that means "the dictionary lacks this
+    /// word" must ask this first.
+    func isLoaded(_ language: SpellingDictionaryLanguage = .english) -> Bool {
+        cachedIndexOrRequestLoad(for: language) != nil
+    }
+
     /// Test seam: synchronously publishes a small in-memory dictionary without touching the bundle.
     func loadForTesting(
         contents: String,
@@ -237,7 +244,8 @@ nonisolated final class SymSpellCorrector: @unchecked Sendable {
         guard let url = resourceURL(for: language), let contents = try? String(contentsOf: url, encoding: .utf8) else {
             return nil
         }
-        return language == .english ? contents + "\n" + englishOverrides() + "\n" + englishSupplement() : contents
+        guard language == .english else { return contents }
+        return [contents, englishOverrides(), englishSupplement(), TechnicalVocabulary.spellingLines()].joined(separator: "\n")
     }
 
     /// The common, longer words of `prediction_words_en.txt`, as dictionary lines.

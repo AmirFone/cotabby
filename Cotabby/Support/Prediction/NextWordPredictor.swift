@@ -40,6 +40,10 @@ nonisolated enum NextWordPredictor {
         /// `dataset`). Without this, two of them in a row read as another language and the strip
         /// went quiet.
         var isKnownWord: (String) -> Bool = { _ in false }
+        /// How a word is usually written when not in lowercase (`github` → `GitHub`, `json` →
+        /// `JSON`), for words the lists hold in lowercase. The writer's own spelling of a word in
+        /// the text still comes first.
+        var usualCapitals: (String) -> String? = { _ in nil }
         /// Set where the writer spells the American way: `travelling` is offered as `traveling`,
         /// once. Nil offers whatever the lists hold.
         var americanSpellings: AmericanSpellings?
@@ -104,7 +108,9 @@ nonisolated enum NextWordPredictor {
                 by: languageModel, tableScores: scores, prefix: prefix, fuzzyWords: fuzzyWords, mix: sources.mix
             )
             let words = inPreferredSpelling(ranked, prefix: prefix, sources: sources)
-            return prediction(words, parsed: parsed, textBefore: textBefore, display: languageModel.display(of:))
+            return prediction(words, parsed: parsed, textBefore: textBefore) {
+                languageModel.display(of: $0) ?? sources.usualCapitals($0)
+            }
         }
         // Without the language model: order by expected keys saved, not raw likelihood. A pick
         // costs about one key, so a likely "a" (saves nothing) should not take the Tab slot from
@@ -133,7 +139,10 @@ nonisolated enum NextWordPredictor {
                 words.append(word)
             }
         }
-        return prediction(inPreferredSpelling(words, prefix: prefix, sources: sources), parsed: parsed, textBefore: textBefore)
+        return prediction(
+            inPreferredSpelling(words, prefix: prefix, sources: sources), parsed: parsed, textBefore: textBefore,
+            display: sources.usualCapitals
+        )
     }
 
     /// The first five of `words` in the spelling the writer uses (see `AmericanSpellings`): a

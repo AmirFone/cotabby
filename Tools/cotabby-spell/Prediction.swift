@@ -36,6 +36,7 @@ struct PredictionHarness {
         if let languageModelPath {
             // NO_SUPPLEMENT=1 leaves out prediction_words_en.txt, to measure what it adds.
             let lists = ["frequency_dictionary_en_82_765.txt"] + (noSupplement ? [] : ["prediction_words_en.txt"])
+                + (noTechnical ? [] : ["\(TechnicalVocabulary.stripListName).txt"])
             guard let core = WordLanguageModelCore(
                 modelURL: URL(fileURLWithPath: languageModelPath),
                 wordListURLs: lists.map(resourceRoot.appendingPathComponent)
@@ -45,8 +46,12 @@ struct PredictionHarness {
             }
             languageModel = SynchronousLanguageModel(core: core)
         }
-        let supplement = noSupplement ? [] : Set(
-            WordLanguageModelCore.entries(in: [resourceRoot.appendingPathComponent("prediction_words_en.txt")]).map(\.word)
+        let technicalURL = resourceRoot.appendingPathComponent("\(TechnicalVocabulary.stripListName).txt")
+        let supplement = Set(WordLanguageModelCore.entries(
+            in: (noSupplement ? [] : [resourceRoot.appendingPathComponent("prediction_words_en.txt")]) + (noTechnical ? [] : [technicalURL])
+        ).map(\.word))
+        let capitals = noTechnical ? [:] : TechnicalVocabulary.capitals(
+            inStripList: (try? String(contentsOf: technicalURL, encoding: .utf8)) ?? ""
         )
         let hardWords = Set(((try? String(contentsOf: resourceRoot.appendingPathComponent("commonly_misspelled_en.txt"), encoding: .utf8)) ?? "")
             .split(separator: "\n").filter { !$0.hasPrefix("#") }.map(String.init))
@@ -62,12 +67,15 @@ struct PredictionHarness {
             isHardToSpell: { ProcessInfo.processInfo.environment["NO_HARD"] == nil && hardWords.contains($0) },
             languageModel: { languageModel?.scores(forTextBefore: $0) },
             isKnownWord: { supplement.contains($0) },
+            usualCapitals: { capitals[$0] },
             americanSpellings: americanSpellings,
             mix: mixFromEnvironment()
         ), phrases: phrases, hardWords: hardWords, languageModel: languageModel)
     }
 
     private static let noSupplement = ProcessInfo.processInfo.environment["NO_SUPPLEMENT"] != nil
+    /// NO_TECHNICAL=1 leaves out the software-engineering terms, to measure what they change.
+    private static let noTechnical = ProcessInfo.processInfo.environment["NO_TECHNICAL"] != nil
 
     /// MIX_TABLE_WEIGHT, MIX_SLIP_PENALTY, MIX_CANDIDATES: try other numbers without rebuilding.
     private static func mixFromEnvironment() -> NextWordPredictor.LanguageModelMix {

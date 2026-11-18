@@ -52,6 +52,7 @@ On a Mac with less than 16 GB of memory, install tabby-2-mini (or tabby-2-nano u
   - also fixed automatically: `could of` → could have (not `of course`);
   - reviewed in one pass: likely wrong words judged from both sides (`went their yesterday` → there, `to tired` → too, `I want to by a car` → buy) and uncertain typos. The card steps through them: Tab takes the fix and moves on, ←/→ pick another option, Esc keeps your word (and it is not flagged there again). Typing closes it with no change. Wrong words are never changed without asking.
 - **Learns you:** a fix you pick or retype ranks higher next time. Once you have made the same fix for the same slip twice, that word leads the bar whatever the dictionary thinks is likelier, and from the third time it is made for you (`wich` → which, for someone who always means *which*, even though *with* is the commoner word). A slip you correct to two different words about as often has no habit and stays a choice. Undoing a fix marks the word as meant; correcting it yourself later takes that back.
+- **Knows software terms:** about 870 engineering words are built in, so `backend`, `kubectl` and `jsonb` are not flagged, slips go to the term (`frontned` → frontend), and the strip offers `Kubernetes`, `JSON` or `repo` where the text calls for them (see "Software-engineering vocabulary").
 - **Learns your words:** a name or term the dictionary lacks, once you have written it twice, becomes a correction target in your capitals (`lindqvsit` → Lindqvist instead of Lundqvist). Stored locally; "Clear Learned Phrases" clears it.
 
 ## Training data (opt-in)
@@ -235,6 +236,41 @@ all 7 new ones are British spellings turned American (`favourite`, `travelling`,
 is what the app already did with `organisation`. The trained models were left as they are;
 retraining them on the larger dictionary gave the same first-guess accuracy.
 
+## Software-engineering vocabulary
+
+The dictionary is general English: it has `server` and `database` but not `backend`, `config`,
+`repo`, `async`, `kubectl` or `jsonb`, and it counts `docker` and `refactor` as rare words. For
+someone who writes about software the strip then never offered the word being typed, and the
+spelling engine flagged it or changed it into an ordinary word (`kuberntes` was offered `currents`).
+
+`Tools/prediction/build_technical_words.py` holds about 870 terms (languages, tools, protocols, data
+formats, cloud services, and the everyday jargon of code review and operations) and writes two lists:
+
+- **`technical_words_en.txt`, for the word strip:** every term with a count and its usual capitals.
+  The language model that orders the strip can now put `Kubernetes`, `JSON`, `GitHub`, `TypeScript`,
+  `kubectl` or `repo` first where the text calls for it, shown the way it is written. A term that is
+  also an ordinary word (`swift`, `spring`, `react`, `rust`) gets no capitals, so a sentence about
+  the weather is not offered a programming language.
+- **`technical_spelling_en.txt`, for the spelling dictionary:** the 356 terms the dictionary lacks
+  that are five letters or longer, plus `json`, `yaml`, `html`, `http`, `repo`, `enum` and `sudo`.
+  These are no longer flagged (the system checker calls most of them misspelled), slips are fixed
+  toward them (`frontned` → frontend, `josn` → json, `kuberntes` → kubernetes), and the sentence
+  model leaves them as typed. Short terms stay out on purpose: `aws` is how `was` comes out with two
+  keys swapped, `iam` is `I am` run together, `util` is `until` with a letter dropped, and as
+  dictionary words they would make those slips look right. The strip still offers them.
+
+The counts are three tiers set by hand (used daily, weekly, now and then), not measured in a corpus;
+where the dictionary also has the word the larger count is used, and a word the dictionary has keeps
+its own count in the spelling dictionary.
+
+Measured on ordinary text nothing moves: the 8,000 misspellings in sentences give the same result
+with and without the lists (right word first 73.1%, fixed without asking 49.8% with the same 338
+wrong), and the strip's four held-back sets give the same numbers as before (first suggestion right
+while typing a word: 82.9%, 82.0%, 80.0% and 71.5%). It is on by default; to turn it off:
+`defaults write com.jacobfu.tabby.dev cotabbyTechnicalVocabularyEnabled -bool false`, then restart
+the app. To add your own terms, edit the script and run it (its header has the command); a term you
+write twice is also learned by itself (see "Learns your words").
+
 ## Context table
 
 `Tools/ngram/build_context_table.sh <work-dir>` downloads the corpora, holds out every 50th sentence of each, counts the rest in parallel (under a minute on 16 cores) and writes `next_word_model_en.bin`. Until 2026-11-12 the table came from Tatoeba alone (15 million words, 16 MB). Next-word prediction on held-out sentences, before any letter of the word is typed:
@@ -376,9 +412,11 @@ word lists cannot: misspelled names and technical terms (`I drive a Tyoda Corola
 - **Two limits on what it may type** (`SentenceModelGate.WordChecks`, since 0.4.0): only a word the
   app's dictionary or your own vocabulary has is typed in place, so a term the dictionary lacks is
   not turned into another word it lacks (`kubectl` into `kubelet`); such a change is asked about at
-  most. And a word you kept when a fix was offered, undid a fix of, or have written often enough to
-  be in your vocabulary is never changed or asked about. On the sentences below this moves 0.4 to
-  0.8 points of misspellings from "typed in place" to "asked" (74.1% to 73.7%, 72.5% to 71.7%).
+  most. And a word you kept when a fix was offered or undid a fix of, and any term of the bundled
+  software vocabulary, is never changed or asked about. (0.4.0 also left alone every word in your
+  learned vocabulary. That file can hold a misspelling you never noticed, which then could not be
+  fixed, so 0.4.1 took it off the list.) On the sentences below this moves 0.4 to 0.8 points of
+  misspellings from "typed in place" to "asked" (74.1% to 73.7%, 72.5% to 71.7%).
 - **Speed, live** (M3 Max, no developer overlay): a correct sentence is cleared in about 35 ms, a
   one-word fix is decided in about 60 ms, a two-word fix in about 80 ms. The answer is dropped if
   the writer has already typed past the sentence (at 120 ms a key most fixes still land; at 70 ms a

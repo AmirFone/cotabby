@@ -44,7 +44,7 @@ final class WordLanguageModelService {
     static func bundledWordListURLs(in bundle: Bundle = .main) -> [URL] {
         ["frequency_dictionary_en_82_765", "prediction_words_en"].compactMap {
             bundle.url(forResource: $0, withExtension: "txt")
-        }
+        } + [TechnicalVocabulary.stripListURL(in: bundle)].compactMap { $0 }
     }
 
     /// A model the app can use for this, best first. All are files the app already installs for

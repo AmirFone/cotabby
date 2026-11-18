@@ -789,7 +789,8 @@ extension SuggestionCoordinator {
             personalWords: personalVocabulary.map { vocabulary in { vocabulary.matches(for: $0) } },
             autoFixModel: autoFixModel,
             wrongWordModel: wrongWordModel,
-            americanSpellings: americanSpellings
+            americanSpellings: americanSpellings,
+            technicalTerms: technicalTerms
         )
     }
 
@@ -810,10 +811,14 @@ extension SuggestionCoordinator {
     /// or the writer's own vocabulary knows needs a surer model before it is replaced.
     func proofread(_ finished: FinishedSentence, modelOutput: SentenceModelOutput) -> LocalProofreadResult? {
         let isTypo = sentenceChecks.isTypo
-        // The writer's own: a word they kept when a fix was offered or undid a fix of, and a term
-        // they have written often enough for it to be in their vocabulary.
+        // Left as typed: a word the writer kept when a fix was offered or undid a fix of (their
+        // explicit answer), and a term of the bundled technical vocabulary, which is spelled right
+        // by definition and which a model trained on general text likes to turn into an everyday
+        // word. The learned vocabulary is not on this list: it can hold a misspelling the writer
+        // never noticed, and that must stay fixable.
         let memory = personalCorrectionMemory, vocabulary = personalVocabulary, corrector = symSpellCorrector
-        let isWritersOwn: (String) -> Bool = { memory?.isKept($0) == true || vocabulary?.preferredCasing(of: $0) != nil }
+        let technical = technicalTerms
+        let isWritersOwn: (String) -> Bool = { memory?.isKept($0) == true || technical.contains($0.lowercased()) }
         let words = SentenceModelGate.WordChecks(
             isInDictionary: { corrector.isDictionaryWord($0.lowercased()) || vocabulary?.preferredCasing(of: $0) != nil },
             isWritersOwn: isWritersOwn

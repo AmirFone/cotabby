@@ -627,8 +627,16 @@ extension WordPredictionController {
     /// The words of `prediction_words_en.txt`: everyday words the spelling dictionary and the
     /// n-gram table lack, which the language model can still offer.
     static func supplementWords(in bundle: Bundle = .main) -> Set<String> {
-        guard let url = bundle.url(forResource: "prediction_words_en", withExtension: "txt") else { return [] }
-        return Set(WordLanguageModelCore.entries(in: [url]).map(\.word))
+        let urls = [bundle.url(forResource: "prediction_words_en", withExtension: "txt"), TechnicalVocabulary.stripListURL(in: bundle)]
+        return Set(WordLanguageModelCore.entries(in: urls.compactMap { $0 }).map(\.word))
+    }
+
+    /// The usual capitals of the bundled software terms (`github` → `GitHub`), empty when that
+    /// vocabulary is off.
+    static func technicalCapitals(in bundle: Bundle = .main) -> [String: String] {
+        guard let url = TechnicalVocabulary.stripListURL(in: bundle),
+              let contents = try? String(contentsOf: url, encoding: .utf8) else { return [:] }
+        return TechnicalVocabulary.capitals(inStripList: contents)
     }
 
     static let enabledDefaultsKey = "cotabbyWordPredictionsEnabled"
@@ -654,7 +662,8 @@ extension WordPredictionController {
         }
         let hardWords = commonlyMisspelledWords()
         let supplement = supplementWords()
-        let sources = NextWordPredictor.Sources(
+        let capitals = technicalCapitals()
+        var sources = NextWordPredictor.Sources(
             model: model,
             completions: { symSpellCorrector.completions(of: $0, limit: $1) },
             personal: { phrases.nextWords(after: $0) },
@@ -665,6 +674,7 @@ extension WordPredictionController {
             isKnownWord: { supplement.contains($0) },
             americanSpellings: americanSpellings
         )
+        sources.usualCapitals = { capitals[$0] }
         return { NextWordPredictor.predict(textBefore: $0, sources: sources) }
     }
 }

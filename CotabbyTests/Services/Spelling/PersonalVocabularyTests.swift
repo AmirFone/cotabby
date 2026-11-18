@@ -36,6 +36,23 @@ final class PersonalVocabularyTests: XCTestCase {
         XCTAssertEqual(vocabulary.matches(for: "Kubernets").first?.word, "Kubernetes")
     }
 
+    func test_dictionaryWordsThatGotInEarlier_leaveTheNextTimeSomethingIsLearned() {
+        // #given a vocabulary that learned ordinary words while the dictionary was not yet read
+        // (every word looked like one it lacked)
+        let vocabulary = PersonalVocabulary(fileURL: nil)
+        for _ in 0..<2 {
+            vocabulary.learn(sentence: "The works and Lindqvist.", isDictionaryWord: { _ in false }, isAcceptedSpelling: { _ in true })
+        }
+        XCTAssertEqual(vocabulary.preferredCasing(of: "works"), "works")
+
+        // #when a sentence is learned with the dictionary there
+        learn(vocabulary, "We met at noon.")
+
+        // #then the ordinary words are gone and the writer's own word stays
+        XCTAssertNil(vocabulary.preferredCasing(of: "works"))
+        XCTAssertEqual(vocabulary.preferredCasing(of: "lindqvist"), "Lindqvist")
+    }
+
     func test_theWordItselfAndDistantWordsAreNotMatches() {
         let vocabulary = PersonalVocabulary(fileURL: nil)
         learn(vocabulary, "My name is Lindqvist.")

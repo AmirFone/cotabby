@@ -1,0 +1,869 @@
+# Software-engineering vocabulary for the word strip: word, count, usual capitals.
+# Written by Tools/prediction/build_technical_words.py; edit that file, not this one.
+android 3000000 Android
+api 3000000 API
+apis 3000000
+arg 3000000
+args 3000000
+async 3000000
+auth 3000000
+authn 3000000
+authz 3000000
+await 3000000
+aws 3000000 AWS
+backend 3000000
+bash 3000000
+boolean 3000000
+branch 3000000
+branches 3000000
+breakpoint 3000000
+bug 3000000
+bugfix 3000000
+bugs 3000000
+cache 3000000
+cached 3000000
+caching 3000000
+changelog 3000000
+changeset 3000000
+checksum 3000000
+cli 3000000 CLI
+codebase 3000000
+commit 3000000
+commits 3000000
+config 3000000
+configs 3000000
+container 3000000
+containerized 3000000
+containers 3000000
+cpu 3000000 CPU
+cron 3000000
+css 3000000 CSS
+dashboard 3000000
+dashboards 3000000
+database 3000000
+databases 3000000
+dataset 3000000
+datasets 3000000
+debug 3000000
+debugger 3000000
+debugging 3000000
+dependencies 3000000
+dependency 3000000
+deploy 3000000
+deployed 3000000
+deployment 3000000
+deployments 3000000
+deserialize 3000000
+docker 3000000 Docker
+docs 3000000
+docstring 3000000
+downstream 3000000
+endpoint 3000000
+endpoints 3000000
+enum 3000000
+enums 3000000
+env 3000000
+filename 3000000
+filepath 3000000
+frontend 3000000
+frontmatter 3000000
+fullstack 3000000
+git 3000000
+github 3000000 GitHub
+gitlab 3000000 GitLab
+golang 3000000 Golang
+gpu 3000000 GPU
+grep 3000000
+hostname 3000000
+hotfix 3000000
+html 3000000 HTML
+http 3000000 HTTP
+https 3000000 HTTPS
+ide 3000000 IDE
+index 3000000
+indexes 3000000
+init 3000000
+ios 3000000 iOS
+java 3000000 Java
+javascript 3000000 JavaScript
+json 3000000 JSON
+kafka 3000000 Kafka
+kotlin 3000000 Kotlin
+kubernetes 3000000 Kubernetes
+latency 3000000
+lint 3000000
+linter 3000000
+linux 3000000 Linux
+localhost 3000000
+logging 3000000
+login 3000000
+logout 3000000
+logs 3000000
+macos 3000000 macOS
+markdown 3000000
+merge 3000000
+merged 3000000
+metadata 3000000
+microservice 3000000
+microservices 3000000
+middleware 3000000
+monolith 3000000
+monorepo 3000000
+mutex 3000000
+mysql 3000000 MySQL
+namespace 3000000
+node 3000000
+npm 3000000
+param 3000000
+params 3000000
+parse 3000000
+parser 3000000
+parsing 3000000
+pathname 3000000
+payload 3000000
+php 3000000 PHP
+pip 3000000
+pipeline 3000000
+pipelines 3000000
+plugin 3000000
+plugins 3000000
+postgres 3000000 Postgres
+postgresql 3000000 PostgreSQL
+python 3000000 Python
+queries 3000000
+query 3000000
+queue 3000000
+queues 3000000
+react 3000000
+readme 3000000
+rebase 3000000
+redis 3000000 Redis
+refactor 3000000
+refactored 3000000
+refactoring 3000000
+regex 3000000
+repo 3000000
+repos 3000000
+rollback 3000000
+rollout 3000000
+ruby 3000000
+runtime 3000000
+rust 3000000
+scalability 3000000
+scalable 3000000
+schema 3000000
+schemas 3000000
+sdk 3000000 SDK
+serialize 3000000
+serialized 3000000
+serverless 3000000
+signup 3000000
+sql 3000000 SQL
+stacktrace 3000000
+struct 3000000
+structs 3000000
+sudo 3000000
+swift 3000000
+sync 3000000
+thread 3000000
+threads 3000000
+throughput 3000000
+timeout 3000000
+timeouts 3000000
+timestamp 3000000
+timestamps 3000000
+tokenize 3000000
+tokenizer 3000000
+typescript 3000000 TypeScript
+ui 3000000 UI
+upstream 3000000
+url 3000000 URL
+urls 3000000
+username 3000000
+util 3000000
+utils 3000000
+ux 3000000 UX
+var 3000000
+vars 3000000
+webhook 3000000
+webhooks 3000000
+workflow 3000000
+workflows 3000000
+yaml 3000000 YAML
+yarn 3000000
+zsh 3000000
+airflow 800000
+aks 800000 AKS
+alerting 800000
+allocator 800000
+allowlist 800000
+angular 800000
+ansible 800000 Ansible
+apache 800000 Apache
+assertion 800000
+assertions 800000
+asynchronous 800000
+atomicity 800000
+authenticate 800000
+authentication 800000
+authorization 800000
+authorize 800000
+autocomplete 800000
+autocompletion 800000
+autoscale 800000
+autoscaling 800000
+azure 800000
+babel 800000
+backfill 800000
+backfilled 800000
+backoff 800000
+backport 800000
+backported 800000
+benchmark 800000
+benchmarking 800000
+benchmarks 800000
+bigint 800000
+bigquery 800000 BigQuery
+bitbucket 800000 Bitbucket
+bitmask 800000
+bitwise 800000
+blacklist 800000
+blocking 800000
+blocklist 800000
+boilerplate 800000
+bootstrap 800000
+bundler 800000
+bytecode 800000
+callback 800000
+callbacks 800000
+canary 800000
+cassandra 800000 Cassandra
+cdn 800000 CDN
+changelist 800000
+changelogs 800000
+cherrypick 800000
+chmod 800000
+chown 800000
+ciphertext 800000
+closure 800000
+closures 800000
+cloudflare 800000 Cloudflare
+codegen 800000
+compiler 800000
+compilers 800000
+concurrency 800000
+confluence 800000
+coroutine 800000
+coroutines 800000
+cors 800000 CORS
+credentials 800000
+crud 800000
+csrf 800000 CSRF
+csv 800000 CSV
+cypress 800000
+databricks 800000 Databricks
+datadog 800000 Datadog
+dataframe 800000
+dataframes 800000
+dbt 800000
+ddos 800000 DDoS
+deadlock 800000
+deadlocks 800000
+deallocate 800000
+decrypt 800000
+decryption 800000
+dedupe 800000
+deduplicate 800000
+deduplication 800000
+denormalize 800000
+denormalized 800000
+denylist 800000
+deprecate 800000
+deprecated 800000
+deprecation 800000
+dequeue 800000
+dereference 800000
+devops 800000 DevOps
+dict 800000
+dicts 800000
+diff 800000
+diffs 800000
+django 800000 Django
+dns 800000 DNS
+dockerfile 800000 Dockerfile
+dotfile 800000
+dotfiles 800000
+downtime 800000
+dynamodb 800000 DynamoDB
+ecs 800000 ECS
+egress 800000
+eks 800000 EKS
+elasticsearch 800000 Elasticsearch
+elt 800000 ELT
+embedding 800000
+embeddings 800000
+encapsulation 800000
+encrypt 800000
+encrypted 800000
+encryption 800000
+enqueue 800000
+eslint 800000 ESLint
+etl 800000 ETL
+express 800000
+failback 800000
+failover 800000
+fargate 800000 Fargate
+fastapi 800000 FastAPI
+featureflag 800000
+figma 800000 Figma
+finetune 800000
+finetuning 800000
+firewall 800000
+fixture 800000
+fixtures 800000
+flaky 800000
+flask 800000
+flink 800000 Flink
+gateway 800000
+gcp 800000 GCP
+generics 800000
+getter 800000
+getters 800000
+gitignore 800000
+gke 800000 GKE
+goroutine 800000
+goroutines 800000
+gradle 800000 Gradle
+grafana 800000 Grafana
+graphql 800000 GraphQL
+grpc 800000 gRPC
+hadoop 800000 Hadoop
+hashed 800000
+hashing 800000
+hashmap 800000
+hashtable 800000
+healthcheck 800000
+healthchecks 800000
+heartbeat 800000
+helm 800000
+heroku 800000 Heroku
+hive 800000
+hostnames 800000
+hyperparameter 800000
+hyperparameters 800000
+iaas 800000 IaaS
+iam 800000 IAM
+idempotency 800000
+idempotent 800000
+immutability 800000
+immutable 800000
+inference 800000
+ingress 800000
+inheritance 800000
+intellisense 800000
+interpreter 800000
+iterable 800000
+iterator 800000
+iterators 800000
+jenkins 800000 Jenkins
+jest 800000
+jira 800000 Jira
+jquery 800000 jQuery
+jsonb 800000
+junit 800000 JUnit
+jupyter 800000 Jupyter
+jwt 800000 JWT
+keystore 800000
+kibana 800000 Kibana
+kpi 800000 KPI
+kubectl 800000
+kubelet 800000
+lambda 800000
+laravel 800000 Laravel
+ldap 800000 LDAP
+linting 800000
+loadbalancer 800000
+looker 800000
+lookup 800000
+lookups 800000
+makefile 800000 Makefile
+malloc 800000
+materialized 800000
+maven 800000
+metrics 800000
+minified 800000
+minify 800000
+mlops 800000 MLOps
+mock 800000
+mocking 800000
+mocks 800000
+mongodb 800000 MongoDB
+multithreaded 800000
+multithreading 800000
+mutable 800000
+nameserver 800000
+nat 800000
+ndarray 800000
+netlify 800000 Netlify
+nginx 800000 Nginx
+nonblocking 800000
+normalization 800000
+nullability 800000
+nullable 800000
+numpy 800000 NumPy
+oauth 800000 OAuth
+obfuscate 800000
+observability 800000
+oncall 800000
+openapi 800000 OpenAPI
+orm 800000 ORM
+outage 800000
+outages 800000
+overfitting 800000
+paas 800000 PaaS
+pager 800000
+pandas 800000
+parallelism 800000
+partitioned 800000
+partitioning 800000
+patch 800000
+patches 800000
+pdf 800000 PDF
+plaintext 800000
+playwright 800000
+png 800000 PNG
+pointer 800000
+pointers 800000
+polymorphism 800000
+postman 800000
+postmortem 800000
+preprod 800000
+presto 800000
+prettier 800000
+prod 800000
+profiler 800000
+profiling 800000
+prometheus 800000
+proxies 800000
+proxy 800000
+pytest 800000 Pytest
+pytorch 800000 PyTorch
+qa 800000 QA
+rabbitmq 800000 RabbitMQ
+rails 800000
+ratelimit 800000
+rds 800000 RDS
+rebased 800000
+rebasing 800000
+redshift 800000
+refactors 800000
+regression 800000
+regressions 800000
+replica 800000
+replicas 800000
+rest 800000
+retries 800000
+retry 800000
+rollforward 800000
+rpc 800000 RPC
+runbook 800000
+runbooks 800000
+saas 800000 SaaS
+salted 800000
+saml 800000 SAML
+sandbox 800000
+sandboxed 800000
+scaffold 800000
+scaffolding 800000
+selenium 800000
+semaphore 800000
+semver 800000
+setter 800000
+setters 800000
+shard 800000
+sharding 800000
+shards 800000
+singleton 800000
+sla 800000 SLA
+slack 800000
+sli 800000 SLI
+slo 800000 SLO
+snowflake 800000
+sns 800000 SNS
+spark 800000
+splunk 800000 Splunk
+spring 800000
+sqlite 800000 SQLite
+sqs 800000 SQS
+squash 800000
+squashed 800000
+sre 800000 SRE
+ssh 800000
+ssl 800000 SSL
+sso 800000 SSO
+staging 800000
+stash 800000
+stderr 800000
+stdin 800000
+stdout 800000
+stub 800000
+stubs 800000
+submodule 800000
+submodules 800000
+subnet 800000
+subnets 800000
+substring 800000
+substrings 800000
+svelte 800000
+svg 800000 SVG
+swagger 800000
+symlink 800000
+symlinks 800000
+synchronous 800000
+tableau 800000
+tailwind 800000
+tcp 800000 TCP
+telemetry 800000
+tensor 800000
+tensorflow 800000 TensorFlow
+tensors 800000
+terraform 800000
+throttled 800000
+throttling 800000
+timestamped 800000
+tls 800000 TLS
+token 800000
+tokenization 800000
+tokens 800000
+tomcat 800000
+tracing 800000
+transpile 800000
+transpiler 800000
+trino 800000 Trino
+tsv 800000 TSV
+tuple 800000
+tuples 800000
+typecheck 800000
+typechecking 800000
+typedef 800000
+typesafe 800000
+udp 800000 UDP
+underfitting 800000
+unittest 800000
+unittests 800000
+upsert 800000
+upserts 800000
+upstreamed 800000
+uptime 800000
+varchar 800000
+vercel 800000 Vercel
+versioning 800000
+vite 800000 Vite
+vpc 800000 VPC
+vpn 800000 VPN
+vue 800000 Vue
+webpack 800000 Webpack
+whitelist 800000
+worktree 800000
+xcode 800000 Xcode
+xml 800000 XML
+xss 800000 XSS
+abac 200000 ABAC
+accessibility 200000
+aes 200000 AES
+amqp 200000 AMQP
+annotation 200000
+annotations 200000
+appkit 200000 AppKit
+argocd 200000 ArgoCD
+astro 200000 Astro
+atomically 200000
+avro 200000 Avro
+backlog 200000
+backpressure 200000
+baremetal 200000
+bazel 200000 Bazel
+bgp 200000 BGP
+bikeshedding 200000
+bitfield 200000
+blocker 200000
+blockers 200000
+breadcrumb 200000
+breadcrumbs 200000
+breakpoints 200000
+brownfield 200000
+buck 200000
+canonical 200000
+carousel 200000
+celery 200000
+checkbox 200000
+checkboxes 200000
+checkpoint 200000
+checkpointing 200000
+checkpoints 200000
+chocolatey 200000
+cidr 200000 CIDR
+circleci 200000 CircleCI
+clickhouse 200000 ClickHouse
+clojure 200000 Clojure
+cmake 200000 CMake
+cockroachdb 200000 CockroachDB
+colocation 200000
+combine 200000
+compaction 200000
+configmap 200000
+consensus 200000
+constructor 200000
+constructors 200000
+consul 200000
+containerd 200000
+coredata 200000 CoreData
+coredns 200000 CoreDNS
+coredump 200000
+cronjob 200000
+cronjobs 200000
+curried 200000
+currying 200000
+daemonset 200000
+dart 200000
+debounce 200000
+debounced 200000
+decompiler 200000
+decorator 200000
+decorators 200000
+dedup 200000
+deliverable 200000
+deliverables 200000
+denormalization 200000
+deserialization 200000
+destructor 200000
+destructors 200000
+disassembler 200000
+dogfooding 200000
+dropdown 200000
+dropdowns 200000
+ecdsa 200000 ECDSA
+elixir 200000
+endianness 200000
+enumerate 200000
+enumeration 200000
+envoy 200000
+erlang 200000 Erlang
+etcd 200000
+fanin 200000
+fanout 200000
+favicon 200000
+finalizer 200000
+finalizers 200000
+firebase 200000
+firestore 200000 Firestore
+flexbox 200000
+flutter 200000
+flux 200000
+focusable 200000
+ftp 200000
+functor 200000
+functors 200000
+gatsby 200000
+gossip 200000
+greenfield 200000
+gridlines 200000
+grooming 200000
+groovy 200000
+haproxy 200000 HAProxy
+haskell 200000 Haskell
+heapdump 200000
+hmac 200000 HMAC
+homebrew 200000 Homebrew
+honeycomb 200000
+hotkey 200000
+hotkeys 200000
+huggingface 200000 HuggingFace
+hydrate 200000
+hydration 200000
+hypervisor 200000
+icmp 200000 ICMP
+idempotently 200000
+imap 200000 IMAP
+influxdb 200000 InfluxDB
+ini 200000 INI
+internationalization 200000
+intrinsics 200000
+isolation 200000
+istio 200000 Istio
+jaeger 200000
+jetpack 200000 Jetpack
+jsonl 200000 JSONL
+kanban 200000
+keybinding 200000
+keybindings 200000
+keycloak 200000 Keycloak
+kinesis 200000 Kinesis
+kubeconfig 200000
+kustomize 200000 Kustomize
+langchain 200000 LangChain
+leaderless 200000
+lexer 200000
+lexers 200000
+linearizable 200000
+linker 200000
+linkerd 200000 Linkerd
+linkers 200000
+llama 200000
+locale 200000
+locales 200000
+localization 200000
+lua 200000 Lua
+marshaling 200000
+memcached 200000 Memcached
+memoization 200000
+memoize 200000
+memoized 200000
+metaclass 200000
+milestone 200000
+milestones 200000
+minikube 200000 Minikube
+mixin 200000
+mixins 200000
+mnemonic 200000
+mobx 200000 MobX
+modal 200000
+modals 200000
+monad 200000
+monads 200000
+mqtt 200000 MQTT
+mtls 200000 mTLS
+namespaces 200000
+nats 200000 NATS
+navbar 200000
+newrelic 200000 NewRelic
+nibble 200000
+ninja 200000
+nomad 200000
+nuxt 200000 Nuxt
+oidc 200000 OIDC
+okta 200000 Okta
+ollama 200000 Ollama
+opcode 200000
+opcodes 200000
+openai 200000 OpenAI
+openshift 200000 OpenShift
+opentelemetry 200000 OpenTelemetry
+opsgenie 200000 Opsgenie
+overload 200000
+overloading 200000
+overloads 200000
+override 200000
+overrides 200000
+overriding 200000
+packer 200000
+pagerduty 200000 PagerDuty
+paginated 200000
+pagination 200000
+parquet 200000
+parsers 200000
+perl 200000 Perl
+pinecone 200000 Pinecone
+pki 200000 PKI
+podman 200000 Podman
+powershell 200000 PowerShell
+prefetch 200000
+protobuf 200000 Protobuf
+protobufs 200000
+pulsar 200000
+pulumi 200000 Pulumi
+quorum 200000
+rancher 200000
+rbac 200000 RBAC
+rebalance 200000
+rebalancing 200000
+redirect 200000
+redirects 200000
+reducer 200000
+reducers 200000
+redux 200000
+refcount 200000
+refcounting 200000
+rehydrate 200000
+remix 200000
+repro 200000
+reproducibility 200000
+reproducible 200000
+resharding 200000
+responsive 200000
+retro 200000
+retros 200000
+roadmap 200000
+roadmaps 200000
+robots 200000
+rsa 200000 RSA
+rxjs 200000 RxJS
+scala 200000
+scim 200000 SCIM
+screenshot 200000
+screenshots 200000
+scrum 200000
+segfault 200000
+segfaults 200000
+sentry 200000
+serializable 200000
+serialization 200000
+sftp 200000 SFTP
+sharded 200000
+shortcut 200000
+shortcuts 200000
+sidebar 200000
+sidekiq 200000 Sidekiq
+sitemap 200000
+smtp 200000 SMTP
+snapshotting 200000
+sprint 200000
+sprints 200000
+stacktraces 200000
+stakeholder 200000
+stakeholders 200000
+standup 200000
+standups 200000
+statefulset 200000
+subclass 200000
+subclasses 200000
+supabase 200000 Supabase
+superclass 200000
+swiftui 200000 SwiftUI
+teamcity 200000 TeamCity
+textbox 200000
+thrift 200000
+throttle 200000
+thunk 200000
+thunks 200000
+timescaledb 200000 TimescaleDB
+tokenizers 200000
+tombstone 200000
+tombstones 200000
+toml 200000 TOML
+tooltip 200000
+tooltips 200000
+traefik 200000 Traefik
+trampoline 200000
+transactional 200000
+triage 200000
+triaged 200000
+uikit 200000 UIKit
+unmarshal 200000
+vagrant 200000
+varnish 200000
+vault 200000
+vectorization 200000
+vectorized 200000
+viewport 200000
+virtualization 200000
+virtualized 200000
+vtable 200000
+wasm 200000 Wasm
+watermark 200000
+watermarks 200000
+webassembly 200000 WebAssembly
+websocket 200000 WebSocket
+websockets 200000 WebSockets
+zipkin 200000 Zipkin
+zustand 200000 Zustand

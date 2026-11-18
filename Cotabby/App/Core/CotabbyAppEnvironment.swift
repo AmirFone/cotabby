@@ -22,8 +22,10 @@ final class CotabbyAppEnvironment {
         memory: PersonalCorrectionMemory,
         coordinator: SuggestionCoordinator
     ) {
-        guard PersonalPhraseModel.isLearningEnabledInDefaults else { return }
         let corrector = coordinator.symSpellCorrector
+        // Before the dictionary is read every word looks like one it lacks, and a sentence finished
+        // in the first moment after launch taught `the` and `that` as the writer's own words.
+        guard PersonalPhraseModel.isLearningEnabledInDefaults, corrector.isLoaded() else { return }
         let english = SpellingDictionaryLanguage.english.rawValue
         vocabulary.learn(
             sentence: sentence,
@@ -578,6 +580,7 @@ final class CotabbyAppEnvironment {
         }
         suggestionCoordinator.personalPhraseModel = personalPhraseModel
         suggestionCoordinator.personalVocabulary = personalVocabulary
+        suggestionCoordinator.technicalTerms = TechnicalVocabulary.spellingTerms()
 
         Self.answerToggleShortcut(inputMonitor: inputMonitor, settings: suggestionSettings, focusModel: focusModel)
         let otherCotabbyNotice = OtherCotabbyNoticeController(panel: CandidateListPanelController())

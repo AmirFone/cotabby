@@ -222,6 +222,7 @@ targets:
       - Cotabby/Support/Spelling/TrainingExamples.swift
       - Cotabby/Support/Prediction/StripUseTracker.swift
       - Cotabby/Services/Spelling/CorrectionJournal.swift
+      - Cotabby/Services/Spelling/TechnicalVocabulary.swift
     dependencies:
       - package: swift-log
         product: Logging

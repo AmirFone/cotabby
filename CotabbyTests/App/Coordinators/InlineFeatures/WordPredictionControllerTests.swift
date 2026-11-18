@@ -596,7 +596,7 @@ final class WordPredictionControllerTests: XCTestCase {
         let corrector = SymSpellCorrector(preloadLanguage: nil)
         corrector.loadForTesting(
             contents: try String(contentsOf: url, encoding: .utf8) + "\n" + SymSpellCorrector.englishOverrides()
-                + "\n" + SymSpellCorrector.englishSupplement()
+                + "\n" + SymSpellCorrector.englishSupplement() + "\n" + TechnicalVocabulary.spellingLines()
         )
         sharedAppDictionary = corrector
         return corrector
@@ -682,6 +682,21 @@ final class WordPredictionControllerTests: XCTestCase {
         type("Next week I am trav", after: "", into: harness)
         XCTAssertTrue(waitFor { harness.panel.words.first == "traveling" }, "strip shows \(harness.panel.words)")
         XCTAssertFalse(harness.panel.words.contains("travelling"))
+    }
+
+    func test_realModel_engineeringTerms_areOfferedWhereTheTextCallsForThem_withTheirCapitals() throws {
+        // #given sentences about software, heading for terms the general dictionary lacks
+        let (harness, _) = try makeRealHarness()
+        type("We deploy the service to kube", after: "", into: harness)
+        XCTAssertTrue(waitFor { harness.panel.words.first == "Kubernetes" }, "strip shows \(harness.panel.words)")
+
+        type("The API returns js", after: "", into: harness)
+        XCTAssertTrue(waitFor { harness.panel.words.first == "JSON" }, "strip shows \(harness.panel.words)")
+
+        // #and an ordinary sentence is not given a programming language for a word about weather
+        type("The spring is here and the weather is sw", after: "", into: harness)
+        XCTAssertTrue(waitFor { !harness.panel.words.isEmpty && harness.panel.words.allSatisfy { $0.hasPrefix("sw") } })
+        XCTAssertFalse(harness.panel.words.contains { $0.lowercased() == "swift" }, "strip shows \(harness.panel.words)")
     }
 
     func test_realModel_finishedWord_hasTheNextListReadyAtTheSpace() throws {

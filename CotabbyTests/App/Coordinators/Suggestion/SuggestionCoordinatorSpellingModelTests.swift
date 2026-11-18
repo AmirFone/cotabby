@@ -174,7 +174,7 @@ final class SuggestionCoordinatorSpellingModelTests: XCTestCase {
         let corrector = SymSpellCorrector(preloadLanguage: nil)
         corrector.loadForTesting(
             contents: try resource("frequency_dictionary_en_82_765") + "\n" + SymSpellCorrector.englishOverrides()
-                + "\n" + SymSpellCorrector.englishSupplement()
+                + "\n" + SymSpellCorrector.englishSupplement() + "\n" + TechnicalVocabulary.spellingLines()
         )
         sharedAppCorrector = corrector
         return corrector
@@ -199,6 +199,60 @@ final class SuggestionCoordinatorSpellingModelTests: XCTestCase {
         rig.coordinator.americanSpellings = try XCTUnwrap(AmericanSpellings.preferredOnThisMac(region: "US"))
         rigs.append(rig)
         return rig
+    }
+
+    // MARK: - Software-engineering terms
+
+    /// The app's dictionary and the bundled technical terms, as on a Mac with that vocabulary on.
+    private func makeEngineeringRig(text: String) throws -> CoordinatorRig {
+        let rig = try makeAmericanRig(text: text)
+        rig.coordinator.technicalTerms = TechnicalVocabulary.spellingTerms()
+        return rig
+    }
+
+    func test_engineeringTerms_areNotFlagged() throws {
+        // The system checker calls every one of these misspelled.
+        for text in ["we store it as jsonb ", "run it with kubectl ", "we need an upsert ", "update the backend ", "edit the config "] {
+            let rig = try makeEngineeringRig(text: text)
+            let word = String(text.split(separator: " ").last ?? "")
+
+            let (decision, _) = engineDecision(for: text, in: rig, word: word)
+
+            guard case .proceed = decision else { return XCTFail("\(word) was flagged: \(decision)") }
+        }
+    }
+
+    func test_slipsNearEngineeringTerms_areFixedTowardThem() throws {
+        // #given slips whose intended word the general dictionary does not have
+        for (text, meant) in [("the frontned ", "frontend"), ("parse the josn ", "json"), ("check the kuberntes ", "kubernetes"),
+                              ("edit the confg ", "config"), ("add a webhok ", "webhook")] {
+            let rig = try makeEngineeringRig(text: text)
+            let word = String(text.split(separator: " ").last ?? "")
+
+            let (decision, _) = engineDecision(for: text, in: rig, word: word)
+
+            // #then the term is the fix made or the first one offered
+            switch decision {
+            case let .applyCorrection(_, fix), let .offerCorrection(_, fix):
+                XCTAssertEqual(fix.lowercased(), meant)
+            case let .offerChoices(_, list), let .offerRankedCorrection(_, list):
+                XCTAssertEqual(list.first?.term.lowercased(), meant)
+            default:
+                XCTFail("\(word): expected \(meant), got \(decision)")
+            }
+        }
+    }
+
+    func test_shortTermThatIsACommonSlip_isStillFixed() throws {
+        // `aws` is in the strip's list and not in the spelling dictionary, so `was` with two keys
+        // swapped is still caught.
+        let text = "I think it aws "
+        let rig = try makeEngineeringRig(text: text)
+
+        let (decision, _) = engineDecision(for: text, in: rig, word: "aws")
+
+        guard case let .applyCorrection(_, fix) = decision else { return XCTFail("Expected a fix, got \(decision)") }
+        XCTAssertEqual(fix, "was")
     }
 
     func test_americanWriter_slipNearTheBritishSpelling_isFixedToTheAmericanWord() async throws {

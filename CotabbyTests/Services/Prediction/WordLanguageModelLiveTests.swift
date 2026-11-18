@@ -13,7 +13,7 @@ final class WordLanguageModelLiveTests: XCTestCase {
             throw XCTSkip("Set TEST_RUNNER_WORD_LM_FILE to run against a real model")
         }
         let wordLists = WordLanguageModelService.bundledWordListURLs()
-        XCTAssertEqual(wordLists.count, 2, "the dictionary and the supplement should both be in the bundle")
+        XCTAssertEqual(wordLists.count, 3, "the dictionary, the supplement and the software terms should all be in the bundle")
         return WordLanguageModelService(modelURL: URL(fileURLWithPath: model), wordListURLs: wordLists)
     }
 

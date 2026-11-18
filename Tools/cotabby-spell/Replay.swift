@@ -181,13 +181,14 @@ struct ExportReplay {
         let checks = TypoGateInputs.sentenceChecks(dependencies: harness.dependencies, settings: harness.settings)
         let memory = harness.dependencies.memory, vocabulary = harness.vocabulary
         let corrector = harness.dependencies.symSpellCorrector
+        let technical = harness.technicalTerms
         if let sentenceModel, let output = SentenceModelDecoder.correct(result.text, model: sentenceModel),
            let judged = SentenceModelGate.result(
                typed: result.text, output: output,
                isKnownWord: { !checks.isTypo($0) },
                words: SentenceModelGate.WordChecks(
                    isInDictionary: { corrector.isDictionaryWord($0.lowercased()) || vocabulary.preferredCasing(of: $0) != nil },
-                   isWritersOwn: { memory?.isKept($0) == true || vocabulary.preferredCasing(of: $0) != nil }
+                   isWritersOwn: { memory?.isKept($0) == true || technical.contains($0.lowercased()) }
                )
            ) {
             note(judged.flags, in: judged.autoCorrected, into: &result.offers)

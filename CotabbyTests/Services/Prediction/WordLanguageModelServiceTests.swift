@@ -73,10 +73,15 @@ final class WordLanguageModelServiceTests: XCTestCase {
     }
 
     func test_bundledSupplement_hasEverydayWordsTheDictionaryLacks() throws {
-        // #given the two lists in the app bundle
+        // #given the lists in the app bundle: the dictionary, the everyday words it lacks, and the
+        // software-engineering terms
         let urls = WordLanguageModelService.bundledWordListURLs()
-        XCTAssertEqual(urls.count, 2)
+        XCTAssertEqual(
+            urls.map { $0.deletingPathExtension().lastPathComponent },
+            ["frequency_dictionary_en_82_765", "prediction_words_en", TechnicalVocabulary.stripListName]
+        )
         let dictionary = Set(WordLanguageModelCore.entries(in: [urls[0]]).map(\.word))
+        let everyday = Set(WordLanguageModelCore.entries(in: [urls[1]]).map(\.word))
         let supplement = WordPredictionController.supplementWords()
 
         // #then the supplement holds the American and current words, and repeats only the
@@ -85,7 +90,9 @@ final class WordLanguageModelServiceTests: XCTestCase {
             XCTAssertTrue(supplement.contains(word), word)
         }
         XCTAssertTrue(supplement.contains("that's"))
-        XCTAssertTrue(supplement.intersection(dictionary).allSatisfy { $0.contains("'") })
+        XCTAssertTrue(everyday.intersection(dictionary).allSatisfy { $0.contains("'") })
+        // #and the terms are known to the strip too, so two in a row do not read as another language
+        XCTAssertTrue(supplement.isSuperset(of: ["kubectl", "backend", "jsonb"]))
     }
 
     private func lookAheadKey(_ text: String, _ probabilities: [String: Float]) -> LanguageModelContext.Key? {
