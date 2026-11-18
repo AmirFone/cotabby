@@ -174,6 +174,15 @@ nonisolated enum SentenceModelDecoder {
     }
 }
 
+/// One word the sentence model would change, how sure it was, and what was done about it: `fixed`
+/// (typed in place), `asked` (left for the review card) or `left` (not sure enough to mention).
+nonisolated struct SentencePassWord: Codable, Equatable, Sendable {
+    let typed: String
+    let written: String
+    let probability: Double
+    let action: String
+}
+
 nonisolated enum SentenceModelGate {
     /// How sure the model must be of a changed word. Measured on 1,040 held-out sentences
     /// (`Tools/sentence-model/gate_report.py`): at 0.9 it fixes about 80% of misspellings and changes
@@ -185,6 +194,16 @@ nonisolated enum SentenceModelGate {
         var suggest = 0.6
     }
 
+    /// What the gate asks about single words beyond "is this a known word".
+    struct WordChecks {
+        /// The word is one the app's own dictionary (or the writer's vocabulary) has. Stricter
+        /// than `isKnownWord`, which also takes the system checker's word for it.
+        var isInDictionary: (String) -> Bool
+        /// The writer kept this word when a fix was offered, or has written it often enough for it
+        /// to be in their vocabulary.
+        var isWritersOwn: (String) -> Bool = { _ in false }
+    }
+
     /// Turns the model's answer into the same shape the local proofreader returns, so the sentence
     /// controller applies and reviews both the same way. Nil when the model changed nothing worth
     /// acting on, or when its answer has a different number of words than the sentence (it reworded
@@ -193,11 +212,19 @@ nonisolated enum SentenceModelGate {
     /// A change is used only when the word's punctuation is untouched (`work.` → `walk.` is a word
     /// change; `work.` → `work!` is not spelling). Letters-only comparison keeps the gate out of
     /// punctuation and spacing, which the local pass owns.
+    ///
+    /// Two limits come from what the model cannot know. It may only type in place a word that
+    /// `words.isInDictionary` has: turning a term the dictionary lacks into another it lacks
+    /// (`kubectl` into `kubelet`) is a guess about a term, not a spelling fix, and is asked about at
+    /// most. And a word `words.isWritersOwn` names (one the writer chose to keep, or has made their
+    /// own by writing it again and again) is never changed and never asked about: they have
+    /// already answered.
     static func result(
         typed sentence: String,
         output: SentenceModelOutput,
         bars: Bars = Bars(),
-        isKnownWord: (String) -> Bool
+        isKnownWord: (String) -> Bool,
+        words: WordChecks? = nil
     ) -> LocalProofreadResult? {
         let typedWords = SentenceModelDecoder.words(in: sentence)
         guard typedWords.count == output.words.count else { return nil }
@@ -206,20 +233,16 @@ nonisolated enum SentenceModelGate {
         var cursor = sentence.startIndex
         var flagSpans: [FlagSpan] = []
         var changed = false
-        for (typed, written) in zip(typedWords, output.words) where typed != written.text {
-            let typedCore = core(of: typed)
-            let writtenCore = core(of: written.text[...])
-            guard !typedCore.isEmpty, !writtenCore.isEmpty, typedCore != writtenCore,
-                  typed[..<typedCore.startIndex] == written.text[..<writtenCore.startIndex],
-                  typed[typedCore.endIndex...] == written.text[writtenCore.endIndex...] else { continue }
-            let applyBar = isKnownWord(String(typedCore)) ? bars.applyKnownWord : bars.applyMisspelling
-            guard written.probability >= min(applyBar, bars.suggest) else { continue }
+        for (typed, written) in zip(typedWords, output.words) {
+            guard let change = change(typed: typed, written: written, bars: bars, isKnownWord: isKnownWord, words: words),
+                  change.action != .left else { continue }
+            let typedCore = change.typedCore
 
             corrected += sentence[cursor..<typedCore.startIndex]
-            if written.probability >= applyBar {
-                corrected += writtenCore
+            if change.action == .fixed {
+                corrected += change.writtenCore
             } else {
-                flagSpans.append(FlagSpan(start: corrected.count, typed: String(typedCore), option: String(writtenCore)))
+                flagSpans.append(FlagSpan(start: corrected.count, typed: String(typedCore), option: String(change.writtenCore)))
                 corrected += typedCore
             }
             cursor = typedCore.endIndex
@@ -234,6 +257,68 @@ nonisolated enum SentenceModelGate {
             return SentenceFlag(range: start..<end, typed: span.typed, options: [span.option])
         }
         return LocalProofreadResult(original: sentence, autoCorrected: corrected, flags: flags)
+    }
+
+    /// Every word the model would change, with how sure it was and what the gate did about it:
+    /// the same judgment `result` acts on, kept for the training record. It includes the words the
+    /// model was not sure enough of to mention, which is what a bar set too high or too low shows
+    /// up in. Empty when the answer cannot be lined up with the sentence.
+    static func judgments(
+        typed sentence: String,
+        output: SentenceModelOutput,
+        bars: Bars = Bars(),
+        isKnownWord: (String) -> Bool,
+        words: WordChecks? = nil
+    ) -> [SentencePassWord] {
+        let typedWords = SentenceModelDecoder.words(in: sentence)
+        guard typedWords.count == output.words.count else { return [] }
+        return zip(typedWords, output.words).compactMap { typed, written in
+            change(typed: typed, written: written, bars: bars, isKnownWord: isKnownWord, words: words).map {
+                SentencePassWord(
+                    typed: String($0.typedCore), written: String($0.writtenCore),
+                    probability: written.probability, action: $0.action.rawValue
+                )
+            }
+        }
+    }
+
+    /// What the model's probability for a changed word allows.
+    private enum ChangeAction: String {
+        /// Sure enough to type in place.
+        case fixed
+        /// Sure enough to ask about on the review card.
+        case asked
+        /// Not sure enough to mention.
+        case left
+    }
+
+    /// One word the model wrote differently.
+    private struct Change {
+        let typedCore: Substring
+        let writtenCore: Substring
+        let action: ChangeAction
+    }
+
+    /// Nil when the word is unchanged, or changed in its punctuation and not its letters.
+    private static func change(
+        typed: Substring, written: SentenceModelOutput.Word, bars: Bars,
+        isKnownWord: (String) -> Bool, words: WordChecks?
+    ) -> Change? {
+        guard typed != written.text else { return nil }
+        let typedCore = core(of: typed)
+        let writtenCore = core(of: written.text[...])
+        guard !typedCore.isEmpty, !writtenCore.isEmpty, typedCore != writtenCore,
+              typed[..<typedCore.startIndex] == written.text[..<writtenCore.startIndex],
+              typed[typedCore.endIndex...] == written.text[writtenCore.endIndex...] else { return nil }
+        if words?.isWritersOwn(String(typedCore)) == true {
+            return Change(typedCore: typedCore, writtenCore: writtenCore, action: .left)
+        }
+        let applyBar = isKnownWord(String(typedCore)) ? bars.applyKnownWord : bars.applyMisspelling
+        // Without the stricter check, a known word is the best there is to ask for.
+        let isTypeable = words.map { $0.isInDictionary(String(writtenCore)) } ?? isKnownWord(String(writtenCore))
+        let isSureEnough = written.probability >= applyBar && isTypeable
+        let action: ChangeAction = isSureEnough ? .fixed : written.probability >= bars.suggest ? .asked : .left
+        return Change(typedCore: typedCore, writtenCore: writtenCore, action: action)
     }
 
     /// A word left for review: where it starts in the corrected sentence (in characters; string

@@ -45,7 +45,6 @@ final class TypoGateInputs {
     /// suspicious enough to flag locally.
     private static let jevRealWordRatio = 3.0
     private static let maximumJevOptions = 6
-    private static let habitualFixCount = 3
     /// How many of the ranker's candidates the trained model may reorder for a finished word.
     static let rerankPoolSize = 8
 
@@ -76,6 +75,27 @@ final class TypoGateInputs {
     private var refiner: WordIntentRefiner? { dependencies.refiner }
 
     func decide(settings: TypoGate.Settings) -> TypoGateDecision {
+        // A word joined to another by a dot or a slash (`users.nmae`) may be a name or an identifier:
+        // the writer is shown a fix and decides. Nothing is changed for them there, not even a
+        // capital, since a dot inside such a token is not the end of a sentence.
+        if CurrentWordExtractor.extractTrailingWord(from: precedingText)?.result.isJoined == true {
+            guard settings.offerTypoCorrections else { return .proceed }
+            var offersOnly = TypoGate.Settings(
+                suppressCompletionsOnTypo: settings.suppressCompletionsOnTypo, offerTypoCorrections: true, automaticallyFixTypos: false
+            )
+            offersOnly.choiceListMaximumMargin = settings.choiceListMaximumMargin
+            offersOnly.singleOfferMinimumScore = settings.singleOfferMinimumScore
+            offersOnly.midWordMinimumLength = settings.midWordMinimumLength
+            let decision = TypoGate.resolve(
+                precedingText: precedingText,
+                settings: offersOnly,
+                isTypo: isTypo,
+                isWordInProgress: isWordInProgress,
+                candidates: candidates(_:isMidWord:)
+            )
+            if case .suppress = decision { return .proceed }
+            return decision
+        }
         if let slip = caseSlipDecision(settings: settings) { return slip }
         let decision = TypoGate.resolve(
             precedingText: precedingText,
@@ -189,11 +209,11 @@ final class TypoGateInputs {
     /// Three cases keep the ranker's own order and the score rule, because the model's training rows
     /// had none of them: a fix from the certain-misspellings table, a word that is a name the system
     /// knows (`hungary` stays a choice between Hungary and hungry), and a fix this writer has
-    /// already accepted three times.
+    /// already made twice, where their habit leads and the model has no say.
     private func orderedByModel(_ ranked: [RankedSpellingCandidate], word: String) -> [RankedSpellingCandidate] {
         confidenceByFinishedWord[word] = nil
         guard let model = dependencies.autoFixModel, let top = ranked.first, !top.signals.isKnownFix,
-              !ranked.contains(where: { $0.signals.isProperNoun || $0.signals.personalAccepted >= Self.habitualFixCount })
+              !ranked.contains(where: { $0.signals.isProperNoun || $0.signals.personalAccepted >= SpellingCandidateRanker.habitLeadCount })
         else { return ranked }
         let capitalized = isCapitalizedMidSentence(word)
         let scored = ranked.indices.map { index -> (candidate: RankedSpellingCandidate, probability: Double) in

@@ -308,6 +308,7 @@ nonisolated enum NextWordPredictor {
     private static func parse(_ text: String) -> Parsed? {
         var body = Substring(text)
         var prefix = ""
+        var joinsAfterDot = false
         if let last = body.last, last.isLetter || last == "'" || last == "’" {
             var start = body.endIndex
             while start > body.startIndex {
@@ -318,10 +319,22 @@ nonisolated enum NextWordPredictor {
             }
             prefix = String(body[start...])
             body = body[..<start]
-            // Directly after a symbol or digit (`@jo`, `3rd`) the "word" is not prose.
-            if let before = body.last, !before.isWhitespace, !"\"(“‘-".contains(before) { return nil }
+            // Directly after a symbol or digit (`@jo`, `3rd`) the "word" is not prose. After a dot
+            // or a slash it is, when the token is plain words joined by it (`users.na`, `read/wr`).
+            if let before = body.last, !before.isWhitespace, !"\"(“‘-".contains(before) {
+                guard CurrentWordExtractor.endsInJoinedWords(text) else { return nil }
+                joinsAfterDot = before == "."
+            }
         } else if let last = body.last, !last.isWhitespace {
-            return nil
+            // Right after a slash or a hyphen the next word is suggested as after a space. After a
+            // dot it is not: that dot is nearly always the end of a sentence, a space away from
+            // the next word.
+            guard last == "/" || last == "-", CurrentWordExtractor.endsInJoinedWords(text) else { return nil }
+        }
+        if joinsAfterDot, let dot = body.indices.last {
+            // The dot inside `users.na` is not the end of a sentence: the words before it are still
+            // the context, and the next word does not start with a capital.
+            body = body[..<dot] + " "
         }
         let sentenceStart = body.lastIndex { ".!?\n".contains($0) }.map { body.index(after: $0) } ?? body.startIndex
         let context = contextTokens(of: body[sentenceStart...])

@@ -112,6 +112,8 @@ final class CotabbyAppEnvironment {
     let focusDebugOverlayController: FocusDebugOverlayController?
 
     private var cancellables = Set<AnyCancellable>()
+    /// Warns once when the released Cotabby app is running alongside this build.
+    private var otherCotabbyNotice: OtherCotabbyNoticeController?
 
     init() {
         CotabbyLogger.app.info("Building dependency graph")
@@ -549,7 +551,20 @@ final class CotabbyAppEnvironment {
             },
             isLanguageModelPending: { wordLanguageModel.isAnswerPending(forTextBefore: $0) }
         )
-        wordPredictionController.onSentenceSettled = { trainingLog.noteSentence($0) }
+        wordPredictionController.onSentenceSettled = { [weak focusModel] sentence in
+            let snapshot = focusModel?.snapshot
+            trainingLog.noteSentence(sentence, textBefore: snapshot?.context?.precedingText, app: snapshot?.bundleIdentifier)
+        }
+        wordPredictionController.onStripUse = { trainingLog.noteStrip($0) }
+        suggestionCoordinator.onSpellingDecision = { trainingLog.noteDecision($0) }
+        suggestionCoordinator.onSentencePass = { trainingLog.noteSentencePass($0, words: $1) }
+        trainingLog.session = {
+            .session(
+                version: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "",
+                stripModel: WordLanguageModelService.defaultModelURL()?.lastPathComponent,
+                hasSentenceModel: FileManager.default.fileExists(atPath: SentenceModelService.defaultModelURL().path)
+            )
+        }
         wordLanguageModel.onReady = { [weak wordPredictionController] in
             wordPredictionController?.redrawWithLanguageModel()
         }
@@ -565,6 +580,9 @@ final class CotabbyAppEnvironment {
         suggestionCoordinator.personalVocabulary = personalVocabulary
 
         Self.answerToggleShortcut(inputMonitor: inputMonitor, settings: suggestionSettings, focusModel: focusModel)
+        let otherCotabbyNotice = OtherCotabbyNoticeController(panel: CandidateListPanelController())
+        otherCotabbyNotice.start(focus: focusModel.snapshotPublisher)
+        self.otherCotabbyNotice = otherCotabbyNotice
         // Off means nothing of Cotabby's stays on screen, however it was switched off (shortcut,
         // menu, Settings, or a timed pause). The panels belong to three controllers that otherwise
         // only hide on a keystroke, and keystrokes stop reaching them the moment Cotabby is off.

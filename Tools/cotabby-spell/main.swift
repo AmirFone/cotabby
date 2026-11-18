@@ -14,6 +14,10 @@ import Foundation
 ///                                                      and the tense test (see Prediction.swift)
 ///   cotabby-spell --rank "my dady |"                  every ranked candidate with its score
 ///   cotabby-spell --bench                              per-keystroke latency over the suite
+///   cotabby-spell --training-export training-log.jsonl the training examples for a raw log
+///   cotabby-spell --replay export.jsonl [--sentence-model m.gguf] [--adapt] [--show]
+///                                                      an export typed again through the engine
+///                                                      as it is now (see Replay.swift)
 ///
 /// Options: --jev (uses TYPESAFE_API_KEY and waits for the second pass), --jev-mock (a fake Jev
 /// that backs the first option, to exercise the second pass offline), --no-auto, --no-context,
@@ -25,6 +29,9 @@ struct Harness {
     let dependencies: SpellingEngineDependencies
     let refiner: WordIntentRefiner?
     let settings: TypoGate.Settings
+    /// What the engine learns from the writer as they go; the replay teaches these as the app would.
+    let vocabulary: PersonalVocabulary
+    let phrases: PersonalPhraseModel
 
     static func make(arguments: Arguments) throws -> Harness {
         let root = arguments.resourceRoot
@@ -129,7 +136,9 @@ struct Harness {
                 if let margin = arguments.autoMargin { settings.autoApplyMinimumMargin = margin }
                 settings.autoApplyMinimumConfidence = arguments.confidence ?? autoFixModel?.threshold
                 return settings
-            }()
+            }(),
+            vocabulary: vocabulary,
+            phrases: phrases
         )
     }
 
@@ -242,6 +251,11 @@ struct Arguments {
     var modelPath: String?
     var useModel = true
     var checkModelPath: String?
+    var trainingLogPath: String?
+    var replayPath: String?
+    var sentenceModelPath: String?
+    var showsReplayWords = false
+    var replayAdapts = false
     var wrongFeaturesInput: String?
     var wrongFeaturesOutput: String?
     var confidence: Double?
@@ -296,6 +310,11 @@ struct Arguments {
             case "--confidence": confidence = iterator.next().flatMap(Double.init)
             case "--no-model": useModel = false
             case "--check-model": checkModelPath = iterator.next()
+            case "--training-export": trainingLogPath = iterator.next()
+            case "--replay": replayPath = iterator.next()
+            case "--sentence-model": sentenceModelPath = iterator.next()
+            case "--show": showsReplayWords = true
+            case "--adapt": replayAdapts = true
             case "--wrong-features":
                 wrongFeaturesInput = iterator.next()
                 wrongFeaturesOutput = iterator.next()
@@ -785,9 +804,26 @@ func show(_ input: CaretText, harness: Harness) async {
     }
 }
 
+/// The training examples for a raw training log, one JSON object per line on standard output: what
+/// Export in Settings writes, for a log file at any path (a copy from another Mac, or the one an
+/// on-screen test run produced).
+func runTrainingExport(_ path: String) -> Int32 {
+    guard let data = FileManager.default.contents(atPath: path) else {
+        print("could not read \(path)")
+        return 2
+    }
+    let lines = data.split(separator: UInt8(ascii: "\n")).compactMap { line in
+        (try? JSONSerialization.jsonObject(with: Data(line)) as? [String: Any]).flatMap(TrainingLogLine.init(json:))
+    }
+    FileHandle.standardOutput.write(TrainingExampleBuilder.jsonLines(TrainingExampleBuilder.examples(fromLines: lines)))
+    return 0
+}
+
 @MainActor
 func main() async -> Int32 {
     let arguments = Arguments(CommandLine.arguments)
+    // Needs no dictionary, so it runs before the engine is loaded.
+    if let path = arguments.trainingLogPath { return runTrainingExport(path) }
     let harness: Harness
     do {
         harness = try Harness.make(arguments: arguments)
@@ -872,6 +908,13 @@ func main() async -> Int32 {
     }
     if let check = arguments.checkModelPath {
         return runModelCheck(check, harness: harness)
+    }
+    if let replay = arguments.replayPath {
+        let model = arguments.sentenceModelPath.flatMap { LlamaTokenModel(url: URL(fileURLWithPath: $0)) }
+        if arguments.sentenceModelPath != nil, model == nil { print("could not load the sentence model; local rules only") }
+        return ExportReplay(
+            harness: harness, sentenceModel: model, showsWords: arguments.showsReplayWords, adapts: arguments.replayAdapts
+        ).run(path: replay)
     }
     if let input = arguments.featuresInput, let output = arguments.featuresOutput {
         return runFeatures(input, output: output, harness: harness)

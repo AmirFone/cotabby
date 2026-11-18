@@ -2,7 +2,7 @@
 """Scores model answers with the same rules as the app's `SentenceModelGate`: a changed word is typed
 in place when the model's probability clears 0.9 (0.95 when the typed word is in the dictionary),
 offered for review from 0.6, and ignored when the word's punctuation changed or the answer has a
-different number of words. "Known word" here is the bundled frequency dictionary; the app also
+different number of words. A change to a word the dictionary lacks is offered, never typed. "Known word" here is the bundled frequency dictionary; the app also
 counts the writer's own vocabulary.
 
 Usage: app_gate_report.py <run_model or SentenceModelEvalTests output.tsv> [dictionary.txt]
@@ -36,7 +36,8 @@ def gate(given, got, probabilities):
         if a == b or c == d or old[a:b] == new[c:d] or old[:a] != new[:c] or old[b:] != new[d:]:
             continue
         bar = APPLY_KNOWN if old[a:b].lower() in known else APPLY
-        if p >= bar:
+        # Only a word the dictionary has is typed in place; anything else is offered at most.
+        if p >= bar and new[c:d].lower() in known:
             applied[i] = suggested[i] = new
         elif p >= SUGGEST:
             suggested[i] = new

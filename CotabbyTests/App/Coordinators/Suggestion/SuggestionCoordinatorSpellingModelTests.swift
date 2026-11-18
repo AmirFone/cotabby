@@ -102,6 +102,41 @@ final class SuggestionCoordinatorSpellingModelTests: XCTestCase {
         XCTAssertTrue(rig.engine.requests.isEmpty, "A fixed word must not also start a completion")
     }
 
+    func test_misspellingAfterADot_isOfferedAndNeverTypedUnasked() async throws {
+        // #given a table name with a slip in its second word, finished with a space; the same slip
+        // as a word of its own is one the engine fixes without asking
+        let text = "The table name is users.nmae "
+        let rig = try makeRig(text: text)
+        let (decision, _) = engineDecision(for: text, in: rig, word: "nmae")
+        let (alone, _) = engineDecision(for: "The table name is nmae ", in: rig, word: "nmae")
+
+        // #when the coordinator sees it
+        rig.coordinator.schedulePrediction()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        // #then the fix is on offer and the field is untouched
+        guard case .applyCorrection = alone else { return XCTFail("Expected the plain word to be fixed, got \(alone)") }
+        switch decision {
+        case let .offerCorrection(word, fix):
+            XCTAssertEqual([word, fix], ["nmae", "name"])
+        case let .offerChoices(word, candidates), let .offerRankedCorrection(word, candidates):
+            XCTAssertEqual(word, "nmae")
+            XCTAssertEqual(candidates.first?.term, "name")
+        default:
+            XCTFail("Expected an offer, got \(decision)")
+        }
+        XCTAssertEqual(rig.inserter.replacements.count, 0)
+    }
+
+    func test_wordAfterADot_isNotCapitalizedAsASentenceStart() throws {
+        let text = "The table name is users.name "
+        let rig = try makeRig(text: text)
+
+        let (decision, _) = engineDecision(for: text, in: rig, word: "name")
+
+        guard case .proceed = decision else { return XCTFail("Expected nothing to be done, got \(decision)") }
+    }
+
     func test_unsureModel_opensTheBarAndTypesNothing() async throws {
         let text = "I drive a tyoda "
         let rig = try makeRig(text: text)

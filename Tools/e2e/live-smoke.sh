@@ -442,9 +442,30 @@ training_cases() {
   # sentence that is saved is the corrected one, character for character (the export joins on it).
   clear_doc; type_text "I drive a Tyoda Corola to work. "; sleep 2.0; type_text "It runs well. "; sleep 2.0
   if grep -q '"corrected":"I drive a Toyota Corolla to work.".*"kept":true.*"original":"I drive a Tyoda Corola to work."' "$TRAINING" 2>/dev/null \
-    && grep -q '"event":"sentence","text":"I drive a Toyota Corolla to work."' "$TRAINING"; then
+    && grep -q '"event":"sentence".*"text":"I drive a Toyota Corolla to work."' "$TRAINING"; then
     echo "PASS  training: a kept sentence fix is saved with the sentence before and after"; pass=$((pass+1))
   else echo "FAIL  training: sentence fix not in the file: $(cat "$TRAINING" 2>/dev/null)"; fail=$((fail+1)); fi
+  # The record of how it got there: which build wrote it, what the engine decided about the word
+  # before the writer reacted, what the strip showed for the words, what the sentence model made of
+  # each word it changed, and where each line stood in the launch.
+  if head -1 "$TRAINING" | grep -q '"event":"session".*"version":"'; then
+    echo "PASS  training: the first line says which build and models wrote the rest"; pass=$((pass+1))
+  else echo "FAIL  training: no session line first: $(head -1 "$TRAINING" 2>/dev/null)"; fail=$((fail+1)); fi
+  if grep -q '"action":"fixed".*"candidates":\[{[^]]*"term":"the".*"event":"decision".*"typed":"teh"' "$TRAINING" 2>/dev/null; then
+    echo "PASS  training: the engine's decision is saved with its candidates"; pass=$((pass+1))
+  else echo "FAIL  training: no decision line for teh: $(grep decision "$TRAINING" 2>/dev/null)"; fail=$((fail+1)); fi
+  if grep -q '"event":"strip".*"last":\["' "$TRAINING" 2>/dev/null; then
+    echo "PASS  training: what the strip showed for a word is saved"; pass=$((pass+1))
+  else echo "FAIL  training: no strip line: $(cat "$TRAINING" 2>/dev/null)"; fail=$((fail+1)); fi
+  if grep -q '"event":"sentencePass".*"text":"I drive a Tyoda Corola to work.".*"action":"fixed".*"typed":"Tyoda".*"written":"Toyota"' "$TRAINING" 2>/dev/null; then
+    echo "PASS  training: the sentence model's confidence in each changed word is saved"; pass=$((pass+1))
+  else echo "FAIL  training: no sentence pass line: $(grep sentencePass "$TRAINING" 2>/dev/null)"; fail=$((fail+1)); fi
+  if [ "$(grep -c '"ms":[0-9]*,"n":[0-9]*' "$TRAINING")" = "$(wc -l < "$TRAINING" | tr -d ' ')" ]; then
+    echo "PASS  training: every line has its place and time within the launch"; pass=$((pass+1))
+  else echo "FAIL  training: a line without a stamp: $(grep -v '"ms":' "$TRAINING" 2>/dev/null)"; fail=$((fail+1)); fi
+  if grep -Eq '"(time|date|timestamp)":' "$TRAINING" 2>/dev/null; then
+    echo "FAIL  training: a clock time was saved"; fail=$((fail+1))
+  else echo "PASS  training: no clock time is saved"; pass=$((pass+1)); fi
   send "$(printf 'key\t8\tctrl,option')"; sleep 0.8
   clear_doc; type_text "This one stays private. "; sleep 2.5
   send "$(printf 'key\t8\tctrl,option')"; sleep 0.8
@@ -551,6 +572,19 @@ check "bar: Option-3 picks the third slot" "We need a receipt " "$(doc)"
 clear_doc; type_text "I will meat "; sleep 1.2
 press 48; sleep 1.2
 check "homophone bar: meat to meet with Tab" "I will meet " "$(doc)"
+
+# Words joined by a dot or a slash (a table name, `read/write`): the word after the mark is helped
+# like any other, but nothing there is changed without asking.
+clear_doc; type_text "The table name is users.nmae"; sleep 1.2
+press 48; sleep 1.2
+check "joined words: Tab takes the offered fix after a dot" "The table name is users.name " "$(doc)"
+case_type "joined words: a slip after a dot is not changed unasked" "The table name is users.nmae and " "The table name is users.nmae and "
+if [ -n "$(strip_word "It is read/wri" 1)" ]; then
+  joined_first=$(strip_word "It is read/wri" 1)
+  clear_doc; type_text "It is read/wri"; sleep 1.2
+  press 48; sleep 1.0
+  check "joined words: the strip completes a word begun after a slash" "It is read/$joined_first " "$(doc)"
+fi
 
 clear_doc; type_text "I have a questoi"; sleep 1.2
 press 48; sleep 0.8; type_text "."; sleep 1.0

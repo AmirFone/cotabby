@@ -103,6 +103,12 @@ final class SuggestionCoordinator: ObservableObject {
     var autoFixModel: TreeEnsembleModel?
     /// The American spelling of words written two ways, when this Mac's region uses it.
     var americanSpellings: AmericanSpellings?
+    /// What the spelling engine decided about a word, with its candidates and confidence, at the
+    /// moment it decided. The opt-in training record listens here.
+    var onSpellingDecision: ((SpellingDecisionRecord) -> Void)?
+    /// The words the sentence model would change in a finished sentence, each with its probability
+    /// and what the gate did about it. The opt-in training record listens here.
+    var onSentencePass: ((_ sentence: String, _ words: [SentencePassWord]) -> Void)?
     /// The trained judge of correctly spelled wrong words for the sentence pass.
     var wrongWordModel: TreeEnsembleModel?
     /// The writer's learned phrases, also used as spelling context. Nil in tests.

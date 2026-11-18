@@ -17,7 +17,7 @@ The app is named "Cotabby Dev" and keeps its own settings and permissions, so it
 
 What gives the best results, in order of how much it matters:
 
-1. **Run only one Cotabby.** The released Cotabby app and this fork are two typing assistants; with both running, the released one's ghost text also takes Tab and types words of its own. Quit it and take it out of System Settings → General → Login Items while you use this one.
+1. **Run only one Cotabby.** The released Cotabby app and this fork are two typing assistants; with both running, the released one's ghost text also takes Tab and types words of its own. Quit it and take it out of System Settings → General → Login Items while you use this one. If it is running anyway, this build says so once at the caret when you start typing.
 2. **Install the Gemma model for the word strip.** Settings → Engine & Model → download **tabby-2-base** (Gemma 4 E2B, 3.8 GB). The strip is ordered by a language model that reads back what you have written, and it uses the best one installed, with no setting to change:
 
    | Model (name in the app) | Size | First suggestion right while typing a word | After 2 letters | After 3 letters | Right verb form first | One pass | Used when |
@@ -30,7 +30,7 @@ What gives the best results, in order of how much it matters:
 
    Measured on the held-back long test documents (`Tools/prediction/README.md`); "while typing a word" is every moment with at least one letter typed. Before any letter is typed the first suggestion is right about 38% of the time with Gemma, and no model does much better there (a 12B model reached 39% where Gemma reached 36%), which is why the number over all moments is 72%. The larger Gemma (tabby-2-pro, 5.3 GB) is within half a point of tabby-2-base and takes half again as long per word.
 3. **Settings → Writing:** keep **Show Next-Word Predictions**, **Hide Suggestions on Typo**, **Offer Corrections on Typo** and **Automatically Fix Confident Typos** on (the defaults), and press the button under **macOS Autocorrect Is Also On** so macOS's own autocorrect is off.
-4. **Optional:** **Save Training Examples** (Settings → Writing → Training Data) if you want to train a model on your own writing later. It is off unless you turn it on.
+4. **Optional:** **Save Training Examples** (Settings → Writing → Training Data) if you want to train a model on your own writing later or see where Cotabby got a word wrong. It is off unless you turn it on, and it records what was shown and decided for each word, not only the result (see "Training data").
 
 On a Mac with less than 16 GB of memory, install tabby-2-mini (or tabby-2-nano under 12 GB) instead of tabby-2-base. With neither, everything still works; the strip is just right less often.
 
@@ -46,24 +46,38 @@ On a Mac with less than 16 GB of memory, install tabby-2-mini (or tabby-2-nano u
 - **Unsure words open a three-slot bar** above the word, like the iPhone: `"what you typed"` | **best fix** | runner-up. Tab takes the highlighted slot, ←/→ move, ⌥1/2/3 pick directly, or click. Return only picks after you move the highlight. Picking the quoted slot keeps your word and stops flagging it. Esc leaves this one word alone (no bar, no fix) until you move on. Shift- and Option-arrows go to the app. If you keep typing, the bar just goes away.
 - **Next-word strip** above the caret while you type: up to five likely words, likeliest first, ordered by a language model that reads your last few sentences. That is what makes the verb form follow the tense you are writing in: after `Yesterday we` the letters `walk` offer **walked** first, after `She is still` **walking**, after `Every morning she` **walks**. It never offers slurs or swear words. Tab types the highlighted one (the first, to begin with) and the strip moves on to the word after it. → steps the highlight to the next word and ← steps back, then Tab or Return types it; ⌥1…5 pick a slot directly. The arrows are only taken when the app has no use for them: → when nothing follows the caret on its line, ← once → has moved the highlight. With text to the right of the caret, and for ↑/↓ always, arrows stay caret movement and the strip steps aside. Esc hides it until the next word.
 - **Capitals like the iPhone:** the first word of a sentence and `i` / `i'm` / `i've`.
+- **Words joined by a dot, slash or hyphen get the same help.** In `users.nmae`, `read/wriet` or `schema.table.colum` the word after the mark is checked and the strip completes it, and a word finished by a slash or a hyphen is checked like one before a comma (`recieve/`, `teh-`). Because such text is as often a name as prose, a fix there is offered on the bar and never made by itself, and the word after a dot is not capitalized. Web and email addresses, file names (`notes.txt`), paths (`src/main/app`, `~/Desktop`) and version numbers are left alone as before. Right after a dot the strip waits for the first letter, since a dot is nearly always the end of a sentence.
 - **Sentence pass** when you finish a sentence (`.` `!` `?`):
   - fixed automatically: doubled words (`the the`), `hello ,world`, double spaces, leftover certain typos;
   - also fixed automatically: `could of` → could have (not `of course`);
   - reviewed in one pass: likely wrong words judged from both sides (`went their yesterday` → there, `to tired` → too, `I want to by a car` → buy) and uncertain typos. The card steps through them: Tab takes the fix and moves on, ←/→ pick another option, Esc keeps your word (and it is not flagged there again). Typing closes it with no change. Wrong words are never changed without asking.
-- **Learns you:** fixes you pick rank higher next time.
+- **Learns you:** a fix you pick or retype ranks higher next time. Once you have made the same fix for the same slip twice, that word leads the bar whatever the dictionary thinks is likelier, and from the third time it is made for you (`wich` → which, for someone who always means *which*, even though *with* is the commoner word). A slip you correct to two different words about as often has no habit and stays a choice. Undoing a fix marks the word as meant; correcting it yourself later takes that back.
 - **Learns your words:** a name or term the dictionary lacks, once you have written it twice, becomes a correction target in your capitals (`lindqvsit` → Lindqvist instead of Lundqvist). Stored locally; "Clear Learned Phrases" clears it.
 
 ## Training data (opt-in)
 
 Settings → Writing → **Training Data** has a switch, **Save Training Examples**, that is off until you
-turn it on. With it on, each sentence you finish is saved with what became of the fixes in it, so a
-spelling model can be trained on your own writing. **Export…** writes one JSON object per line
-(wrapped and reordered here for reading; in the file the keys are sorted):
+turn it on. With it on, each sentence you finish is saved with everything Cotabby did while you wrote
+it, so a model can be trained on your own writing and the places Cotabby got wrong can be found.
+**Export…** writes one JSON object per line (wrapped and cut down here for reading; in the file the
+keys are sorted):
 
 ```json
-{"scope":"sentence","day":"2026-11-15","typed":"I drive a Tyoda Corola to work.","final":"I drive a Toyota Corolla to work.",
- "accepted":[{"typed":"Tyoda","fix":"Toyota","how":"sentenceFix"},{"typed":"Corola","fix":"Corolla","how":"sentenceFix"}],"rejected":[]}
+{"scope":"sentence","day":"2026-11-17","app":"com.apple.Notes","context":"We left early.",
+ "typed":"I drive a Tyoda to wrok evry day.","final":"I drive a Toyota to wrok every day.",
+ "accepted":[{"typed":"evry","fix":"every","how":"autoFix"},{"typed":"Tyoda","fix":"Toyota","how":"sentenceFix"}],
+ "rejected":[],
+ "session":{"version":"0.4.0","stripModel":"gemma-4-E2B.i1-Q6_K.gguf","hasSentenceModel":true},
+ "steps":[
+  {"kind":"strip","ms":0,"before":"I","word":"drive","shownFirst":["have","am","was"],"shownLast":["drive","drove","dropped"],"lettersTyped":2,"rank":0},
+  {"kind":"decision","ms":4100,"before":"I drive a Tyoda to wrok","word":"evry","how":"fixed","candidates":["every","very"],"scores":[1.6,0.7],"confidence":0.97},
+  {"kind":"outcome","ms":4900,"word":"evry","final":"every","how":"autoFixKept"},
+  {"kind":"sentencePass","ms":6200,"before":"I drive a Tyoda to wrok every day.",
+   "changes":[{"typed":"Tyoda","written":"Toyota","probability":0.97,"action":"fixed"},{"typed":"wrok","written":"work","probability":0.41,"action":"left"}]},
+  {"kind":"sentenceFix","ms":7400,"how":"kept","final":"I drive a Toyota to wrok every day."}]}
 ```
+
+The first block is the training pair:
 
 - `typed` is the sentence as you first typed it (the model's input) and `final` what you ended up with
   (its target). A sentence nothing was done to has the two equal, which teaches a model what to leave alone.
@@ -71,22 +85,71 @@ spelling model can be trained on your own writing. **Export…** writes one JSON
   bar or card), `selfCorrected` (you retyped it), `sentenceFix` (fixed when the sentence was finished).
 - `rejected` lists what you turned down: an `autoFix` or `sentenceFix` you undid, or a fix that was
   `offered` and you kept your word. These are the "do not change this" examples.
-- `scope` is `word` for a fix that could not be placed in a saved sentence (`typed` and `final` are then
-  the word itself).
+- `context` is up to 300 characters of what stood before the sentence, `app` the app it was typed in
+  (its bundle identifier), and `session` the build and models that were running.
+
+`steps` is what happened on the way, in order, with `ms` counted from the sentence's first step. It
+is there because outcomes cannot be read backwards: "`evry` became `every`" does not say what was
+offered, how sure the engine was, or what you typed past.
+
+| `kind` | Written when | What it holds |
+|---|---|---|
+| `strip` | you finish a word, or pick one | the strip before any letter (`shownFirst`) and as it last stood (`shownLast`), how many letters you had typed by then, the slot you picked (`pickedSlot`, absent when you typed the word out), and `rank`: where the word you meant stood in the last list (0 is first, absent when it was not listed) |
+| `decision` | the spelling engine flags a word | what it did (`fixed` without asking, `offered`, `offeredChoices`, `offeredWrongWord`, or `held`), its candidates best first with their scores, and the trained model's `confidence` in the first one |
+| `outcome` | you react | what became of the word: `autoFixKept`, `autoFixUndone`, `picked`, `keptAsTyped`, `selfCorrected` |
+| `sentencePass` | the sentence model has read the finished sentence | every word it would change, its probability for it, and whether that was enough to fix it (`fixed`), to ask (`asked`), or neither (`left`) |
+| `sentenceFix` | you type on, or undo | `kept` or `undone`, and the fixed sentence |
+
+So a word the strip never had (`rank` absent, many `lettersTyped`), a fix made unasked that you undid
+(`decision` `fixed` then `outcome` `autoFixUndone`), a right fix the engine was too unsure to make
+(`confidence` under the bar, then `selfCorrected`), and a misspelling the sentence model saw and left
+(`action` `left`) are each one line to find. `Tools/training/summarize.py <export>` counts them: how
+often the word you meant was first in the strip, which fixes you undid, and what the sentence model saw
+and left.
+
+A fix whose sentence was never saved (a line you did not finish, or one too short or too long to keep)
+is exported with `scope` `word`; its `steps` carry the engine's decision and what the strip showed, so
+it still says where in the line it happened. Other steps that fit no saved sentence are exported with
+`scope` `strip`, `decision` or `sentencePass`.
+
+The first export from a work day on 0.3.1 had 187 of 417 fixes without a sentence. Three causes were
+found and fixed in 0.4.0: a chat line that ends in a full stop and is sent with Return was never saved
+(only lines without one were), a sentence sent within 0.8 s of its full stop was dropped because the
+field was already empty, and a fix was looked for in its sentence by exact capitals (`the` was not found
+in `The cat`).
+
+Not recorded: a change you make to a sentence by going back to it after typing on (only what you do
+at the caret as you write is seen), and letters you typed and deleted inside a word.
 
 This is a training record, not a keystroke log, and the code is written to keep it that way
 (`Services/Spelling/TrainingLog.swift`):
 
 - Nothing is saved until the switch is on.
-- Only finished sentences and spelling decisions: no keys or shortcuts, nothing you typed and deleted,
-  no app or window names, a calendar date but no time of day.
+- Sentences, words and what Cotabby did with them: no key presses or shortcuts, no window titles,
+  nothing from a field once it is deleted before a word is finished.
+- Order and pace, not the clock: times are milliseconds since the app's first line of that launch,
+  and a sentence has a calendar date but no time of day.
+- Two things have a switch of their own under the main one, on by default: **Include the Text Before
+  Each Sentence** and **Include the App**. Turn them off to keep sentences only.
 - Only where Cotabby is working: never password fields, nothing while Cotabby is off, paused, or
-  disabled for the app in front. Sentences with a web address, an email address, or code are skipped,
-  as are fragments under three words and blocks over 400 characters.
+  disabled for the app in front. Sentences with a web address, an email address, or code are skipped
+  with everything recorded for their words, as are fragments under three words and blocks over 400
+  characters.
 - One file on this Mac, readable only by your user (`~/Library/Application Support/Cotabby/training-log.jsonl`),
   never uploaded. It leaves the Mac only through Export, to a place you pick.
-- **Show in Finder** and **Delete All** are next to the switch. The file is capped at 20 MB (the older
-  half is dropped past that).
+- **Show in Finder** and **Delete All** are next to the switch. The file is capped at 100 MB (the older
+  half is dropped past that); a word typed with the strip on is about 200 bytes.
+
+A file written by 0.3.1 or earlier still exports; its sentences have the training pair and no `steps`.
+
+**Checking a build against your own writing.** `cotabby-spell --replay <export>` types an export
+again through the current engine (see "Testing"). On the first real export (187 sentences and 184
+fixes without a sentence, one work day), 0.4.0 fixes 61% of the slips in sentences without asking on
+a fresh install and has the right word made or first on the bar for 79%; replayed in order with what
+the app learns along the way, 69% and 85%, with 1.4% changed to another word. Of 1,877 words that
+were left as typed it changes 30 without asking, 29 of them slips that had been left in the text.
+That replay is also what found the three learning faults fixed in 0.4.0 (see "Learns you" and the
+sentence model's limits).
 
 The examples are joined from small events at export time (`Support/Spelling/TrainingExamples.swift`),
 because the events for one sentence do not arrive in order: a sentence fix is confirmed only when you
@@ -310,6 +373,12 @@ word lists cannot: misspelled names and technical terms (`I drive a Tyoda Corola
 - **Bars** (`SentenceModelGate.Bars`): typed in place from 0.9 (0.95 when the typed word is itself a
   known word), offered from 0.6. Punctuation changes and answers with a different word count are
   ignored.
+- **Two limits on what it may type** (`SentenceModelGate.WordChecks`, since 0.4.0): only a word the
+  app's dictionary or your own vocabulary has is typed in place, so a term the dictionary lacks is
+  not turned into another word it lacks (`kubectl` into `kubelet`); such a change is asked about at
+  most. And a word you kept when a fix was offered, undid a fix of, or have written often enough to
+  be in your vocabulary is never changed or asked about. On the sentences below this moves 0.4 to
+  0.8 points of misspellings from "typed in place" to "asked" (74.1% to 73.7%, 72.5% to 71.7%).
 - **Speed, live** (M3 Max, no developer overlay): a correct sentence is cleared in about 35 ms, a
   one-word fix is decided in about 60 ms, a two-word fix in about 80 ms. The answer is dropped if
   the writer has already typed past the sentence (at 120 ms a key most fixes still land; at 70 ms a
@@ -410,6 +479,19 @@ TEST_RUNNER_WORD_LM_FILE="$HOME/Library/Application Support/Cotabby Dev/LlamaRun
   xcodebuild test -project Cotabby.xcodeproj -scheme Cotabby -destination 'platform=macOS' \
   -derivedDataPath ~/Library/Developer/Xcode/DerivedData/CotabbyFork-Check CODE_SIGNING_ALLOWED=NO \
   -only-testing:CotabbyTests/WordPredictionControllerTests -only-testing:CotabbyTests/WordLanguageModelLiveTests
+
+# The training examples for a raw training log at any path (what Export writes), and a summary of an
+# export: how often the strip had the word, which fixes were undone, what the sentence model left.
+$CLI --training-export "$HOME/Library/Application Support/Cotabby/training-log.jsonl" > /tmp/export.jsonl
+python3 Tools/training/summarize.py /tmp/export.jsonl
+
+# An export typed again through the engine as it is now: every sentence word by word as you first
+# typed it, then the sentence pass, compared with what you ended up with. --adapt replays in order
+# and teaches the engine after each sentence what the app would have learned from it; --show lists
+# the words (never sentences) it missed or changed. This is the check that a new build still works
+# on your own writing. It is for checking, not for tuning against (see Tools/cotabby-spell/Replay.swift).
+$CLI --american --replay ~/Downloads/cotabby-training.jsonl --adapt \
+  --sentence-model "/Applications/Cotabby Dev.app/Contents/Resources/spelling-qwen3-0.6b-q8_0.gguf"
 
 # Build + install Cotabby Dev, then drive it live. The live test types into its own test host app
 # (Tools/e2e/TestHost), never your apps or documents, and restores your Cotabby history afterwards.

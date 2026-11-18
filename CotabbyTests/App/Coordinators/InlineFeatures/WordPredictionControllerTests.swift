@@ -42,6 +42,27 @@ final class WordPredictionControllerTests: XCTestCase {
         XCTAssertEqual(harness.inserter.replacements.first?.text, "go ")
     }
 
+    func test_tabCompletesAWordBegunRightAfterADot_andLeavesTheWordBeforeItAlone() {
+        // #given a word begun against a dot, as in a table name (`want.t`)
+        let harness = makeHarness(precedingText: "I want.t")
+        harness.note("I want.t")
+
+        _ = harness.controller.observe(Self.key(48))
+        flushMainQueue()
+
+        // #then only the one letter typed is replaced, and the pick is not capitalized
+        XCTAssertEqual(harness.inserter.replacements.first?.deleteCount, 1)
+        XCTAssertEqual(harness.inserter.replacements.first?.text, "to ")
+    }
+
+    func test_rightAfterASlash_theStripSuggestsTheNextWord() {
+        let harness = makeHarness(precedingText: "I want/")
+        harness.note("I want/")
+        flushMainQueue()
+
+        XCTAssertEqual(harness.panel.words.first, "to")
+    }
+
     func test_inASingleLineField_tabMovesFocusAndOptionOneTakesTheFirstWord() {
         // #given a strip in a search box
         let harness = makeHarness(precedingText: "I want ")
@@ -393,6 +414,59 @@ final class WordPredictionControllerTests: XCTestCase {
         _ = harness.controller.observe(Self.key(36))
 
         XCTAssertEqual(harness.learned.values, ["see you at the gym"])
+    }
+
+    func test_chatLineEndingInAPeriod_sentWithReturn_isLearnedAndSettledAsWritten() {
+        // #given a message that ends in a full stop, with no space after it
+        let harness = makeHarness(precedingText: "Sure. That works for me.")
+        var settled: [String] = []
+        harness.controller.onSentenceSettled = { settled.append($0) }
+        harness.note("Sure. That works for me.")
+
+        // #when it is sent and the field is cleared
+        _ = harness.controller.observe(Self.key(36))
+        harness.focus.setPrecedingText("")
+        flushMainQueue()
+
+        // #then its last sentence is learned, and settled with its full stop
+        XCTAssertEqual(harness.learned.values, ["That works for me"])
+        XCTAssertEqual(settled, ["That works for me."])
+    }
+
+    func test_sentenceSentBeforeTheDelayHasPassed_isStillLearned_once() {
+        // #given a finished sentence (full stop and a space) whose delay is still running
+        let harness = makeHarness(precedingText: "We ship on Friday. ")
+        harness.note("We ship on Friday. ")
+
+        // #when the line is sent, which clears the field before the delay is over
+        _ = harness.controller.observe(Self.key(36))
+        harness.focus.setPrecedingText("")
+        flushMainQueue()
+
+        // #then clearing the field by sending is not the writer taking the sentence back
+        XCTAssertEqual(harness.learned.values, ["We ship on Friday"])
+    }
+
+    func test_returnInAnEditor_afterAFinishedSentence_learnsItOnce() {
+        // #given an editor, where Return starts a new line and the sentence stays
+        let harness = makeHarness(precedingText: "We ship on Friday.")
+        harness.note("We ship on Friday.")
+
+        _ = harness.controller.observe(Self.key(36))
+        harness.focus.setPrecedingText("We ship on Friday.\n")
+        harness.note("We ship on Friday.\n")
+        flushMainQueue()
+
+        XCTAssertEqual(harness.learned.values, ["We ship on Friday"])
+    }
+
+    func test_sentenceDeletedBeforeTheDelay_withoutSending_isNotLearned() {
+        let harness = makeHarness(precedingText: "We ship on Friday. ")
+        harness.note("We ship on Friday. ")
+        harness.focus.setPrecedingText("")
+        flushMainQueue()
+
+        XCTAssertEqual(harness.learned.values, [])
     }
 
     func test_sentenceChangedBeforeTheDelay_isNotLearned() {

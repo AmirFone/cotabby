@@ -15,6 +15,10 @@ enum CurrentWordExtractor {
         /// one Delete keypress removes one user-perceived character, so deleting the word back to its
         /// start takes exactly this many backspaces.
         let characterCount: Int
+        /// True when the word is one of several joined by a dot or a slash (`name` in `users.name`).
+        /// Such text is as often a name or an identifier as prose, so a fix may be offered there
+        /// but is never made without asking.
+        var isJoined = false
     }
 
     /// Returns the trailing word at the cursor, or `nil` when:
@@ -37,7 +41,15 @@ enum CurrentWordExtractor {
             startIndex = prior
         }
 
-        let word = String(precedingText[startIndex..<precedingText.endIndex])
+        let token = precedingText[startIndex..<precedingText.endIndex]
+        // Words joined by a dot or a slash (`users.name`, `read/write`): the word at the caret is the
+        // last of them. A hyphenated token stays whole when it has no other mark, because the
+        // dictionary knows hyphenated words (`well-knwon` → well-known).
+        if token.contains(where: { $0 == "." || $0 == "/" }) {
+            guard let last = joinedWords(in: token)?.last, isPlausibleNaturalWord(String(last)) else { return nil }
+            return Result(word: String(last), characterCount: last.count, isJoined: true)
+        }
+        let word = String(token)
         guard isPlausibleNaturalWord(word) else {
             return nil
         }
@@ -45,8 +57,50 @@ enum CurrentWordExtractor {
     }
 
     /// Punctuation that can follow a word without being part of it. Apostrophes are excluded because
-    /// they belong to contractions and possessives (`dogs'`).
-    static let trailingPunctuation: Set<Character> = [",", ";", ":", ".", "!", "?", ")", "]", "\"", "”"]
+    /// they belong to contractions and possessives (`dogs'`). A slash or a hyphen right after a
+    /// word finishes it like a comma does (`recieve/`, `teh-`), so the word is still checked.
+    static let trailingPunctuation: Set<Character> = [",", ";", ":", ".", "!", "?", ")", "]", "\"", "”", "/", "-"]
+
+    /// The marks that join words with no space between them.
+    static let joiningMarks: Set<Character> = [".", "/", "-"]
+
+    /// What follows a dot in a file name or a web address. A token with one of these is not words
+    /// joined by a dot, and nothing in it is a spelling mistake.
+    private static let fileAndDomainEndings: Set<String> = [
+        "com", "org", "net", "edu", "gov", "io", "dev", "ai", "co", "uk", "us", "ca", "de", "app",
+        "txt", "md", "pdf", "png", "jpg", "jpeg", "gif", "svg", "csv", "tsv", "json", "xml", "html", "htm", "css",
+        "js", "ts", "tsx", "jsx", "py", "rb", "go", "rs", "swift", "java", "kt", "sql", "yml", "yaml", "toml", "sh",
+        "zip", "gz", "tar", "dmg", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "log", "plist", "lock"
+    ]
+
+    /// True when the text ends in plain words joined by dots, slashes or hyphens, the last of them
+    /// possibly not started yet (`users.na`, `read/`); false for a web address, a path or a file name.
+    /// The word strip asks this to decide whether a word begun against a mark is prose.
+    static func endsInJoinedWords(_ text: String) -> Bool {
+        let token = text[(text.lastIndex(where: \.isWhitespace).map { text.index(after: $0) } ?? text.startIndex)...]
+        return joinedWords(in: token, allowingOpenEnd: true) != nil
+    }
+
+    /// The words of a token made of plain words joined by single dots, slashes or hyphens
+    /// (`users.name`, `schema.table.column`, `read/write`), or nil for anything else: a web address,
+    /// a path, a file name, a version number, an email address. The caller acts on the words of such
+    /// a token one at a time; everything else with these marks in it is left alone, as before.
+    ///
+    /// - Parameter allowingOpenEnd: accept a token that ends in its mark (`read/`), giving an empty
+    ///   last word, for the caller that wants to suggest what comes next.
+    static func joinedWords(in token: Substring, allowingOpenEnd: Bool = false) -> [Substring]? {
+        let words = token.split(omittingEmptySubsequences: false) { joiningMarks.contains($0) }
+        guard words.count >= 2, token.filter({ $0 == "/" }).count <= 1, words[0].lowercased() != "www" else { return nil }
+        for (index, word) in words.enumerated() {
+            let isOpenEnd = allowingOpenEnd && index == words.count - 1
+            guard !word.isEmpty || isOpenEnd,
+                  word.allSatisfy({ $0.isLetter || $0 == "'" || $0 == "’" }) else { return nil }
+            if index > 0, token[token.index(before: word.startIndex)] == ".", fileAndDomainEndings.contains(word.lowercased()) {
+                return nil
+            }
+        }
+        return words
+    }
 
     /// Like `extract(from:)`, but tolerates exactly one trailing space so a *just-finished* word
     /// (the user typed the word and then pressed space) is still surfaced as the trailing word, and

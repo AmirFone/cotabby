@@ -112,6 +112,22 @@ proceed	#hastag |
 proceed	@mentoin |
 proceed	~/Desktop/fiel |
 
+## Words joined by a dot or a slash, and a word finished by a slash or a hyphen: offered, never
+## changed without asking while joined; the mark followed by a space is ordinary punctuation
+bar:name	sql table name is users.nmae|
+bar:name	sql table name is users.nmae |
+proceed	sql table name is users.name |
+bar:write	it is read/wriet |
+bar:receive	did you recieve/|
+auto:receive	did you recieve/ |
+bar:the	I saw teh-|
+bar:well-known	a well-knwon |
+proceed	see exmaple.com |
+proceed	open my nots.txt |
+proceed	go to src/main/jva |
+proceed	path /usr/lcal |
+proceed	version v1.2.x |
+
 ## Whitespace and boundaries
 proceed	|
 proceed	   |

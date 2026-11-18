@@ -219,6 +219,9 @@ targets:
       - Cotabby/Services/Prediction/WordLanguageModelCore.swift
       - Cotabby/Services/Runtime/Llama/LlamaTokenModel.swift
       - Cotabby/Support/Spelling/SentenceModelCorrection.swift
+      - Cotabby/Support/Spelling/TrainingExamples.swift
+      - Cotabby/Support/Prediction/StripUseTracker.swift
+      - Cotabby/Services/Spelling/CorrectionJournal.swift
     dependencies:
       - package: swift-log
         product: Logging

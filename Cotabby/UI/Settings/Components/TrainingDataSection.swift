@@ -15,6 +15,11 @@ struct TrainingDataSection: View {
     /// `@AppStorage` reads and writes one UserDefaults key and redraws the view when it changes;
     /// `TrainingLog` reads the same key every time it is about to save.
     @AppStorage(TrainingLog.enabledDefaultsKey) private var savesExamples = false
+    /// The two parts of the record that say more about the writer than a sentence does. On once the
+    /// record is on, each with its own switch, so the fuller record is one decision and either part
+    /// can still be left out.
+    @AppStorage(TrainingLog.contextDefaultsKey) private var savesContext = true
+    @AppStorage(TrainingLog.appDefaultsKey) private var savesApp = true
     @State private var sentenceCount = 0
     @State private var exportStatus: String?
     @State private var isConfirmingDelete = false
@@ -24,16 +29,39 @@ struct TrainingDataSection: View {
             Toggle(isOn: $savesExamples) {
                 SettingsRowLabel(
                     title: "Save Training Examples",
-                    description: "Off unless you turn it on. Saves each sentence you finish while Cotabby is working: " +
-                        "what you first typed, what it became, and which fixes you kept or rejected, so a spelling " +
-                        "model can be trained on your own writing. This is not a keystroke log: nothing from " +
-                        "password fields, nothing typed while Cotabby is off, paused, or disabled for an app, and " +
-                        "no keys, shortcuts, app names, or times of day. Stored only on this Mac and never " +
-                        "uploaded; it leaves only if you export the file and send it somewhere yourself.",
+                    description: "Off unless you turn it on. Saves what happens while you write, so a model can be " +
+                        "trained on your own writing and on where Cotabby got it wrong: each sentence you finish " +
+                        "(as first typed and as it ended up), what the spelling engine decided about a word and " +
+                        "the fixes it weighed, what the word strip offered for each word and whether you picked " +
+                        "one, which fixes you kept or undid, and the order of these steps with the pauses between " +
+                        "them. This is not a keystroke log: no key presses or shortcuts, no clock times, nothing " +
+                        "from password fields, nothing typed while Cotabby is off, paused, or disabled for an app. " +
+                        "Stored only on this Mac and never uploaded; it leaves only if you export the file and " +
+                        "send it somewhere yourself.",
                     systemImage: "graduationcap"
                 )
             }
             .settingsItem(.trainingData)
+
+            Toggle(isOn: $savesContext) {
+                SettingsRowLabel(
+                    title: "Include the Text Before Each Sentence",
+                    description: "Up to 300 characters that stood before the sentence, so a model can learn from " +
+                        "what led up to it. Turn off to save each sentence on its own.",
+                    systemImage: "text.alignleft"
+                )
+            }
+            .disabled(!savesExamples)
+
+            Toggle(isOn: $savesApp) {
+                SettingsRowLabel(
+                    title: "Include the App",
+                    description: "Which app each sentence was typed in (the app only, never a window or document " +
+                        "name), so writing for chat, mail and documents can be told apart.",
+                    systemImage: "app"
+                )
+            }
+            .disabled(!savesExamples)
 
             LabeledContent {
                 HStack {

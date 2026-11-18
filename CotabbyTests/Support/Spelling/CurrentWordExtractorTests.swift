@@ -40,6 +40,67 @@ final class CurrentWordExtractorTests: XCTestCase {
         XCTAssertNil(CurrentWordExtractor.extract(from: "the file.swift"))
     }
 
+    // MARK: - Words joined by a dot, a slash or a hyphen
+
+    func test_wordAfterADotOrSlash_isTheCurrentWord_andMarkedJoined() {
+        // #given a table name written the way it is said, and two words joined by a slash
+        let afterDot = CurrentWordExtractor.extract(from: "sql table name is users.nmae")
+        let afterSlash = CurrentWordExtractor.extract(from: "it is read/wriet")
+        let deeper = CurrentWordExtractor.extract(from: "use schema.table.colum")
+
+        // #then the word at the caret is the last one, flagged so that nothing is changed unasked
+        XCTAssertEqual(afterDot, .init(word: "nmae", characterCount: 4, isJoined: true))
+        XCTAssertEqual(afterSlash?.word, "wriet")
+        XCTAssertEqual(afterSlash?.isJoined, true)
+        XCTAssertEqual(deeper?.word, "colum")
+    }
+
+    func test_hyphenatedWord_staysWhole() {
+        // The dictionary knows hyphenated words, so `well-knwon` is looked up as one.
+        let result = CurrentWordExtractor.extract(from: "a well-knwon")
+
+        XCTAssertEqual(result?.word, "well-knwon")
+        XCTAssertEqual(result?.isJoined, false)
+    }
+
+    func test_wordFollowedByASlashOrHyphen_isStillTheTrailingWord() {
+        // #given a word finished by a mark, not a space
+        let slash = CurrentWordExtractor.extractTrailingWord(from: "did you recieve/")
+        let hyphen = CurrentWordExtractor.extractTrailingWord(from: "I saw teh-")
+
+        // #then it is checked like a word before a comma, and the mark is kept aside
+        XCTAssertEqual(slash?.result.word, "recieve")
+        XCTAssertEqual(slash?.trailingPunctuation, "/")
+        XCTAssertEqual(hyphen?.result.word, "teh")
+        XCTAssertEqual(hyphen?.trailingPunctuation, "-")
+    }
+
+    func test_addressesPathsFileNamesAndVersions_areNotJoinedWords() {
+        for text in [
+            "see example.com", "see www.exmaple.org", "open notes.txt", "the file.swift", "go to src/main/jva",
+            "path /usr/lcal", "in ~/Desktop/fiel", "mail jo@exmaple.com", "version v1.2.x", "open https://exmaple.com/abuot",
+            "two dots..teh", "call user_name.frist",
+        ] {
+            XCTAssertNil(CurrentWordExtractor.extract(from: text), text)
+        }
+    }
+
+    func test_joinedWords_openEnd_isOnlyAcceptedWhenAsked() {
+        XCTAssertNil(CurrentWordExtractor.joinedWords(in: "read/"))
+        XCTAssertEqual(CurrentWordExtractor.joinedWords(in: "read/", allowingOpenEnd: true)?.map(String.init), ["read", ""])
+        XCTAssertEqual(CurrentWordExtractor.joinedWords(in: "users.name")?.map(String.init), ["users", "name"])
+    }
+
+    func test_typoReplacement_ofAJoinedWord_touchesOnlyThatWord() {
+        // #given the fix for the word after the dot, accepted with the caret still against it
+        let replacement = TypoCorrectionReplacementPlanner.plan(
+            precedingText: "table is users.nmae", expectedTypo: "nmae", correctedWord: "name", requiresTrailingSpace: false
+        )
+
+        // #then only its four letters are retyped; `users.` is not deleted
+        XCTAssertEqual(replacement, TypoCorrectionReplacement(deletingUTF16Count: 4, replacementText: "name"))
+    }
+
     func test_acceptsMixedCaseNaturalWord() {
         XCTAssertEqual(CurrentWordExtractor.extract(from: "fix teh")?.word, "teh")
         // Leading-capital natural words are fine; only ALL-caps tokens are rejected.

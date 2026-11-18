@@ -185,13 +185,14 @@ nonisolated enum SpellingCandidateRanker {
         }
 
         let knownKey = knownFix?.lowercased()
-        let others = (scored + (properNoun.map { [$0] } ?? []))
+        let byScore = (scored + (properNoun.map { [$0] } ?? []))
             .filter { $0.candidate.term.lowercased() != knownKey }
             .sorted { lhs, rhs in
                 lhs.candidate.score != rhs.candidate.score
                     ? lhs.candidate.score > rhs.candidate.score
                     : lhs.candidate.term < rhs.candidate.term
             }
+        let others = knownFix == nil ? leadingWithHabitualFix(byScore, word: word, personal: personal) : byScore
         // A known fix always leads by more than the auto-apply margin, whatever the others scored.
         let known = knownFix.map { fix -> RankedSpellingCandidate in
             var signals = scored.first { $0.candidate.term.lowercased() == knownKey }?.signals ?? certain
@@ -200,6 +201,52 @@ nonisolated enum SpellingCandidateRanker {
             return RankedSpellingCandidate(candidate: SpellingCandidate(term: fix, score: score), signals: signals)
         }
         return Array(((known.map { [$0] } ?? []) + others).prefix(limit))
+    }
+
+    /// How many times the writer must have made the same fix for this exact slip before it leads
+    /// the list, and before it is made for them.
+    static let habitLeadCount = 2
+    static let habitAutoCount = 3
+    /// The lead a twice-made fix gets: enough to be the one fix shown, not enough to be applied.
+    static let habitLead = 0.2
+
+    /// The fix this writer keeps making for this exact slip, when they have made it at least twice
+    /// and at least twice as often as any other fix for it (`fro` retyped as both `from` and `for`
+    /// has no habit). Nil otherwise.
+    static func habitualFix(in personal: [String: Int]) -> (term: String, count: Int)? {
+        let ordered = personal.sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }
+        guard let best = ordered.first, best.value >= habitLeadCount else { return nil }
+        let rival = ordered.dropFirst().first?.value ?? 0
+        return best.value >= 2 * rival ? (best.key, best.value) : nil
+    }
+
+    /// Puts the writer's habitual fix first, whatever the dictionary thinks is likelier.
+    ///
+    /// A writer's own repeated correction of one slip to one word is the strongest evidence there
+    /// is about that slip, and word frequency must not outvote it: someone who types `wich` for
+    /// `which` many times a day should not be offered `with` every time because `with` is the
+    /// commoner word. From the second time the fix leads the list; from
+    /// the third it leads by the auto-fix margin, like a certain misspelling, so it is made for them.
+    /// The fix is added when the dictionary sources did not find it (a slip too far from its word).
+    private static func leadingWithHabitualFix(
+        _ ranked: [RankedSpellingCandidate], word: String, personal: [String: Int]
+    ) -> [RankedSpellingCandidate] {
+        guard let habit = habitualFix(in: personal) else { return ranked }
+        let rest = ranked.filter { $0.candidate.term.lowercased() != habit.term }
+        let own = ranked.first { $0.candidate.term.lowercased() == habit.term }
+        let isMadeForThem = habit.count >= habitAutoCount
+        let score = max(
+            own?.candidate.score ?? 0,
+            (rest.first?.candidate.score ?? 0) + (isMadeForThem ? knownFixLead : habitLead),
+            isMadeForThem ? 1.5 : 1.0
+        )
+        let leading = RankedSpellingCandidate(
+            candidate: SpellingCandidate(
+                term: own?.candidate.term ?? TypoCaseTransfer.applying(caseOf: word, to: habit.term), score: score
+            ),
+            signals: own?.signals ?? SpellingCandidateSignals(personalAccepted: habit.count)
+        )
+        return [leading] + rest
     }
 
     static let properNounScore = 1.3
@@ -333,8 +380,9 @@ nonisolated enum SpellingCandidateRanker {
         if !context.isMidWord, isAdjacentSwap(typo: context.typo, term: term) {
             score += adjacentSwapBonus
         }
-        // The writer's own history: each time they accepted or retyped this fix it gains, and by the
-        // third time the lead clears the auto-fix margin, so a habitual misspelling fixes itself.
+        // The writer's own history: each time they accepted or retyped this fix it gains. A fix
+        // they keep making leads outright (see `leadingWithHabitualFix`); this is the gentler
+        // nudge for one made once, or made about as often as another.
         if let accepted = context.personal[term], accepted > 0 {
             score += min(personalHistoryCap, personalHistoryStep * Double(accepted))
         }

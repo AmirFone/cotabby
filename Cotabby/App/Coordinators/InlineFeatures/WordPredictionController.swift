@@ -89,6 +89,8 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
     /// Escape hides the strip until the next word starts.
     private var isSuppressed = false
     private var lastLearnedSentence: String?
+    /// The last sentence that ended a line Return was pressed on (see `learnSentLine`).
+    private var sentSentence: String?
     /// The text before the caret at the last settled keystroke; read when Return sends a line.
     private var lastNotedText = ""
     /// Uptime of the last key seen, for the key-to-strip latency in the debug log.
@@ -113,6 +115,11 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
     /// `learnDelay`, so any fix made to it had already landed), or a chat line sent with Return.
     /// The opt-in training record listens here.
     var onSentenceSettled: ((String) -> Void)?
+    /// What the strip showed for a word the writer has just finished or picked, and which slot was
+    /// taken if any (`StripUseTracker`). The opt-in training record listens here; it is how the
+    /// record knows the strip was wrong, or right and ignored, and not only when it was used.
+    var onStripUse: ((StripUse) -> Void)?
+    private var stripUse = StripUseTracker()
 
     init(
         panel: any CandidateListPanelPresenting,
@@ -162,6 +169,7 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
     func noteTypedText(_ precedingText: String, caretRect: CGRect, focusChangeSequence: UInt64) {
         keysSinceNote = 0
         lastNotedText = precedingText
+        if let use = stripUse.typed(precedingText) { onStripUse?(use) }
         learnFinishedSentence(in: precedingText)
         guard isEnabled(), !isSuppressed, let prediction = predict(precedingText) else {
             hide(because: "nothing to predict for this text")
@@ -430,6 +438,7 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
             hide(because: "the pick could not be typed")
             return
         }
+        onStripUse?(stripUse.picked(slot: slot, word: word, shown: current.prediction.words, textBefore: precedingText))
         // Predict the following word from the text the field is about to hold, so the next pick is
         // available before the host has even published this one.
         let expected = String(precedingText.dropLast(prefix.count)) + word + " "
@@ -504,23 +513,45 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
         // The sentence as the sentence pass sees it (punctuation kept, abbreviation-aware), so a
         // listener can match it against that pass's fixes. Nil for text the pass leaves alone.
         let finished = FinishedSentenceExtractor.extract(from: text)?.sentence
+        settleAfterDelay(sentence, finished: finished)
+    }
+
+    /// Learns `sentence` once `learnDelay` has passed, if it is still in the field as written or
+    /// was sent in the meantime. Sending clears the field, which is not the writer taking the
+    /// sentence back; without that exception a line sent within the delay was never learned.
+    private func settleAfterDelay(_ sentence: String, finished: String?) {
         DispatchQueue.main.asyncAfter(deadline: .now() + learnDelay) { [weak self] in
-            guard let self, self.focusModel.snapshot.context?.precedingText.contains(sentence) == true else { return }
+            guard let self else { return }
+            let isStillThere = self.focusModel.snapshot.context?.precedingText.contains(sentence) == true
+            guard isStillThere || self.sentSentence == sentence else { return }
             self.learn(sentence)
             if let finished { self.onSentenceSettled?(finished) }
         }
     }
 
-    /// A chat line sent with Return usually has no period, so it would never count as finished;
-    /// Return ends it. Learned at once because the field is often cleared on send.
+    /// Return ends the line being written. A chat line usually has no period, so it would never
+    /// count as finished; it is learned at once because the field is often cleared on send. A line
+    /// that does end in a period waits out `learnDelay` like any finished sentence (in an editor
+    /// Return only starts a new line, and the sentence pass may still fix it), but is remembered as
+    /// sent so that the field being cleared does not lose it.
     private func learnSentLine() {
-        let line = lastNotedText.split(whereSeparator: \.isNewline).last.map(String.init) ?? ""
-        let start = line.lastIndex { ".!?".contains($0) }.map { line.index(after: $0) } ?? line.startIndex
-        let sentence = line[start...].trimmingCharacters(in: .whitespaces)
-        guard sentence.split(separator: " ").count >= 3, sentence != lastLearnedSentence else { return }
+        let line = (lastNotedText.split(whereSeparator: \.isNewline).last.map(String.init) ?? "")
+            .trimmingCharacters(in: .whitespaces)
+        let closingMarks = line.reversed().prefix { ".!?".contains($0) }.count
+        let body = line.dropLast(closingMarks)
+        let start = body.lastIndex { ".!?".contains($0) }.map { body.index(after: $0) } ?? body.startIndex
+        let sentence = body[start...].trimmingCharacters(in: .whitespaces)
+        guard sentence.split(separator: " ").count >= 3 else { return }
+        if closingMarks > 0 { sentSentence = sentence }
+        guard sentence != lastLearnedSentence else { return }
         lastLearnedSentence = sentence
-        learn(sentence)
-        onSentenceSettled?(sentence)
+        guard closingMarks > 0 else {
+            learn(sentence)
+            onSentenceSettled?(sentence)
+            return
+        }
+        let asWritten = line[start...].trimmingCharacters(in: .whitespaces)
+        settleAfterDelay(sentence, finished: FinishedSentenceExtractor.extract(from: lastNotedText + " ")?.sentence ?? asWritten)
     }
 
     /// Where Tab already means something the writer relies on, the strip leaves it alone and every
@@ -541,6 +572,7 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
     private func show(_ next: Showing, for text: String) {
         let wasCapturing = isCapturing
         shownText = text
+        stripUse.shown(next.prediction.words, for: text)
         if next.prediction.words != showing?.prediction.words {
             arrowedSlot = nil
         }

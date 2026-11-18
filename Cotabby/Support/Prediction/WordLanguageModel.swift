@@ -53,7 +53,8 @@ nonisolated struct LanguageModelContext: Equatable, Sendable {
     }
 
     /// Nil where no word is being typed or about to be: directly after punctuation, a digit, or a
-    /// symbol (`3rd`, `@jo`, `word.`), the same places the n-gram predictor stays quiet.
+    /// symbol (`3rd`, `@jo`, `word.`), the same places the n-gram predictor stays quiet. A word
+    /// joined to the one before by a dot, slash or hyphen is a word being typed (`users.na`).
     static func make(textBefore: String, reach: Reach = .standard) -> LanguageModelContext? {
         var body = Substring(textBefore)
         var prefixStart = body.endIndex
@@ -65,7 +66,14 @@ nonisolated struct LanguageModelContext: Equatable, Sendable {
         let prefix = String(body[prefixStart...])
         body = body[..<prefixStart]
         if let before = body.last, !before.isWhitespace {
-            guard !prefix.isEmpty, "\"(“‘-".contains(before) else { return nil }
+            // A word begun against a quote, a bracket or a hyphen, or one of several words joined by
+            // a dot or a slash (`users.na`, `read/wr`). With no letter yet, only a slash or a hyphen
+            // counts: a bare dot is the end of a sentence. The same rule as the n-gram predictor's.
+            let opensWord = prefix.isEmpty ? "/-".contains(before) : "\"(“‘-./".contains(before)
+            guard opensWord else { return nil }
+            if prefix.isEmpty || "./".contains(before) {
+                guard CurrentWordExtractor.endsInJoinedWords(textBefore) else { return nil }
+            }
         }
         var end = body.endIndex
         var isSpaced = false

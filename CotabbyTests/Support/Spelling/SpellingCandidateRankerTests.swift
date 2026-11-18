@@ -210,6 +210,82 @@ final class SpellingCandidateRankerTests: XCTestCase {
         XCTAssertEqual(PersonalCorrectionMemory(userDefaults: defaults).acceptedReplacements(for: "WICH"), ["which": 2])
     }
 
+    // MARK: - The writer's own habit
+
+    /// A slip as close to a much commoner word as to the word the writer means by it.
+    private var slipNearACommonerWord: SpellingCandidateSources {
+        SpellingCandidateSources(
+            fullWord: [
+                SymSpellSuggestion(term: "with", distance: 1, count: 23_000_000_000),
+                SymSpellSuggestion(term: "which", distance: 1, count: 800_000_000),
+                SymSpellSuggestion(term: "witch", distance: 1, count: 20_000_000)
+            ],
+            prefix: [],
+            isCommonWordPrefix: false
+        )
+    }
+
+    private func rank(_ word: String, sources: SpellingCandidateSources, personal: [String: Int]) -> [SpellingCandidate] {
+        SpellingCandidateRanker.rank(word: word, isMidWord: false, sources: sources, native: [], personal: personal)
+    }
+
+    func test_fixMadeTwice_leadsButIsNotMadeForTheWriter() {
+        // #when the writer has corrected the slip to the same word twice
+        let ranked = rank("wich", sources: slipNearACommonerWord, personal: ["which": 2])
+
+        // #then it is the fix shown, short of the lead an automatic fix needs
+        XCTAssertEqual(ranked.first?.term, "which")
+        let lead = ranked[0].score - ranked[1].score
+        XCTAssertGreaterThanOrEqual(lead, SpellingCandidateRanker.habitLead - 0.001)
+        XCTAssertLessThan(lead, TypoGate.Settings(suppressCompletionsOnTypo: true, offerTypoCorrections: true, automaticallyFixTypos: true).autoApplyMinimumMargin)
+    }
+
+    func test_fixMadeThreeTimes_leadsByTheAutoFixMargin() {
+        let ranked = rank("wich", sources: slipNearACommonerWord, personal: ["which": 3])
+        let settings = TypoGate.Settings(suppressCompletionsOnTypo: true, offerTypoCorrections: true, automaticallyFixTypos: true)
+
+        XCTAssertEqual(ranked.first?.term, "which")
+        XCTAssertTrue(TypoGate.isCertain(top: ranked[0], margin: ranked[0].score - ranked[1].score, confidence: nil, settings: settings))
+    }
+
+    func test_slipCorrectedToTwoWordsAboutAsOften_hasNoHabit() {
+        // `fro` retyped as `from` three times and as `for` twice says the writer means both.
+        XCTAssertNil(SpellingCandidateRanker.habitualFix(in: ["from": 3, "for": 2]))
+        XCTAssertEqual(SpellingCandidateRanker.habitualFix(in: ["from": 4, "for": 2])?.term, "from")
+        XCTAssertNil(SpellingCandidateRanker.habitualFix(in: ["from": 1]))
+    }
+
+    func test_habitualFixTheDictionaryDidNotFind_isOfferedAnyway() {
+        // #given a slip too far from its word for the dictionary sources to connect them
+        let ranked = rank("restrnt", sources: slipNearACommonerWord, personal: ["restaurant": 2])
+
+        XCTAssertEqual(ranked.first?.term, "restaurant")
+    }
+
+    func test_habitualFix_keepsTheCapitalTheWriterTyped() {
+        let ranked = rank("Wich", sources: slipNearACommonerWord, personal: ["which": 3])
+
+        XCTAssertEqual(ranked.first?.term, "Which")
+    }
+
+    @MainActor
+    func test_personalMemory_correctingAWordTakesBackAnEarlierKeep() {
+        // #given a slip marked as intended because one automatic fix of it was undone
+        let suite = "SpellingCandidateRankerTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let memory = PersonalCorrectionMemory(userDefaults: defaults)
+        memory.recordKept("wich")
+        XCTAssertTrue(memory.isKept("wich"))
+
+        // #when the writer then corrects it themselves
+        memory.recordAccepted(typo: "wich", replacement: "which")
+
+        // #then it is a slip again, here and after a restart
+        XCTAssertFalse(memory.isKept("wich"))
+        XCTAssertFalse(PersonalCorrectionMemory(userDefaults: defaults).isKept("wich"))
+    }
+
     func test_prefixMatches_bytePath_givesExactlyWhatTheCharacterPathGives() throws {
         // #given the bundled dictionary with everything the app adds, and prefixes of many kinds:
         // correct starts, slips, swapped openings, apostrophes, one with an accent

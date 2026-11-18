@@ -35,6 +35,32 @@ final class NextWordPredictorTests: XCTestCase {
         )
     }
 
+    // MARK: - After a dot, a slash or a hyphen
+
+    func test_wordStartedRightAfterADotOrSlash_isCompletedFromTheWordsBeforeIt() {
+        // #given a word begun against a dot and against a slash, with no space
+        let afterDot = NextWordPredictor.predict(textBefore: "I want.t", sources: sources())
+        let afterSlash = NextWordPredictor.predict(textBefore: "I want/t", sources: sources())
+
+        // #then the word before the mark is the context, and the dot does not start a sentence
+        XCTAssertEqual(afterDot?.words.first, "to")
+        XCTAssertEqual(afterSlash?.words.first, "to")
+        XCTAssertEqual(afterDot?.prefix, "t")
+    }
+
+    func test_rightAfterASlashOrHyphen_theNextWordIsSuggested_butNotAfterADot() {
+        // A dot with nothing after it is nearly always the end of a sentence, one space short.
+        XCTAssertEqual(NextWordPredictor.predict(textBefore: "I want/", sources: sources())?.words.first, "to")
+        XCTAssertEqual(NextWordPredictor.predict(textBefore: "I want-", sources: sources())?.words.first, "to")
+        XCTAssertNil(NextWordPredictor.predict(textBefore: "I want.", sources: sources()))
+    }
+
+    func test_addressesAndPaths_getNoSuggestions() {
+        for text in ["see example.com/g", "open ~/Desktop/g", "mail jo@example.g", "go to src/main/g", "version v1.g", "see www.g"] {
+            XCTAssertNil(NextWordPredictor.predict(textBefore: text, sources: sources()), text)
+        }
+    }
+
     // MARK: - With the language model
 
     func test_languageModel_putsTheRightVerbFormFirst() {

@@ -624,6 +624,7 @@ extension SuggestionCoordinator {
         workID: UInt64
     ) -> Bool {
         if case let .applyCorrection(word, correctedWord) = decision {
+            defer { reportDecision(decision, inputs: inputs, rawContext: rawContext) }
             // Nothing may sit between the decision and the keys that type the fix: closing the word
             // strip or the spelling bar is panel work that has measured 50-140 ms on a busy main
             // thread, long enough for the writer's next key to land first. The fix goes out, then
@@ -634,6 +635,7 @@ extension SuggestionCoordinator {
         if decision != .proceed {
             // The spelling bar or a suppressed typo owns this word; predictions wait.
             wordPredictionPresenter?.hidePredictions()
+            reportDecision(decision, inputs: inputs, rawContext: rawContext)
         }
 
         switch decision {
@@ -678,6 +680,46 @@ extension SuggestionCoordinator {
             // Handled above, before any panel work.
             return true
         }
+    }
+
+    /// Tells the training record what was decided about the word and on what evidence. Does nothing
+    /// (not even the lookups) when nobody listens. For a fix typed without asking it runs after the
+    /// fix's keys have gone out (see `carryOut`), so the record never delays a fix.
+    private func reportDecision(_ decision: TypoGateDecision, inputs: TypoGateInputs, rawContext: FocusedInputSnapshot) {
+        guard let onSpellingDecision else { return }
+        let typed: String
+        let action: String
+        var offered: [SpellingCandidate] = []
+        switch decision {
+        case .proceed:
+            return
+        case .suppress:
+            guard let word = CurrentWordExtractor.extractTrailingWord(from: rawContext.precedingText)?.result.word else { return }
+            (typed, action) = (word, "held")
+        case let .applyCorrection(word, correctedWord):
+            (typed, action) = (word, "fixed")
+            offered = [SpellingCandidate(term: correctedWord, score: 1)]
+        case let .offerCorrection(word, correctedWord):
+            (typed, action) = (word, "offered")
+            offered = [SpellingCandidate(term: correctedWord, score: 1)]
+        case let .offerRankedCorrection(word, candidates):
+            (typed, action, offered) = (word, "offered", candidates)
+        case let .offerChoices(word, candidates):
+            (typed, action, offered) = (word, "offeredChoices", candidates)
+        case let .offerRealWordFix(word, candidates):
+            (typed, action, offered) = (word, "offeredWrongWord", candidates)
+        }
+        // The ranked list behind the decision says more than the decision: the runners-up and
+        // their scores. It is there for a finished word; mid-word only the offer itself is.
+        let ranked = inputs.rankedCandidates(forFinishedWord: typed).map(\.candidate)
+        let candidates = (ranked.isEmpty ? offered : ranked).prefix(SpellingDecisionRecord.maximumCandidates)
+        let before = CurrentWordExtractor.textBeforeTrailingWord(in: rawContext.precedingText) ?? ""
+        onSpellingDecision(SpellingDecisionRecord(
+            typed: typed, action: action,
+            candidates: candidates.map { .init(term: $0.term, score: ($0.score * 1000).rounded() / 1000) },
+            confidence: inputs.autoFixConfidence(typed).map { ($0 * 1000).rounded() / 1000 },
+            before: StripUseTracker.sentenceSoFar(before)
+        ))
     }
 
     /// Learns from the writer going back and retyping a misspelled word: the pair is recorded as an
@@ -768,7 +810,21 @@ extension SuggestionCoordinator {
     /// or the writer's own vocabulary knows needs a surer model before it is replaced.
     func proofread(_ finished: FinishedSentence, modelOutput: SentenceModelOutput) -> LocalProofreadResult? {
         let isTypo = sentenceChecks.isTypo
-        return SentenceModelGate.result(typed: finished.sentence, output: modelOutput, isKnownWord: { !isTypo($0) })
+        // The writer's own: a word they kept when a fix was offered or undid a fix of, and a term
+        // they have written often enough for it to be in their vocabulary.
+        let memory = personalCorrectionMemory, vocabulary = personalVocabulary, corrector = symSpellCorrector
+        let isWritersOwn: (String) -> Bool = { memory?.isKept($0) == true || vocabulary?.preferredCasing(of: $0) != nil }
+        let words = SentenceModelGate.WordChecks(
+            isInDictionary: { corrector.isDictionaryWord($0.lowercased()) || vocabulary?.preferredCasing(of: $0) != nil },
+            isWritersOwn: isWritersOwn
+        )
+        if let onSentencePass {
+            onSentencePass(
+                finished.sentence,
+                SentenceModelGate.judgments(typed: finished.sentence, output: modelOutput, isKnownWord: { !isTypo($0) }, words: words)
+            )
+        }
+        return SentenceModelGate.result(typed: finished.sentence, output: modelOutput, isKnownWord: { !isTypo($0) }, words: words)
     }
 
     private var sentenceChecks: LocalSentenceProofreader.Checks {

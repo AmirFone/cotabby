@@ -146,4 +146,135 @@ final class TrainingLogTests: XCTestCase {
         XCTAssertEqual(TrainingDataSection.summary(sentenceCount: 1, isSaving: true), "1 sentence saved. Saving is on.")
         XCTAssertEqual(TrainingDataSection.summary(sentenceCount: 1204, isSaving: true), "1,204 sentences saved. Saving is on.")
     }
+
+    // MARK: - The detailed record
+
+    private func rawLines() throws -> [[String: Any]] {
+        try String(contentsOf: fileURL, encoding: .utf8).split(separator: "\n").map {
+            try XCTUnwrap(JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any])
+        }
+    }
+
+    func test_everyLine_carriesItsPlaceAndTheTimeSinceTheFirst_andNoClockTime() throws {
+        // #given a log whose clock moves 250 ms between two events
+        var now: UInt64 = 5_000_000_000
+        let log = TrainingLog(
+            fileURL: fileURL, isEnabled: { true }, today: { Date(timeIntervalSince1970: 1_794_700_800) },
+            uptimeNanoseconds: { now }
+        )
+        log.noteWord(.autoFixKept, typed: "teh", final: "the", offered: nil)
+        now += 250_000_000
+        log.noteSentence("I saw the cat today.")
+
+        // #then the lines are numbered within one launch and timed from its first line
+        let lines = try rawLines()
+        XCTAssertEqual(lines.map { $0["n"] as? Int }, [1, 2])
+        XCTAssertEqual(lines.map { $0["ms"] as? Int }, [0, 250])
+        XCTAssertEqual(Set(lines.compactMap { $0["run"] as? String }).count, 1)
+        XCTAssertFalse(try String(contentsOf: fileURL, encoding: .utf8).contains("T"), "no ISO time stamp")
+    }
+
+    func test_firstLineOfALaunch_saysWhichBuildWroteIt() throws {
+        let log = makeLog()
+        log.session = { .session(version: "0.4.0", stripModel: "gemma.gguf", hasSentenceModel: true) }
+
+        log.noteSentence("I saw the cat today.")
+        log.noteSentence("It ran off quickly.")
+
+        XCTAssertEqual(try rawLines().map { $0["event"] as? String }, ["session", "sentence", "sentence"])
+    }
+
+    func test_sameDecisionReachedOnEveryKey_isWrittenOnce() throws {
+        let log = makeLog()
+        let decision = SpellingDecisionRecord(
+            typed: "teh", action: "offered", candidates: [.init(term: "the", score: 1.2)], confidence: 0.6, before: "I saw"
+        )
+
+        log.noteDecision(decision)
+        log.noteDecision(decision)
+        log.noteStrip(StripUse(before: "I saw", word: "the", shownFirst: ["the"], shownLast: ["the"], lettersTyped: 0, pickedSlot: 0))
+
+        XCTAssertEqual(try rawLines().map { $0["event"] as? String }, ["decision", "strip"])
+    }
+
+    func test_contextAndApp_areSavedOnlyWhileTheirSwitchesAreOn() throws {
+        // #given a record with both parts on, then with both off
+        var savesMore = true
+        let log = TrainingLog(
+            fileURL: fileURL, isEnabled: { true }, today: { Date(timeIntervalSince1970: 1_794_700_800) },
+            savesContext: { savesMore }, savesApp: { savesMore }
+        )
+        let field = "We went out late. I saw the cat today. "
+        log.noteSentence("I saw the cat today.", textBefore: field, app: "com.example.notes")
+        savesMore = false
+        log.noteSentence("I saw the cat today.", textBefore: field, app: "com.example.notes")
+
+        // #then only the first sentence carries them
+        let lines = try rawLines()
+        XCTAssertEqual(lines[0]["context"] as? String, "We went out late.")
+        XCTAssertEqual(lines[0]["app"] as? String, "com.example.notes")
+        XCTAssertNil(lines[1]["context"])
+        XCTAssertNil(lines[1]["app"])
+    }
+
+    func test_context_isTheEndOfWhatCameBefore_cutAtAWord_andNeverCodeOrAddresses() {
+        let long = String(repeating: "word ", count: 100) + "The last part. "
+        let context = TrainingLog.context(before: "I saw it.", in: long + "I saw it. ")
+
+        XCTAssertEqual(context?.hasSuffix("The last part."), true)
+        XCTAssertLessThanOrEqual(context?.count ?? 0, TrainingLog.maximumContextCharacters)
+        XCTAssertEqual(context?.hasPrefix("word "), true)
+        XCTAssertNil(TrainingLog.context(before: "I saw it.", in: "I saw it. "))
+        XCTAssertNil(TrainingLog.context(before: "I saw it.", in: "See https://example.com/a?b=c for it. I saw it. "))
+        XCTAssertNil(TrainingLog.context(before: "Not there.", in: "Something else entirely. "))
+    }
+
+    func test_wordsInsideAddressesOrCode_leaveNoDecisionOrStripLine() {
+        let log = makeLog()
+
+        log.noteStrip(StripUse(before: "mail me at jo@example.com", word: "today", shownFirst: ["the"], shownLast: ["the"], lettersTyped: 0, pickedSlot: nil))
+        log.noteDecision(SpellingDecisionRecord(typed: "teh", action: "fixed", candidates: [], confidence: nil, before: "let x = foo(bar);"))
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fileURL.path))
+    }
+
+    func test_sentencePass_isWrittenOnlyWhenTheModelWouldChangeSomething_andNeverForCode() throws {
+        let log = makeLog()
+        let change = [SentencePassWord(typed: "teh", written: "the", probability: 0.8, action: "asked")]
+
+        // #when a pass with nothing to change, a pass over code, and a real one arrive
+        log.noteSentencePass("I saw the cat today.", words: [])
+        log.noteSentencePass("let teh = foo(bar);", words: change)
+        log.noteSentencePass("I saw teh cat today.", words: change)
+
+        // #then only the real one is in the file
+        let text = try String(contentsOf: fileURL, encoding: .utf8)
+        XCTAssertEqual(text.components(separatedBy: "sentencePass").count - 1, 1)
+        XCTAssertTrue(text.contains("I saw teh cat today."))
+    }
+
+    func test_subSwitches_areOnUntilTurnedOff() {
+        let suiteName = "cotabby.test.training.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        XCTAssertTrue(TrainingLog.isOn(TrainingLog.contextDefaultsKey, defaults: defaults))
+        defaults.set(false, forKey: TrainingLog.appDefaultsKey)
+        XCTAssertFalse(TrainingLog.isOn(TrainingLog.appDefaultsKey, defaults: defaults))
+    }
+
+    func test_exportOfTheDetailedRecord_hasTheTimeline() throws {
+        let log = makeLog()
+        log.noteStrip(StripUse(before: "I saw the", word: "cat", shownFirst: ["dog"], shownLast: ["cat", "car"], lettersTyped: 2, pickedSlot: nil))
+        log.noteSentence("I saw the cat today.")
+
+        let destination = directory.appendingPathComponent("export.jsonl")
+        XCTAssertEqual(try log.export(to: destination), 1)
+
+        let exported = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: destination)) as? [String: Any])
+        let steps = try XCTUnwrap(exported["steps"] as? [[String: Any]])
+        XCTAssertEqual(steps.first?["kind"] as? String, "strip")
+        XCTAssertEqual(steps.first?["rank"] as? Int, 0)
+        XCTAssertEqual(steps.first?["ms"] as? Int, 0)
+    }
 }

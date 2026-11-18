@@ -43,6 +43,13 @@ final class PersonalCorrectionMemory {
         let key = typo.lowercased()
         let value = replacement.lowercased()
         guard !key.isEmpty, !value.isEmpty, key != value else { return }
+        // Correcting a word says it was not meant as typed, whatever an earlier undo suggested.
+        // Without this, undoing one wrong automatic fix (`wich` made into `with` when `which` was
+        // meant) marked the slip as intended and it was never flagged again.
+        if let index = kept.firstIndex(of: key) {
+            kept.remove(at: index)
+            userDefaults.set(kept, forKey: Self.keptDefaultsKey)
+        }
         if entries[key] == nil {
             insertionOrder.append(key)
         }

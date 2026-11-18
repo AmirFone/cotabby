@@ -63,7 +63,7 @@ final class SentenceModelCorrectionTests: XCTestCase {
 
         // #when it is decoded and gated
         let output = SentenceModelDecoder.correct(typed, model: model)
-        let result = output.flatMap { SentenceModelGate.result(typed: typed, output: $0, isKnownWord: { _ in false }) }
+        let result = output.flatMap { SentenceModelGate.result(typed: typed, output: $0, isKnownWord: Self.isRealWord) }
 
         // #then decoding stops within its budget and nothing is changed
         XCTAssertNotNil(output)
@@ -83,7 +83,7 @@ final class SentenceModelCorrectionTests: XCTestCase {
         let typed = "I drive a Tyoda Corola to work."
         let output = Self.output(["I", "drive", "a", "Toyota", "Corolla", "to", "work."], probabilities: [3: 0.97, 4: 0.93])
 
-        let result = SentenceModelGate.result(typed: typed, output: output, isKnownWord: { _ in false })
+        let result = SentenceModelGate.result(typed: typed, output: output, isKnownWord: Self.isRealWord)
 
         XCTAssertEqual(result?.autoCorrected, "I drive a Toyota Corolla to work.")
         XCTAssertEqual(result?.flags.count, 0)
@@ -94,7 +94,7 @@ final class SentenceModelCorrectionTests: XCTestCase {
         let typed = "My Tyoda is thier car."
         let output = Self.output(["My", "Toyota", "is", "their", "car."], probabilities: [1: 0.97, 3: 0.7])
 
-        let result = SentenceModelGate.result(typed: typed, output: output, isKnownWord: { _ in false })
+        let result = SentenceModelGate.result(typed: typed, output: output, isKnownWord: Self.isRealWord)
 
         // #then the sure one is applied and the flag points at the typed word in the new sentence
         XCTAssertEqual(result?.autoCorrected, "My Toyota is thier car.")
@@ -105,7 +105,7 @@ final class SentenceModelCorrectionTests: XCTestCase {
 
     func test_replacingAKnownWord_needsASurerModel() {
         let typed = "I want to go their now."
-        let isKnownWord: (String) -> Bool = { $0 == "their" }
+        let isKnownWord: (String) -> Bool = { ["their", "there"].contains($0) }
 
         let fairlySure = Self.output(["I", "want", "to", "go", "there", "now."], probabilities: [4: 0.92])
         let verySure = Self.output(["I", "want", "to", "go", "there", "now."], probabilities: [4: 0.97])
@@ -121,7 +121,7 @@ final class SentenceModelCorrectionTests: XCTestCase {
     func test_unsureChange_isDropped() {
         let output = Self.output(["I", "saw", "then", "cat."], probabilities: [2: 0.3])
 
-        XCTAssertNil(SentenceModelGate.result(typed: "I saw teh cat.", output: output, isKnownWord: { _ in false }))
+        XCTAssertNil(SentenceModelGate.result(typed: "I saw teh cat.", output: output, isKnownWord: Self.isRealWord))
     }
 
     func test_punctuationIsNeverTheGatesBusiness() {
@@ -130,17 +130,89 @@ final class SentenceModelCorrectionTests: XCTestCase {
         let insideBrackets = Self.output(["See", "(the", "note)."], probabilities: [1: 0.99])
 
         // #then the first is ignored and the second keeps its bracket
-        XCTAssertNil(SentenceModelGate.result(typed: "It does work.", output: changedMark, isKnownWord: { _ in false }))
+        XCTAssertNil(SentenceModelGate.result(typed: "It does work.", output: changedMark, isKnownWord: Self.isRealWord))
         XCTAssertEqual(
-            SentenceModelGate.result(typed: "See (teh note).", output: insideBrackets, isKnownWord: { _ in false })?.autoCorrected,
+            SentenceModelGate.result(typed: "See (teh note).", output: insideBrackets, isKnownWord: Self.isRealWord)?.autoCorrected,
             "See (the note)."
         )
+    }
+
+    func test_judgments_sayHowSureTheModelWasOfEveryWordItWouldChange() {
+        // #given a sentence with a sure fix, a less sure one, a doubtful one, and a changed mark
+        let typed = "My Tyoda is thier bset car."
+        let output = Self.output(["My", "Toyota", "is", "their", "best", "car!"], probabilities: [1: 0.97, 3: 0.7, 4: 0.3])
+
+        let judgments = SentenceModelGate.judgments(typed: typed, output: output, isKnownWord: Self.isRealWord)
+
+        // #then each changed word is there with its probability and what was done, the one the
+        // gate left alone included; punctuation is not a spelling change
+        XCTAssertEqual(judgments, [
+            SentencePassWord(typed: "Tyoda", written: "Toyota", probability: 0.97, action: "fixed"),
+            SentencePassWord(typed: "thier", written: "their", probability: 0.7, action: "asked"),
+            SentencePassWord(typed: "bset", written: "best", probability: 0.3, action: "left"),
+        ])
+    }
+
+    func test_judgments_agreeWithWhatTheGateDoes() {
+        // #given the same answer handed to both
+        let typed = "My Tyoda is thier bset car."
+        let output = Self.output(["My", "Toyota", "is", "their", "best", "car."], probabilities: [1: 0.97, 3: 0.7, 4: 0.3])
+
+        let result = SentenceModelGate.result(typed: typed, output: output, isKnownWord: Self.isRealWord)
+        let judgments = SentenceModelGate.judgments(typed: typed, output: output, isKnownWord: Self.isRealWord)
+
+        // #then the fixed words are the ones typed in place and the asked ones the ones flagged
+        XCTAssertEqual(result?.autoCorrected, "My Toyota is thier bset car.")
+        XCTAssertEqual(result?.flags.map(\.typed), judgments.filter { $0.action == "asked" }.map(\.typed))
+    }
+
+    func test_judgments_ofAnAnswerThatCannotBeLinedUp_areEmpty() {
+        let output = Self.output(["I", "saw", "the", "big", "cat."], probabilities: [:])
+
+        XCTAssertEqual(SentenceModelGate.judgments(typed: "I saw teh cat.", output: output, isKnownWord: Self.isRealWord), [])
+    }
+
+    func test_unknownWordTurnedIntoAnotherUnknownWord_isAskedAbout_notTyped() {
+        // #given a term the dictionary lacks, which a very sure model shortens to another it lacks
+        let typed = "Check it with kubectl for now."
+        let output = Self.output(["Check", "it", "with", "kubelet", "for", "now."], probabilities: [3: 0.99])
+        // The system checker accepts `kubelet`, so it counts as known; the app's dictionary lacks it.
+        let isKnownWord: (String) -> Bool = { $0 != "kubectl" }
+        let words = SentenceModelGate.WordChecks(isInDictionary: { !["kubectl", "kubelet"].contains($0) })
+
+        let result = SentenceModelGate.result(typed: typed, output: output, isKnownWord: isKnownWord, words: words)
+        let judgments = SentenceModelGate.judgments(typed: typed, output: output, isKnownWord: isKnownWord, words: words)
+
+        // #then the sentence is left as typed and the change is only put to the writer
+        XCTAssertEqual(result?.autoCorrected, typed)
+        XCTAssertEqual(result?.flags.map(\.options), [["kubelet"]])
+        XCTAssertEqual(judgments.map(\.action), ["asked"])
+    }
+
+    func test_wordTheWriterKeptOrMadeTheirOwn_isNeverChangedOrAskedAbout() {
+        // #given the same change, to a word the writer has already said they mean
+        let typed = "Check it with kubectl for now."
+        let output = Self.output(["Check", "it", "with", "kubelet", "for", "now."], probabilities: [3: 0.99])
+
+        let words = SentenceModelGate.WordChecks(isInDictionary: { _ in true }, isWritersOwn: { $0 == "kubectl" })
+        let result = SentenceModelGate.result(typed: typed, output: output, isKnownWord: { _ in true }, words: words)
+        let judgments = SentenceModelGate.judgments(typed: typed, output: output, isKnownWord: { _ in true }, words: words)
+
+        // #then nothing is done, and the record says the model saw it and left it
+        XCTAssertNil(result)
+        XCTAssertEqual(judgments.map(\.action), ["left"])
     }
 
     func test_answerWithADifferentWordCount_isRejected() {
         let output = Self.output(["I", "saw", "the", "big", "cat."], probabilities: [:])
 
-        XCTAssertNil(SentenceModelGate.result(typed: "I saw teh cat.", output: output, isKnownWord: { _ in false }))
+        XCTAssertNil(SentenceModelGate.result(typed: "I saw teh cat.", output: output, isKnownWord: Self.isRealWord))
+    }
+
+    /// The dictionary for these tests: the right spellings, and none of the slips.
+    private static let isRealWord: (String) -> Bool = {
+        ["toyota", "corolla", "their", "there", "the", "best", "big", "cat", "works", "it", "does", "work", "note", "see"]
+            .contains($0.lowercased())
     }
 
     private static func output(_ words: [String], probabilities: [Int: Double]) -> SentenceModelOutput {

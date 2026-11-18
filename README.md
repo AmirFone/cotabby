@@ -1,6 +1,25 @@
 > **This is a fork** of [FuJacob/cotabby](https://github.com/FuJacob/cotabby) that adds spelling help for dyslexic writers: on-the-spot fixes, a spelling bar, a next-word strip that follows the tense and the subject you are writing in and offers your own names and terms, American spelling on a US Mac, and a sentence model. Downloads are on this fork's [releases page](https://github.com/AmirFone/cotabby/releases); no Xcode needed.
 >
-> **Best setup:** run only this Cotabby (quit the released one and remove it from Login Items), download the **tabby-2-base** model in Settings → Engine & Model (tabby-2-mini on a Mac with under 16 GB of memory), leave the Writing settings at their defaults, and turn macOS's own autocorrect off with the button in Settings → Writing. Details, measurements and how to build it yourself are in [FORK.md](FORK.md). Everything below is upstream's README.
+> Everything below the next section is upstream's README.
+
+## Best configuration for this fork
+
+Everything here is in Settings; nothing needs a terminal. Measurements and how they were made are in [FORK.md](FORK.md).
+
+| Setting | Best value | Why |
+|---|---|---|
+| Other typing assistants | Run only this Cotabby. Quit the released Cotabby and remove it from System Settings → General → Login Items | Its ghost text also takes Tab and types words of its own. This build warns you once if it is running |
+| Engine & Model → model for the word strip | **tabby-2-base** (3.8 GB) on a Mac with 16 GB of memory or more; **tabby-2-mini** (1.3 GB) from 12 GB; **tabby-2-nano** (0.6 GB) below that | The strip uses the best one installed by itself. First suggestion right while typing a word: 83% / 79% / 76%, against 69% with no download |
+| Writing → Show Next-Word Predictions | On (default) | The strip above the caret; Tab takes the first word, ⌥1 to ⌥5 pick directly |
+| Writing → Automatically Fix Confident Typos | On (default) | Certain slips are fixed as you finish the word; Cmd+Z undoes one and it is not made again |
+| Writing → Offer Corrections on Typo, Hide Suggestions on Typo | On (defaults) | Unsure words get the three-slot bar instead of a guess |
+| Writing → macOS Autocorrect Is Also On | Press the button to turn macOS's own autocorrect off | Two autocorrects fight over the same word |
+| Writing → Training Data → Save Training Examples | On if you want to train on your own writing or see where Cotabby was wrong; off by default | Saves each sentence with what was shown, decided and done. It stays on your Mac until you press Export |
+| Spelling style | Nothing to set on a US Mac: fixes and suggestions come in American spelling | `defaults write com.jacobfu.tabby.dev cotabbySpellingStyle british` (or `american`) overrides it |
+| Shortcuts → Toggle Cotabby | Control+Option+C (default) | Turns everything off and on from any app |
+
+It gets better as you use it: a fix you make twice for the same slip leads the bar from then on, and from the third time it is made for you.
+
 
 
 <p align="center">

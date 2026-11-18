@@ -41,6 +41,25 @@ final class WordLanguageModelTests: XCTestCase {
         XCTAssertNil(LanguageModelContext.make(textBefore: "mail @jo"))
     }
 
+    func test_context_wordJoinedByADotOrSlash_isAWordBeingTyped() {
+        // #given a word begun against a dot and against a slash, and a slash with nothing after it
+        let afterDot = LanguageModelContext.make(textBefore: "the table is users.na")
+        let afterSlash = LanguageModelContext.make(textBefore: "it is read/wr")
+        let openSlash = LanguageModelContext.make(textBefore: "it is read/")
+
+        // #then the model reads up to the mark and completes the letters, with no space before them
+        XCTAssertEqual(afterDot?.key, .init(text: "the table is users.", isSpaced: false))
+        XCTAssertEqual(afterDot?.prefix, "na")
+        XCTAssertEqual(afterSlash?.key, .init(text: "it is read/", isSpaced: false))
+        XCTAssertEqual(openSlash?.prefix, "")
+    }
+
+    func test_context_addressesPathsAndABareDot_areStillNothingToPredict() {
+        for text in ["see example.com/ab", "open ~/Desktop/fi", "mail jo@example.c", "version v1.x", "I am done.", "see www.ex"] {
+            XCTAssertNil(LanguageModelContext.make(textBefore: text), text)
+        }
+    }
+
     func test_context_textWithinReach_isReadWhole() {
         // #given a text of many sentences that is shorter than the model's reach
         let text = "One is here. Two is here. Three is here. Four is here. Five is here. Six is here. Seven "
