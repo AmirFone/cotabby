@@ -50,7 +50,8 @@ final class SuggestionInserter {
     /// UserDefaults key (no UI) that routes long or multi-line completions through a clipboard paste
     /// instead of a synthetic Unicode keystroke. Default-off: paste touches the user's clipboard and
     /// its restore timing needs on-device validation, so it stays a hidden dogfood toggle until then.
-    private static let pasteInsertionDefaultsKey = "cotabbyPasteInsertionEnabled"
+    /// Not private, so Reset All Settings can name it (`SuggestionSettingsStore.settingsKeysOwnedElsewhere`).
+    static let pasteInsertionDefaultsKey = "cotabbyPasteInsertionEnabled"
     private static var isPasteInsertionEnabled: Bool {
         UserDefaults.standard.bool(forKey: pasteInsertionDefaultsKey)
     }

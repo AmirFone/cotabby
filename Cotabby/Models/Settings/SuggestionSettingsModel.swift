@@ -288,6 +288,11 @@ final class SuggestionSettingsModel: ObservableObject {
     /// list mirrors `init` on purpose — `test_resetToDefaults_restoresEveryFieldToItsDefault` fails if
     /// the two ever drift. Scope matches the store: unrelated app state (onboarding, the lifetime
     /// accepted-word count, emoji history, the login-item flag) is intentionally left untouched.
+    ///
+    /// The store also removes the settings other types keep under their own keys
+    /// (`SuggestionSettingsStore.settingsKeysOwnedElsewhere`: the Writing pane's switches, the
+    /// training record's, the hidden `defaults write` flags). They need no line in the fan-out
+    /// below, because none is a `@Published` property here: their readers ask UserDefaults each time.
     func resetToDefaults() {
         let data = store.resetToDefaults(configuration: configuration)
 

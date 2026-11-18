@@ -119,8 +119,13 @@ struct GeneralPaneView: View {
                 } label: {
                     SettingsRowLabel(
                         title: "Reset All Settings",
-                        description: "Restore every Cotabby setting to its original default. This does not change " +
-                            "macOS permissions, your Open at Login choice, or your accepted-word count.",
+                        description: "Restore every Cotabby setting to its original default: every switch and choice " +
+                            "in these panes, including the ones in Writing (word predictions, learning, the correction " +
+                            "journal, saving training examples). A hidden menu bar icon comes back and saved endpoint " +
+                            "API keys are removed. What Cotabby has learned from your writing, the correction journal, " +
+                            "saved training examples, emoji history and statistics are kept. This does not change " +
+                            "macOS permissions, your Open at Login choice, which local model is selected, a saved " +
+                            "Jev key, or your accepted-word count.",
                         systemImage: "arrow.counterclockwise"
                     )
                 }
@@ -137,7 +142,9 @@ struct GeneralPaneView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Every Cotabby setting returns to its original default. This can't be undone.")
+            Text("Every Cotabby setting returns to its original default, and saved endpoint API keys are removed. " +
+                "What Cotabby has learned, the correction journal and saved training examples are kept. " +
+                "This can't be undone.")
         }
     }
 

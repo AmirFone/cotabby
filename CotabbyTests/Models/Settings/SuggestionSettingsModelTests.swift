@@ -134,6 +134,18 @@ final class SuggestionSettingsModelTests: XCTestCase {
 
     // MARK: - Reset to defaults
 
+    func test_resetToDefaults_showsAHiddenMenuBarIconAgain() {
+        // #given a writer who hid the menu bar icon
+        let model = makeModel()
+        model.setMenuBarIconVisible(false)
+
+        // #when every setting is reset
+        model.resetToDefaults()
+
+        // #then the published value, which the menu bar scene follows, is visible again
+        XCTAssertTrue(model.isMenuBarIconVisible)
+    }
+
     func test_resetToDefaults_restoresEveryFieldToItsDefault() {
         // Seed the fields that have no facade setter (keybindings, debounce/poll, list-valued prefs)
         // straight through a store on the same suite, so the model loads them non-default and the

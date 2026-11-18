@@ -765,6 +765,84 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         XCTAssertNil(defaults.object(forKey: "cotabbyResponseLanguage"), "the legacy key must be scrubbed too")
     }
 
+    func test_resetToDefaults_bringsBackAHiddenMenuBarIcon() async {
+        // #given a writer who hid the menu bar icon
+        let defaults = makeIsolatedDefaults()
+        let store = SuggestionSettingsStore(userDefaults: defaults)
+        store.saveMenuBarIconVisible(false)
+
+        // #when every setting is reset
+        let afterReset = store.resetToDefaults(configuration: .standard)
+
+        // #then the icon is visible again
+        XCTAssertTrue(afterReset.isMenuBarIconVisible)
+    }
+
+    func test_resetToDefaults_alsoResetsTheSettingsOtherTypesKeep() async {
+        // #given every setting that lives outside this store, each moved off its default. The key
+        // strings are spelled out, like the rest of this file, so a renamed key or one dropped from
+        // the reset list fails here.
+        let defaults = makeIsolatedDefaults()
+        let store = SuggestionSettingsStore(userDefaults: defaults)
+        let settingsKeptElsewhere: [String: Any] = [
+            "cotabbyWordPredictionsEnabled": false,
+            "cotabbyLearnPhrasesEnabled": false,
+            "cotabbyCorrectionJournalEnabled": false,
+            "cotabbyTrainingLogEnabled": true,
+            "cotabbyTrainingLogContextEnabled": false,
+            "cotabbyTrainingLogAppEnabled": false,
+            "cotabbyPanelSize": "large",
+            "cotabbyPanelGlass": "solid",
+            "lmStudioModelsEnabled": true,
+            "cotabbyPerDomainDisableEnabled": true,
+            "cotabbyDisabledDomains": ["example.com"],
+            "cotabbyTechnicalVocabularyEnabled": false,
+            "cotabbySpellingStyle": "british",
+            "cotabbyPasteInsertionEnabled": true,
+            "cotabbyAnchorReuseDisabled": true,
+            "cotabbySpeculativePrefetchDisabled": true,
+            "cotabbyConfidenceFloorOverride": -1.5,
+            "cotabbyArgmaxStopDisabled": true
+        ]
+        for (key, value) in settingsKeptElsewhere { defaults.set(value, forKey: key) }
+
+        // #when every setting is reset
+        _ = store.resetToDefaults(configuration: .standard)
+
+        // #then none of them still holds the writer's value
+        let leftBehind = settingsKeptElsewhere.keys.filter { defaults.object(forKey: $0) != nil }.sorted()
+        XCTAssertEqual(leftBehind, [])
+    }
+
+    func test_resetToDefaults_keepsWhatIsNotASetting() async {
+        // #given what Cotabby learned from the writer, their history and counters, and the app's own
+        // bookkeeping, none of which is a setting
+        let defaults = makeIsolatedDefaults()
+        let store = SuggestionSettingsStore(userDefaults: defaults)
+        let notSettings: [String: Any] = [
+            "cotabbyPersonalCorrections": ["dady": ["daddy": 5]],
+            "cotabbyKeptWords": ["lindqvist"],
+            "cotabbyEmojiUsage": Data([1]),
+            "cotabbyTotalAcceptedWordCount": 42,
+            "cotabbyPerformanceMetricEntries": Data([1]),
+            "cotabbyQualityMetricsCounters": Data([1]),
+            "cotabbyOnboardingCompletedVersion": 3,
+            "cotabbyOnboardingProgressStep2": 2,
+            "cotabbyLaunchAtLoginDefaultApplied": true,
+            "cotabbySelectedModelFilename": "model.gguf",
+            "cotabbySavedSystemAutocorrect": ["NSAutomaticSpellingCorrectionEnabled": true],
+            "cotabbySettingsSelectedCategoryV2": "writing"
+        ]
+        for (key, value) in notSettings { defaults.set(value, forKey: key) }
+
+        // #when every setting is reset
+        _ = store.resetToDefaults(configuration: .standard)
+
+        // #then all of it is still there
+        let removed = notSettings.keys.filter { defaults.object(forKey: $0) == nil }.sorted()
+        XCTAssertEqual(removed, [])
+    }
+
     // MARK: - helpers
 
     /// Each store test gets its own isolated UserDefaults so state cannot leak between cases.

@@ -184,6 +184,10 @@ struct SuggestionSettingsStore {
     /// key must be added here; `test_resetToDefaults_clearsAllKeysAndReloadsDefaults` fails if one is
     /// missed. The legacy single-language key is included so a reset also scrubs a value a migration
     /// would otherwise resurrect.
+    ///
+    /// The menu bar icon key is in the list although hiding the icon is the one setting whose way
+    /// back is hard to find: with the icon gone, Reset All Settings is what a writer reaches for, and
+    /// it left the icon hidden for as long as this key was missing here.
     private static let allPreferenceDefaultsKeys: [String] = [
         isGloballyEnabledDefaultsKey,
         pauseStateDefaultsKey,
@@ -218,6 +222,7 @@ struct SuggestionSettingsStore {
         automaticallyFixTyposDefaultsKey,
         performanceTrackingEnabledDefaultsKey,
         lowPowerModeAutoDisableDefaultsKey,
+        menuBarIconVisibleDefaultsKey,
         menuBarWordCountVisibleDefaultsKey,
         mirrorPreferenceDefaultsKey,
         userNameDefaultsKey,
@@ -256,6 +261,61 @@ struct SuggestionSettingsStore {
         pluggedInEngineDefaultsKey,
         pluggedInModelFilenameDefaultsKey,
         pluggedInEndpointModelNameDefaultsKey
+    ]
+
+    /// Settings that other types keep under UserDefaults keys of their own, which a reset has to
+    /// return to their defaults all the same.
+    ///
+    /// Why they are listed here and not reset by their owners: the writer presses one button that
+    /// says every setting goes back to its default, so there has to be one place that knows every
+    /// setting. These switches were added next to the features they belong to (most are read
+    /// through `@AppStorage` in a Settings pane, or by a static `isEnabledInDefaults`), and the
+    /// reset, which only knew this store's keys, left them as they were. The opt-in training record
+    /// kept saving sentences after a reset. Each key is still declared by its owner and only named
+    /// here, so the two cannot come to spell it differently.
+    ///
+    /// Removing a key is the whole reset: every reader falls back to its default when the key is
+    /// absent, and the Settings switches bound with `@AppStorage` redraw by themselves. The ones
+    /// marked as read at launch take effect the next time Cotabby opens.
+    ///
+    /// What belongs here is a choice the writer made about how Cotabby behaves. What does not, and
+    /// is left alone by a reset on purpose:
+    /// - what Cotabby learned or recorded (`PersonalCorrectionMemory`, the learned phrases and
+    ///   words, the correction journal, the training record, emoji history, metrics, the accepted
+    ///   word count): the clear buttons are for those;
+    /// - the app's own bookkeeping (onboarding progress, the login-item flag, the pane last opened
+    ///   in Settings, the Settings window frame);
+    /// - `SystemAutocorrectModel`'s saved copy of the writer's macOS autocorrect switches, which is
+    ///   what "restore" puts back;
+    /// - which local model file is selected (`RuntimeBootstrapModel`): it has no default of its own
+    ///   (the first installed model is used), and changing it reloads the runtime.
+    ///
+    /// A new setting kept outside this store must be added here;
+    /// `test_resetToDefaults_alsoResetsTheSettingsOtherTypesKeep` lists the same keys by name.
+    static let settingsKeysOwnedElsewhere: [String] = [
+        // Settings → Writing.
+        WordPredictionController.enabledDefaultsKey,
+        PersonalPhraseModel.learningDefaultsKey,
+        CorrectionJournal.enabledDefaultsKey,
+        TrainingLog.enabledDefaultsKey,
+        TrainingLog.contextDefaultsKey,
+        TrainingLog.appDefaultsKey,
+        PanelSize.defaultsKey,
+        PanelGlass.defaultsKey,
+        // Settings → Engine. The model list follows on its next refresh.
+        BundledRuntimeLocator.lmStudioSourceEnabledKey,
+        // No switch in Settings: set with `defaults write`, which makes a reset the only way back
+        // for someone who no longer remembers the key.
+        PerDomainDisableSettings.enabledKey,
+        PerDomainDisableSettings.disabledDomainsKey,
+        SuggestionInserter.pasteInsertionDefaultsKey,
+        SuggestionCoordinator.anchorReuseDisabledDefaultsKey,
+        SuggestionCoordinator.speculativePrefetchDisabledDefaultsKey,
+        LlamaSuggestionEngine.confidenceFloorOverrideKey,
+        LlamaSuggestionEngine.argmaxStopDisabledKey,
+        // The same, and read once at launch.
+        TechnicalVocabulary.enabledDefaultsKey,
+        AmericanSpellings.styleDefaultsKey
     ]
 
     // MARK: - Load
@@ -736,14 +796,15 @@ struct SuggestionSettingsStore {
 
     // MARK: - Reset
 
-    /// Clears every persisted preference this store owns, then re-resolves and writes back the
-    /// first-launch defaults, returning the pristine `SuggestionSettingsData`. Routing through `load`
-    /// means the same migrations and write-back the app relies on at launch also run here, so the
-    /// reset is durable on the next launch and cannot drift from normal startup. Scope is exactly the
-    /// keys in `allPreferenceDefaultsKeys`; unrelated app state (onboarding, login-item flag, counters,
-    /// usage history, metrics) is left untouched.
+    /// Clears every persisted setting, then re-resolves and writes back the first-launch defaults,
+    /// returning the pristine `SuggestionSettingsData`. Routing through `load` means the same
+    /// migrations and write-back the app relies on at launch also run here, so the reset is durable
+    /// on the next launch and cannot drift from normal startup. Scope is exactly the keys in
+    /// `allPreferenceDefaultsKeys` and `settingsKeysOwnedElsewhere`; what Cotabby learned or
+    /// recorded and the app's own bookkeeping (onboarding, login-item flag, counters, usage history,
+    /// metrics) are left untouched.
     func resetToDefaults(configuration: SuggestionConfiguration) -> SuggestionSettingsData {
-        for key in Self.allPreferenceDefaultsKeys {
+        for key in Self.allPreferenceDefaultsKeys + Self.settingsKeysOwnedElsewhere {
             userDefaults.removeObject(forKey: key)
         }
         return load(configuration: configuration)
