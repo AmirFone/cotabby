@@ -646,6 +646,14 @@ before:
   bar icon back. The clear button also forgets accepted fixes and kept words. The training pane
   shows what is on disk. Turning the strip off stops its learning.
 
+- **Undoing a fix by retyping the word is learned every time.** Found by the on-screen run of 0.4.3
+  itself: a Backspace that lands between Cotabby's read of a field's selection and its read of the
+  text makes the caret seem to lie past the end. That was taken for the field going away, which
+  ends the focus session and with it the watch on the fix just made, so the word typed back was
+  fixed again. The field is now read once more before that is believed. The race shows up once in
+  a few hundred Backspaces, so the test host serves one such read on request: with the second read
+  the undo is kept, and a build without it fails the same case the way the release run did.
+
 Known and not fixed: a capitalized `Ive` (a name) is still read as `I've`; a few two-edit slips
 pick the commoner neighbour (`was bord` → born); `asan` is read as `as an`; text you paste and send
 is learned like text you typed; counts of words you no longer use do not fade.

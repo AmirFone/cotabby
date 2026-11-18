@@ -320,6 +320,19 @@ learn_cases() {
   check "learn: retyping the original keeps it" "I saw teh " "$(doc)"
   clear_doc; type_text "we like teh "; sleep 1.5
   check "learn: the kept word is not fixed again" "We like teh " "$(doc)"
+  # The same undo with a torn read of the field in the middle of it: a Backspace that lands between
+  # Cotabby's read of the selection and its read of the text makes the caret seem to lie past the
+  # end. Taken at its word that ended the focus session and the watch on the fix with it, so the
+  # undo taught nothing and the word was fixed again. The host serves one such read on request
+  # (`tear-read`); the app must read the field again, and the undo must count as before.
+  clear_doc; mark; type_text "it broke becuase "; sleep 1.5
+  check "learn: becuase is auto-fixed" "It broke because " "$(doc)"
+  host_command tear-read; sleep 0.5
+  for _ in 1 2 3 4 5 6 7 8; do press 51; sleep 0.1; done
+  type_text "becuase "; sleep 1.5
+  check "learn: an undo is kept across a torn read of the field" "It broke becuase " "$(doc)"
+  check "learn: the torn read was read again" "1" "$(since_mark | grep -c "Torn read")"
+  check "learn: the torn read ended no focus session" "0" "$(since_mark | grep -c "detail=Selection range exceeds")"
   clear_doc; type_text "the monkee "; sleep 1.5
   press 53; sleep 0.3
   for _ in 1 2 3 4 5 6 7; do press 51; sleep 0.08; done

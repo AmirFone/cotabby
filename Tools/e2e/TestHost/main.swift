@@ -8,7 +8,7 @@ import AppKit
 /// The test script talks to it through three files in the same cache folder, so it needs no
 /// Accessibility grant of its own: `doc.txt` and `field.txt` mirror the two texts (rewritten within
 /// 30 ms of any change, whoever made it), and each line appended to `host-commands.txt` is one of
-/// `focus-text`, `focus-field`, `clear-field`, `light`, `dark`, `busy`.
+/// `focus-text`, `focus-field`, `clear-field`, `light`, `dark`, `busy`, `tear-read`.
 final class HostDelegate: NSObject, NSApplicationDelegate {
     var window: NSWindow!
     private var textView: NSTextView!
@@ -41,6 +41,9 @@ final class HostDelegate: NSObject, NSApplicationDelegate {
             case "light": NSApp.appearance = NSAppearance(named: .aqua)
             case "dark": NSApp.appearance = NSAppearance(named: .darkAqua)
             case "busy": showBusyBackdrop()
+            // The next read of the text view's selection is answered as from before a Backspace
+            // (see `TearingTextView`).
+            case "tear-read": TearingTextView.tornSelectionReads = 1
             default: break
             }
         }
@@ -116,6 +119,10 @@ final class HostDelegate: NSObject, NSApplicationDelegate {
         UserDefaults.standard.set(false, forKey: "NSAutomaticInlinePredictionEnabled")
         let scroll = NSTextView.scrollableTextView()
         let text = scroll.documentView as! NSTextView
+        // The view keeps everything `scrollableTextView()` set up and only answers two Accessibility
+        // questions differently on request. Changing the class of a live object is sound here
+        // because the subclass adds no stored properties of its own.
+        object_setClass(text, TearingTextView.self)
         text.font = .systemFont(ofSize: 15)
         text.isAutomaticSpellingCorrectionEnabled = false
         text.allowsUndo = true
@@ -152,6 +159,32 @@ final class HostDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+}
+
+/// The test text view, able to answer once as a field does when a Backspace lands in the middle of
+/// Cotabby's read of it: the selection and the character count are from before the key (a caret
+/// past the end of the text as it is now), the text itself from after it. Cotabby then cannot fetch
+/// the text around that caret, falls back to the whole value, and finds the selection outside it.
+/// On a real field this is a race that shows up once in a few hundred Backspaces, too rarely to
+/// test by waiting for it; `tear-read` makes the next read one of those.
+///
+/// The state is static because the view is made by `NSTextView.scrollableTextView()` and only given
+/// this class afterwards, so it can hold nothing of its own.
+final class TearingTextView: NSTextView {
+    static var tornSelectionReads = 0
+    private static var countIsFromBeforeTheKey = false
+    private static let charactersDeleted = 4
+
+    override func accessibilitySelectedTextRange() -> NSRange {
+        Self.countIsFromBeforeTheKey = Self.tornSelectionReads > 0
+        guard Self.tornSelectionReads > 0 else { return super.accessibilitySelectedTextRange() }
+        Self.tornSelectionReads -= 1
+        return NSRange(location: (string as NSString).length + Self.charactersDeleted, length: 0)
+    }
+
+    override func accessibilityNumberOfCharacters() -> Int {
+        super.accessibilityNumberOfCharacters() + (Self.countIsFromBeforeTheKey ? Self.charactersDeleted : 0)
+    }
 }
 
 /// Standard Edit menu, so Select All / Undo / Copy behave as they do in any Mac app.

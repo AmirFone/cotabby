@@ -31,7 +31,7 @@ final class FocusSnapshotResolverLiveTests: XCTestCase {
             )
             window.isReleasedWhenClosed = false
             window.title = "Cotabby resolver test host"
-            let textView = NSTextView(frame: NSRect(x: 10, y: 60, width: 440, height: 170))
+            let textView = TearingTextView(frame: NSRect(x: 10, y: 60, width: 440, height: 170))
             textView.string = Self.bodyText
             textView.font = NSFont(name: "Helvetica", size: 13) ?? NSFont.systemFont(ofSize: 13)
             textView.setAccessibilityIdentifier("cotabby-resolver-test-field")
@@ -174,6 +174,48 @@ final class FocusSnapshotResolverLiveTests: XCTestCase {
         }
     }
 
+    /// How many times one resolve asks the field for its selection, so a test can tear exactly the
+    /// reads of one pass and leave the second pass clean.
+    private func selectionReadsPerResolve(of element: AXUIElement) -> Int {
+        TearingTextView.selectionReads = 0
+        _ = resolver.resolveSnapshot(focusedElement: element, application: NSRunningApplication.current)
+        return TearingTextView.selectionReads
+    }
+
+    func test_resolveSnapshot_selectionReadPastTheEndIsReadAgain() throws {
+        // #given a field whose selection reads past the end of its text for one whole pass, as when
+        // a Backspace lands between the read of the selection and the read of the text
+        let elements = try requireElements()
+        Self.textView?.setSelectedRange(NSRange(location: 8, length: 0))
+        TearingTextView.tornSelectionReads = selectionReadsPerResolve(of: elements.text)
+        defer { TearingTextView.tornSelectionReads = 0 }
+
+        // #when
+        let snapshot = resolver.resolveSnapshot(
+            focusedElement: elements.text,
+            application: NSRunningApplication.current
+        )
+
+        // #then the field is read once more and reported as the text field it is
+        XCTAssertEqual(snapshot.context?.precedingText, "Pack my ", "Got: \(snapshot.capability.summary)")
+    }
+
+    func test_resolveSnapshot_selectionStillPastTheEndOnTheSecondReadIsUnsupported() throws {
+        // #given a field whose selection lies past the end of its text however often it is asked
+        let elements = try requireElements()
+        TearingTextView.tornSelectionReads = .max
+        defer { TearingTextView.tornSelectionReads = 0 }
+
+        // #when
+        let snapshot = resolver.resolveSnapshot(
+            focusedElement: elements.text,
+            application: NSRunningApplication.current
+        )
+
+        // #then it is read twice and no more, and reported as before
+        XCTAssertEqual(snapshot.capability, .unsupported(FocusSnapshotResolver.tornReadReason))
+    }
+
     func test_resolveSnapshot_caretWindowBoundsLargeDocuments() throws {
         let elements = try requireElements()
         let hugePrefix = String(repeating: "a", count: 6_000)
@@ -199,5 +241,30 @@ final class FocusSnapshotResolverLiveTests: XCTestCase {
         )
         XCTAssertTrue(context.precedingText.allSatisfy { $0 == "a" })
         XCTAssertEqual(context.trailingText, "tail")
+    }
+}
+
+/// A text view that can answer as a field does when a Backspace lands in the middle of
+/// `FocusSnapshotResolver`'s read: the selection and the character count are from before the key
+/// (a caret past the end of the text as it is now), the text itself from after it. The resolver
+/// then cannot fetch the text around that caret, falls back to the whole value, and finds the
+/// selection outside it. The counters are static because the view is reached through
+/// Accessibility, not through a reference the test could configure.
+private final class TearingTextView: NSTextView {
+    static var tornSelectionReads = 0
+    static var selectionReads = 0
+    private static var countIsFromBeforeTheKey = false
+    private static let charactersDeleted = 4
+
+    override func accessibilitySelectedTextRange() -> NSRange {
+        Self.selectionReads += 1
+        Self.countIsFromBeforeTheKey = Self.tornSelectionReads > 0
+        guard Self.tornSelectionReads > 0 else { return super.accessibilitySelectedTextRange() }
+        Self.tornSelectionReads -= 1
+        return NSRange(location: (string as NSString).length + Self.charactersDeleted, length: 0)
+    }
+
+    override func accessibilityNumberOfCharacters() -> Int {
+        super.accessibilityNumberOfCharacters() + (Self.countIsFromBeforeTheKey ? Self.charactersDeleted : 0)
     }
 }
