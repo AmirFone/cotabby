@@ -424,8 +424,7 @@ is in `Tools/prediction/README.md` ("Round three").
 - **It grows with use.** For a word you have typed ten times or more the first suggestion is right
   about four times in five; for a word it sees for the first time, less than half the time. One
   day of sentences is mostly first times, so expect it to keep improving over the first weeks.
-- **Guards.** A spelling nothing vouches for is never counted. A word typed many times in one text
-  counts as three uses of it, so a pasted page does not become a habit. Habits are added to the
+- **Guards.** A spelling nothing vouches for is never counted. A word used many times in one sitting (half an hour of writing) counts as three uses of it, so a pasted page or one busy afternoon does not become a habit. Habits are added to the
   model's score in small amounts and cannot overrule it where it is sure. The recent sentences are
   only ones the proofreader would not change, and a pasted block longer than half a page is not kept.
 - **Not covered yet.** Counts do not fade, so the vocabulary of a job you left stays boosted until

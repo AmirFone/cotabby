@@ -130,14 +130,25 @@ final class PersonalPhraseModel {
     /// The words before a counted word are keyed as they are (an unknown word included): a context
     /// with a misspelling in it is only found again if the same misspelling is typed again, and
     /// nothing is offered from a key, only from what was counted after it.
-    func learn(sentence: String, vouching: Vouching = .everything) {
-        learn(text: [sentence], vouching: vouching)
+    func learn(sentence: String, vouching: Vouching = .everything, at now: Date = Date()) {
+        learn(text: [sentence], vouching: vouching, at: now)
     }
 
+    /// How long one sitting lasts. A word's spread goes up once per sitting it was used in.
+    ///
+    /// Why not once per sentence: the strip trusts a word more the more separate occasions it was
+    /// used on (`NextWordPredictor.Habits.usesCountedPerText`), so that a page pasted and sent, or
+    /// one afternoon spent on one subject, does not read as a lasting habit. The app learns
+    /// sentence by sentence, and forty messages in a row about one thing would be forty occasions.
+    /// Half an hour of writing counts as one.
+    static let sitting: TimeInterval = 30 * 60
+    private var sittingStart: Date?
+    private var wordsCountedThisSitting = Set<String>()
+
     /// Learns the sentences of one text (a message, a note) together: each is counted as `learn`
-    /// describes, and a word's spread goes up by one for the text, however many of its sentences
-    /// use the word.
-    func learn(text sentences: [String], vouching: Vouching = .everything) {
+    /// describes, and a word's spread goes up by one, however many of the sentences use it, unless
+    /// it already went up in this sitting.
+    func learn(text sentences: [String], vouching: Vouching = .everything, at now: Date = Date()) {
         var counted = Set<String>()
         for sentence in sentences {
             let written = NextWordPredictor.tokens(in: Substring(sentence))
@@ -159,7 +170,7 @@ final class PersonalPhraseModel {
             }
         }
         guard !counted.isEmpty else { return }
-        for word in counted { counts[Self.spreadKey, default: [:]][word, default: 0] += 1 }
+        raiseSpread(of: counted, at: now)
         // The empty context is the first key ever learned, so it would be the first to go, and it
         // is the one that holds every word the writer uses: without it the strip stops completing
         // their words until the next sentence. Longer contexts are what there are too many of.
@@ -170,6 +181,18 @@ final class PersonalPhraseModel {
             totals.removeValue(forKey: oldest)
         }
         scheduleSave()
+    }
+
+    /// Adds one to the spread of each word not yet counted in the sitting that `now` falls in.
+    private func raiseSpread(of words: Set<String>, at now: Date) {
+        let isSameSitting = sittingStart.map { now >= $0 && now.timeIntervalSince($0) < Self.sitting } ?? false
+        if !isSameSitting {
+            sittingStart = now
+            wordsCountedThisSitting = []
+        }
+        for word in words where wordsCountedThisSitting.insert(word).inserted {
+            counts[Self.spreadKey, default: [:]][word, default: 0] += 1
+        }
     }
 
     /// The key a word of the sentence is counted under, or nil when it is not counted: a number, a
@@ -184,6 +207,8 @@ final class PersonalPhraseModel {
     }
 
     func reset() {
+        sittingStart = nil
+        wordsCountedThisSitting = []
         counts = [:]
         totals = [:]
         wordsByInitial = [:]

@@ -133,16 +133,44 @@ final class PersonalPhraseModelTests: XCTestCase {
         XCTAssertEqual(model.spread(of: "replay"), 1)
     }
 
-    func test_wordInTwoTexts_hasASpreadOfTwo() {
-        // #given two texts learned one after the other
+    func test_wordUsedInTwoSittings_hasASpreadOfTwo() {
+        // #given two sentences written an hour apart
         let model = PersonalPhraseModel(fileURL: nil)
+        let morning = Date(timeIntervalSince1970: 1_000_000)
 
         // #when both use a word
-        model.learn(sentence: "the replay finished overnight")
-        model.learn(sentence: "start the replay again please")
+        model.learn(sentence: "the replay finished overnight", at: morning)
+        model.learn(sentence: "start the replay again please", at: morning.addingTimeInterval(3_600))
 
         // #then its spread is two
         XCTAssertEqual(model.spread(of: "replay"), 2)
+    }
+
+    func test_wordUsedInManyMessagesOfOneSitting_hasASpreadOfOne() {
+        // #given five messages about one thing within a few minutes
+        let model = PersonalPhraseModel(fileURL: nil)
+        let start = Date(timeIntervalSince1970: 1_000_000)
+
+        // #when each uses the word
+        for minute in 0..<5 {
+            model.learn(sentence: "the replay number \(minute) failed again", at: start.addingTimeInterval(Double(minute) * 60))
+        }
+
+        // #then it was used five times on one occasion
+        XCTAssertEqual(model.spread(of: "replay"), 1)
+    }
+
+    func test_newWordLaterInTheSameSitting_stillGetsItsFirstSpread() {
+        // #given a sitting in which one word was already counted
+        let model = PersonalPhraseModel(fileURL: nil)
+        let start = Date(timeIntervalSince1970: 1_000_000)
+        model.learn(sentence: "the replay finished overnight", at: start)
+
+        // #when another word is used for the first time a minute later
+        model.learn(sentence: "the backfill starts after lunch", at: start.addingTimeInterval(60))
+
+        // #then it has a spread of one, not none
+        XCTAssertEqual(model.spread(of: "backfill"), 1)
     }
 
     func test_totalWords_countsEveryCountedWord() {

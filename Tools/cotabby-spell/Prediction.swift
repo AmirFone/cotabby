@@ -276,20 +276,24 @@ final class SimulatedLearning {
     private let isListedWord: (String) -> Bool
     /// Texts each unlisted word has appeared in so far.
     private var unlistedUses: [String: Int] = [:]
+    private var textsLearned = 0
 
     init(isDictionaryWord: @escaping (String) -> Bool, isListedWord: @escaping (String) -> Bool) {
         self.isDictionaryWord = isDictionaryWord
         self.isListedWord = isListedWord
     }
 
-    /// Learns the sentences of one typed text.
+    /// Learns the sentences of one typed text. Each text is its own sitting, an hour after the one
+    /// before: the test writers' texts are spread over three weeks, not typed in one go.
     func learn(_ sentences: [String], into phrases: PersonalPhraseModel) {
+        textsLearned += 1
+        let now = Date(timeIntervalSince1970: Double(textsLearned) * 3_600)
         switch mode {
         case "sentence":
             phrases.learn(text: sentences.filter { sentence in
                 let tokens = NextWordPredictor.contextTokens(of: sentence).dropFirst()
                 return tokens.count >= 2 && tokens.allSatisfy { $0.hasPrefix("<") || isDictionaryWord($0) }
-            })
+            }, at: now)
         case "word":
             for word in Set(sentences.flatMap { NextWordPredictor.tokens(in: Substring($0)) }.map { $0.lowercased() })
             where !isDictionaryWord(word) && !isListedWord(word) {
@@ -299,9 +303,9 @@ final class SimulatedLearning {
             phrases.learn(text: sentences, vouching: PersonalPhraseModel.Vouching(
                 isWord: { [isDictionaryWord, isListedWord] in isDictionaryWord($0) || isListedWord($0) || uses[$0, default: 0] >= 2 },
                 isOwnName: { [isListedWord] in isListedWord($0) || uses[$0, default: 0] >= 2 }
-            ))
+            ), at: now)
         default:
-            phrases.learn(text: sentences)
+            phrases.learn(text: sentences, at: now)
         }
     }
 }

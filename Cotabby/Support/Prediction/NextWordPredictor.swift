@@ -49,8 +49,8 @@ nonisolated enum NextWordPredictor {
         var americanSpellings: AmericanSpellings?
         /// How many words the writer has typed in everything learned from them so far.
         var personalTotal: () -> Int = { 0 }
-        /// In how many of the writer's finished texts a word has appeared. A word typed fifty times
-        /// in one of them has a spread of one: a burst, not yet a habit.
+        /// On how many separate occasions the writer has used a word (`PersonalPhraseModel.sitting`).
+        /// A word typed fifty times in one of them has a spread of one: a burst, not yet a habit.
         var personalSpread: (String) -> Int = { _ in 0 }
         /// A word's count in the frequency dictionary (0: not in it), for comparing how often this
         /// writer uses a word with how often English does.
@@ -95,8 +95,9 @@ nonisolated enum NextWordPredictor {
         /// loses a little; no word gains without limit however often it was typed.
         var rateFloor = -0.5
         var rateCeiling = 4.0
-        /// Uses of a word counted per text it appeared in, beyond what general English expects: a
-        /// pasted page or one long afternoon on one subject does not become a lasting habit.
+        /// Uses of a word counted per occasion it was used on (a text in the test sets, half an
+        /// hour of writing in the app), beyond what general English expects: a pasted page or one
+        /// long afternoon on one subject does not become a lasting habit.
         var usesCountedPerText = 3.0
         /// Weight of ln(1 + times the writer typed this word after the last word), and after the
         /// last two or three, which is surer evidence and weighs more.

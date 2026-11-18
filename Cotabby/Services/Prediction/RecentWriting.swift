@@ -41,16 +41,40 @@ final class RecentWriting {
     private(set) var texts: [String] = []
     private var length = 0
 
+    /// Fewer words than this say little about the writer's subject, and a line as short as
+    /// `Thanks` is in the next field's text half the time, which would take it in and out of what
+    /// the model reads.
+    static let fewestWordsKept = 3
+
     /// Remembers a finished text.
     func add(_ text: String) {
         let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, text.utf8.count <= Self.longestTextKept, texts.last != text else { return }
+        let words = text.split(separator: " ")
+        guard words.count >= Self.fewestWordsKept, text.utf8.count <= Self.longestTextKept else { return }
+        // A sentence that comes by again with a word or two changed is the same sentence after a
+        // fix (the sentence pass, a pick on the review card, the writer's own edit). The copy from
+        // before the fix goes, so the model is not shown the slip next to its correction.
+        for index in texts.indices.suffix(Self.textsComparedForEdits).reversed() where Self.isEdit(of: texts[index], words) {
+            length -= texts.remove(at: index).utf8.count + 1
+        }
         texts.append(text)
         length += text.utf8.count + 1
         guard length > Self.maximumCharacters else { return }
         while length > Self.charactersKeptAfterTrim, texts.count > 1 {
             length -= texts.removeFirst().utf8.count + 1
         }
+    }
+
+    private static let textsComparedForEdits = 6
+
+    /// True when `earlier` has the same number of words as `words` and nearly all are the same: one
+    /// may differ in a short sentence, two from eight words on. (Two short lines that merely share
+    /// a word, `see you tomorrow` and `thank you all`, are different sentences.)
+    private static func isEdit(of earlier: String, _ words: [Substring]) -> Bool {
+        let before = earlier.split(separator: " ")
+        guard before.count == words.count else { return false }
+        let differing = zip(before, words).reduce(0) { $0 + ($1.0 == $1.1 ? 0 : 1) }
+        return differing <= min(2, max(1, words.count / 4))
     }
 
     func clear() {
@@ -61,10 +85,20 @@ final class RecentWriting {
     /// What the model should read before `textBefore`: the kept texts, one per line, without those
     /// the field itself still shows (a sentence just finished in a document is in both places, and
     /// reading it twice would tell the model it is being repeated). Empty when the field has
-    /// enough text of its own.
+    /// enough text of its own. Called for every key, so it only scans the field's short text.
     func preamble(for textBefore: String) -> String {
         guard !texts.isEmpty, textBefore.utf8.count < Self.fieldTextThatNeedsNone else { return "" }
-        let shown = texts.filter { !textBefore.contains($0) }
+        // Judged on the field's finished words, not on the word being typed: otherwise a kept line
+        // would drop out at the last letter of a word that completes it, the text the model reads
+        // would change in the middle of a word, and its answer for that word would be thrown away.
+        var end = textBefore.endIndex
+        while end > textBefore.startIndex {
+            let previous = textBefore[textBefore.index(before: end)]
+            guard previous.isLetter || previous == "'" || previous == "’" else { break }
+            end = textBefore.index(before: end)
+        }
+        let finished = textBefore[..<end]
+        let shown = texts.filter { !finished.contains($0) }
         return shown.isEmpty ? "" : shown.joined(separator: "\n") + "\n"
     }
 }
