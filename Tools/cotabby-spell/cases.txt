@@ -280,3 +280,28 @@ auto:brought	we bringed |
 auto:kept	I keeped |
 auto:understood	he understanded |
 !auto	they goed |
+# Software terms are left as typed
+proceed	we use tokio |
+proceed	we use reqwest |
+proceed	we use thiserror |
+proceed	we use saml |
+!auto	we use the saml |
+proceed	we use nuxt |
+proceed	set the ttl |
+proceed	the sdk |
+proceed	the gcp |
+proceed	the rpc |
+proceed	the cdn |
+proceed	the uid |
+proceed	call it over grpc |
+proceed	inside the vpc |
+# `cors` stays out of the spelling dictionary: it is `course` spelled by sound
+auto:course	of cors |
+# The typos near the new terms are still fixed, and `setver` again is
+auto:request	the requst |
+auto:request	a reuqest |
+auto:tokyo	in tokoy |
+auto:serve	I will serev |
+auto:next	the nxet |
+auto:server	the setver |
+auto:server	the segver |

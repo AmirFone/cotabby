@@ -192,6 +192,8 @@ workflows 3000000
 yaml 3000000 YAML
 yarn 3000000
 zsh 3000000
+acl 800000 ACL
+acls 800000 ACLs
 airflow 800000
 aks 800000 AKS
 alerting 800000
@@ -200,6 +202,7 @@ allowlist 800000
 angular 800000
 ansible 800000 Ansible
 apache 800000 Apache
+ascii 800000 ASCII
 assertion 800000
 assertions 800000
 asynchronous 800000
@@ -307,6 +310,7 @@ encrypt 800000
 encrypted 800000
 encryption 800000
 enqueue 800000
+eof 800000 EOF
 eslint 800000 ESLint
 etl 800000 ETL
 express 800000
@@ -376,12 +380,15 @@ jwt 800000 JWT
 keystore 800000
 kibana 800000 Kibana
 kpi 800000 KPI
+kpis 800000 KPIs
 kubectl 800000
 kubelet 800000
 lambda 800000
 laravel 800000 Laravel
 ldap 800000 LDAP
 linting 800000
+llm 800000 LLM
+llms 800000 LLMs
 loadbalancer 800000
 looker 800000
 lookup 800000
@@ -391,6 +398,7 @@ malloc 800000
 materialized 800000
 maven 800000
 metrics 800000
+mfa 800000 MFA
 minified 800000
 minify 800000
 mlops 800000 MLOps
@@ -401,11 +409,12 @@ mongodb 800000 MongoDB
 multithreaded 800000
 multithreading 800000
 mutable 800000
+mvp 800000 MVP
 nameserver 800000
 nat 800000
 ndarray 800000
 netlify 800000 Netlify
-nginx 800000 Nginx
+nginx 800000
 nonblocking 800000
 normalization 800000
 nullability 800000
@@ -414,9 +423,13 @@ numpy 800000 NumPy
 oauth 800000 OAuth
 obfuscate 800000
 observability 800000
+okr 800000 OKR
+okrs 800000 OKRs
 oncall 800000
+oom 800000 OOM
 openapi 800000 OpenAPI
 orm 800000 ORM
+otp 800000 OTP
 outage 800000
 outages 800000
 overfitting 800000
@@ -429,9 +442,13 @@ partitioning 800000
 patch 800000
 patches 800000
 pdf 800000 PDF
+pid 800000 PID
+pids 800000 PIDs
+pii 800000 PII
 plaintext 800000
 playwright 800000
 png 800000 PNG
+poc 800000 POC
 pointer 800000
 pointers 800000
 polymorphism 800000
@@ -446,7 +463,7 @@ profiling 800000
 prometheus 800000
 proxies 800000
 proxy 800000
-pytest 800000 Pytest
+pytest 800000
 pytorch 800000 PyTorch
 qa 800000 QA
 rabbitmq 800000 RabbitMQ
@@ -464,6 +481,8 @@ replicas 800000
 rest 800000
 retries 800000
 retry 800000
+rfc 800000 RFC
+rfcs 800000 RFCs
 rollforward 800000
 rpc 800000 RPC
 runbook 800000
@@ -475,9 +494,9 @@ sandbox 800000
 sandboxed 800000
 scaffold 800000
 scaffolding 800000
+sdks 800000 SDKs
 selenium 800000
 semaphore 800000
-semver 800000
 setter 800000
 setters 800000
 shard 800000
@@ -541,6 +560,8 @@ transpile 800000
 transpiler 800000
 trino 800000 Trino
 tsv 800000 TSV
+ttl 800000 TTL
+ttls 800000 TTLs
 tuple 800000
 tuples 800000
 typecheck 800000
@@ -548,13 +569,19 @@ typechecking 800000
 typedef 800000
 typesafe 800000
 udp 800000 UDP
+uid 800000 UID
+uids 800000 UIDs
 underfitting 800000
+unicode 800000 Unicode
 unittest 800000
 unittests 800000
 upsert 800000
 upserts 800000
 upstreamed 800000
 uptime 800000
+utf 800000 UTF
+uuid 800000 UUID
+uuids 800000 UUIDs
 varchar 800000
 vercel 800000 Vercel
 versioning 800000
@@ -562,7 +589,7 @@ vite 800000 Vite
 vpc 800000 VPC
 vpn 800000 VPN
 vue 800000 Vue
-webpack 800000 Webpack
+webpack 800000
 whitelist 800000
 worktree 800000
 xcode 800000 Xcode
@@ -570,34 +597,52 @@ xml 800000 XML
 xss 800000 XSS
 abac 200000 ABAC
 accessibility 200000
+accessor 200000
+adb 200000
 aes 200000 AES
 alembic 200000
 amqp 200000 AMQP
 annotation 200000
 annotations 200000
+apk 200000 APK
 appkit 200000 AppKit
+argc 200000
 argocd 200000 ArgoCD
+argparse 200000
+argv 200000
+asan 200000 ASan
 astro 200000 Astro
+asyncio 200000
 atomically 200000
+autoscaler 200000
 avro 200000 Avro
+axios 200000 Axios
 backlog 200000
 backpressure 200000
+backpropagation 200000
 baremetal 200000
+bashrc 200000
 bazel 200000 Bazel
 bgp 200000 BGP
 bikeshedding 200000
 bitfield 200000
 blocker 200000
 blockers 200000
+bool 200000
 breadcrumb 200000
 breadcrumbs 200000
 breakpoints 200000
 brownfield 200000
 buck 200000
+bugfixes 200000
+builtins 200000
 canonical 200000
 carousel 200000
 carthage 200000
+cdc 200000 CDC
 celery 200000
+cgroup 200000
+cgroups 200000
 checkbox 200000
 checkboxes 200000
 checkpoint 200000
@@ -608,16 +653,23 @@ chocolatey 200000
 cidr 200000 CIDR
 circleci 200000 CircleCI
 clickhouse 200000 ClickHouse
+clippy 200000 Clippy
 clojure 200000 Clojure
+cloudformation 200000 CloudFormation
+cloudfront 200000 CloudFront
+cloudwatch 200000 CloudWatch
 cmake 200000 CMake
 cockroachdb 200000 CockroachDB
 cocoapods 200000 CocoaPods
+codeowners 200000 CODEOWNERS
+codepath 200000
 colocation 200000
 combine 200000
 compaction 200000
 conda 200000
 configmap 200000
 consensus 200000
+const 200000
 constructor 200000
 constructors 200000
 consul 200000
@@ -625,12 +677,24 @@ containerd 200000
 coredata 200000 CoreData
 coredns 200000 CoreDNS
 coredump 200000
+crd 200000 CRD
+crds 200000 CRDs
 cronjob 200000
 cronjobs 200000
+csr 200000 CSR
+cte 200000 CTE
+ctes 200000 CTEs
+cuda 200000 CUDA
 curried 200000
 currying 200000
+cve 200000 CVE
+cves 200000 CVEs
 daemonset 200000
 dart 200000
+dataflow 200000 Dataflow
+dataloader 200000
+dataloaders 200000
+ddl 200000 DDL
 debounce 200000
 debounced 200000
 decompiler 200000
@@ -639,32 +703,50 @@ decorators 200000
 dedup 200000
 deliverable 200000
 deliverables 200000
+deno 200000 Deno
 denormalization 200000
+dependabot 200000 Dependabot
+deprioritize 200000
+deprioritized 200000
 deserialization 200000
 destructor 200000
 destructors 200000
+dhcp 200000 DHCP
 disassembler 200000
+dml 200000 DML
+dockerized 200000
 dogfooding 200000
+dotenv 200000
 drizzle 200000
 dropdown 200000
 dropdowns 200000
+duckdb 200000 DuckDB
+ebs 200000 EBS
 ecdsa 200000 ECDSA
+ecr 200000 ECR
+elb 200000 ELB
 electron 200000
 elixir 200000
+emacs 200000 Emacs
 endianness 200000
+entrypoint 200000
+entrypoints 200000
 enumerate 200000
 enumeration 200000
 envoy 200000
 erlang 200000 Erlang
 esbuild 200000
 etcd 200000
+falsy 200000
 fanin 200000
 fanout 200000
 favicon 200000
 finalizer 200000
 finalizers 200000
+finetuned 200000
 firebase 200000
 firestore 200000 Firestore
+fixme 200000 FIXME
 flexbox 200000
 flutter 200000
 flux 200000
@@ -672,23 +754,36 @@ focusable 200000
 formatter 200000
 formatters 200000
 ftp 200000
+func 200000
 functor 200000
 functors 200000
 gatsby 200000
+gcc 200000 GCC
+gcloud 200000
+gdb 200000 GDB
+gdpr 200000 GDPR
 gguf 200000 GGUF
 gossip 200000
+gpt 200000 GPT
 greenfield 200000
 gridlines 200000
 grooming 200000
 groovy 200000
+gunicorn 200000 Gunicorn
 haproxy 200000 HAProxy
+hardcode 200000
+hardcoded 200000
+hardcoding 200000
 haskell 200000 Haskell
 heapdump 200000
 hmac 200000 HMAC
 homebrew 200000 Homebrew
 honeycomb 200000
+hotfixes 200000
 hotkey 200000
 hotkeys 200000
+htmx 200000
+httpx 200000 HTTPX
 huggingface 200000 HuggingFace
 hydrate 200000
 hydration 200000
@@ -696,15 +791,21 @@ hypervisor 200000
 icmp 200000 ICMP
 idempotently 200000
 imap 200000 IMAP
+impl 200000
 influxdb 200000 InfluxDB
 ini 200000 INI
+initializer 200000
+instanceof 200000
 internationalization 200000
 intrinsics 200000
+ipython 200000 IPython
 isolation 200000
 istio 200000 Istio
 jaeger 200000
 jetpack 200000 Jetpack
 jsonl 200000 JSONL
+jsx 200000 JSX
+jwts 200000 JWTs
 kanban 200000
 keybinding 200000
 keybindings 200000
@@ -712,23 +813,30 @@ keycloak 200000 Keycloak
 kinesis 200000 Kinesis
 kubeconfig 200000
 kustomize 200000 Kustomize
+kwargs 200000
 langchain 200000 LangChain
 leaderless 200000
 lexer 200000
 lexers 200000
+lgtm 200000 LGTM
 linearizable 200000
 linker 200000
 linkerd 200000 Linkerd
 linkers 200000
+linted 200000
 linters 200000
 llama 200000
 llamacpp 200000
+llvm 200000 LLVM
 locale 200000
 locales 200000
 localization 200000
+logits 200000
 lora 200000
 lua 200000 Lua
+mariadb 200000 MariaDB
 marshaling 200000
+matplotlib 200000 Matplotlib
 memcached 200000 Memcached
 memoization 200000
 memoize 200000
@@ -737,9 +845,10 @@ memoizing 200000
 metaclass 200000
 milestone 200000
 milestones 200000
-minikube 200000 Minikube
+minikube 200000
 mixin 200000
 mixins 200000
+mlflow 200000 MLflow
 mnemonic 200000
 mobx 200000 MobX
 modal 200000
@@ -748,21 +857,36 @@ monad 200000
 monads 200000
 mqtt 200000 MQTT
 mtls 200000 mTLS
+multimodal 200000
+mutexes 200000
+mypy 200000
 namespaces 200000
 nats 200000 NATS
 navbar 200000
+neovim 200000 Neovim
+nestjs 200000 NestJS
 newrelic 200000 NewRelic
+ngrok 200000
 nibble 200000
 ninja 200000
 nomad 200000
+npx 200000
+nullptr 200000
 nuxt 200000 Nuxt
+nvim 200000
+nvm 200000
 oidc 200000 OIDC
 okta 200000 Okta
+olap 200000 OLAP
 ollama 200000 Ollama
+onnx 200000 ONNX
 opcode 200000
 opcodes 200000
 openai 200000 OpenAI
+opensearch 200000 OpenSearch
 openshift 200000 OpenShift
+openssh 200000 OpenSSH
+openssl 200000 OpenSSL
 opentelemetry 200000 OpenTelemetry
 opsgenie 200000 Opsgenie
 overload 200000
@@ -778,27 +902,44 @@ pagination 200000
 parquet 200000
 parsers 200000
 perl 200000 Perl
+pgvector 200000
 pinecone 200000 Pinecone
 pki 200000 PKI
 pnpm 200000
 podman 200000 Podman
 poetry 200000
+polars 200000 Polars
+polyfill 200000
+polyfills 200000
 powershell 200000 PowerShell
 prefetch 200000
 prefetching 200000
 preflight 200000
 preload 200000
+preprocess 200000
+preprocessing 200000
+preprocessor 200000
+pretrained 200000
+pretraining 200000
+printf 200000
 prisma 200000 Prisma
 protobuf 200000 Protobuf
 protobufs 200000
+psql 200000
 pulsar 200000
 pulumi 200000 Pulumi
 pydantic 200000 Pydantic
+pyenv 200000
+pylint 200000 Pylint
+pyproject 200000
+pyspark 200000 PySpark
+qps 200000 QPS
 quantization 200000
 quantized 200000
 quorum 200000
 rancher 200000
 rbac 200000 RBAC
+readonly 200000
 rebalance 200000
 rebalancing 200000
 redirect 200000
@@ -813,65 +954,105 @@ remix 200000
 repro 200000
 reproducibility 200000
 reproducible 200000
+reqwest 200000
+rerank 200000
+reranking 200000
 rerender 200000
 rerenders 200000
 resharding 200000
 responsive 200000
 retro 200000
 retros 200000
+ripgrep 200000
 roadmap 200000
 roadmaps 200000
 robots 200000
+rollouts 200000
 rollup 200000 Rollup
 rsa 200000 RSA
+rsync 200000
+runtimes 200000
+rustc 200000
+rustfmt 200000
 rxjs 200000 RxJS
 safetensors 200000
+sagemaker 200000 SageMaker
 scala 200000
 scim 200000 SCIM
+scipy 200000 SciPy
 screenshot 200000
 screenshots 200000
 scrum 200000
 segfault 200000
 segfaults 200000
+semver 200000
 sentry 200000
+seo 200000 SEO
+serde 200000 Serde
 serializable 200000
 serialization 200000
+serializer 200000
+serializers 200000
 sftp 200000 SFTP
 sharded 200000
 shortcut 200000
 shortcuts 200000
 sidebar 200000
 sidekiq 200000 Sidekiq
+sigkill 200000 SIGKILL
+sigterm 200000 SIGTERM
 sitemap 200000
+sklearn 200000
 smtp 200000 SMTP
 snapshotting 200000
+softmax 200000
 solidjs 200000 SolidJS
+sourcemap 200000
+sourcemaps 200000
 sprint 200000
 sprints 200000
 sqlalchemy 200000 SQLAlchemy
+sse 200000 SSE
+ssr 200000 SSR
 stacktraces 200000
 stakeholder 200000
 stakeholders 200000
 standup 200000
 standups 200000
 statefulset 200000
+stdlib 200000
 storybook 200000
+stringify 200000
 subclass 200000
 subclasses 200000
+subprocess 200000
+subprocesses 200000
 supabase 200000 Supabase
 superclass 200000
+sveltekit 200000 SvelteKit
 swiftlint 200000 SwiftLint
 swiftpm 200000 SwiftPM
 swiftui 200000 SwiftUI
+systemctl 200000
+systemd 200000
+tailscale 200000 Tailscale
 tauri 200000 Tauri
 teamcity 200000 TeamCity
+teardown 200000
+testflight 200000 TestFlight
 textbox 200000
+tfstate 200000
+thiserror 200000
 thrift 200000
 throttle 200000
 thunk 200000
 thunks 200000
 timescaledb 200000 TimescaleDB
+tmux 200000
+todo 200000
+todos 200000
 tokenizers 200000
+tokio 200000 Tokio
 tombstone 200000
 tombstones 200000
 toml 200000 TOML
@@ -880,22 +1061,37 @@ tooltips 200000
 traefik 200000 Traefik
 trampoline 200000
 transactional 200000
+transpiled 200000
 triage 200000
 triaged 200000
 trpc 200000 tRPC
+truthy 200000
 tsconfig 200000
+tsx 200000 TSX
 turborepo 200000 Turborepo
+twilio 200000 Twilio
+typeof 200000
+typings 200000
+udf 200000 UDF
+udfs 200000 UDFs
 uikit 200000 UIKit
+uint 200000
 unmarshal 200000
+untyped 200000
+uvicorn 200000 Uvicorn
 vagrant 200000
+validator 200000
+validators 200000
 varnish 200000
 vault 200000
 vectorization 200000
 vectorized 200000
+venv 200000
 viewport 200000
 virtualenv 200000
 virtualization 200000
 virtualized 200000
+vitest 200000 Vitest
 vtable 200000
 wasm 200000 Wasm
 watermark 200000
@@ -903,8 +1099,14 @@ watermarks 200000
 webassembly 200000 WebAssembly
 websocket 200000 WebSocket
 websockets 200000 WebSockets
+wget 200000
+wip 200000 WIP
+wireguard 200000 WireGuard
+xargs 200000
 xcodebuild 200000
 xcodegen 200000
+xctest 200000 XCTest
 zipkin 200000 Zipkin
 zod 200000 Zod
+zshrc 200000
 zustand 200000 Zustand
