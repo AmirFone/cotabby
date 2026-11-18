@@ -94,6 +94,32 @@ final class CotabbyAppEnvironment {
         }
     }
 
+    /// What the "Clear Learned Words, Phrases and Fixes" button in Settings → Writing does: forgets
+    /// everything Cotabby has learned from the writer, in memory and on disk.
+    ///
+    /// That is four stores, and the button has to empty all of them or it does not do what it says:
+    /// the phrase counts and the writer's own words (learned from finished sentences), the recent
+    /// sentences shown to the word model, and the correction memory (which fix the writer accepted
+    /// for which misspelling, and which words they chose to keep as typed). The correction memory
+    /// used to be left out. A fix learned for a typo then went on being applied automatically after
+    /// the writer had pressed the button and seen "Cleared", and a kept word went straight back into
+    /// their vocabulary with the next sentence, because `learn` asks the memory which words were kept.
+    ///
+    /// It is a function of its own, and not four lines in the closure handed to Settings, so a test
+    /// can hold it to that list. The correction journal and the training record are files the writer
+    /// can open, with delete buttons of their own, and are not touched here.
+    static func forgetEverythingLearned(
+        phrases: PersonalPhraseModel,
+        vocabulary: PersonalVocabulary,
+        recentWriting: RecentWriting,
+        corrections: PersonalCorrectionMemory
+    ) {
+        phrases.reset()
+        vocabulary.reset()
+        recentWriting.clear()
+        corrections.reset()
+    }
+
     private static func describe(_ model: TreeEnsembleModel?) -> String {
         model.map { "loaded (\($0.trees.count) trees, acts from \($0.threshold))" } ?? "missing or stale, using the hand rule"
     }
@@ -325,6 +351,9 @@ final class CotabbyAppEnvironment {
         let personalPhraseModel = PersonalPhraseModel()
         let personalVocabulary = PersonalVocabulary(fileURL: PersonalVocabulary.defaultFileURL())
         let recentWriting = RecentWriting()
+        // Built here, with the other things learned from the writer and before the settings
+        // coordinator, so the button that forgets what was learned can reach it too.
+        let personalCorrectionMemory = PersonalCorrectionMemory()
         let correctionJournal = CorrectionJournal()
         // The opt-in training record hears of every word event through the journal, so the call
         // sites that already report to the journal need no second line.
@@ -351,9 +380,12 @@ final class CotabbyAppEnvironment {
             },
             clearEmojiHistory: { emojiUsageStore.clear() },
             clearLearnedPhrases: {
-                personalPhraseModel.reset()
-                personalVocabulary.reset()
-                recentWriting.clear()
+                Self.forgetEverythingLearned(
+                    phrases: personalPhraseModel,
+                    vocabulary: personalVocabulary,
+                    recentWriting: recentWriting,
+                    corrections: personalCorrectionMemory
+                )
             },
             correctionJournal: correctionJournal,
             trainingLog: trainingLog
@@ -432,7 +464,6 @@ final class CotabbyAppEnvironment {
         // share. It is given first look at every keystroke the suggestion coordinator receives.
         // The candidate list rides the same single capture slot as the emoji picker and macros. It is
         // fed by the suggestion coordinator (typo gate, alternates) rather than by its own trigger.
-        let personalCorrectionMemory = PersonalCorrectionMemory()
         let candidateListController = CandidateListController(
             panel: CandidateListPanelController(),
             focusModel: focusModel,

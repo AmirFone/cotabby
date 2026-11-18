@@ -38,6 +38,159 @@ final class PersonalPhraseModelTests: XCTestCase {
         XCTAssertNil(model.words(startingWith: "we"))
     }
 
+    // MARK: - The button that forgets what was learned
+
+    /// Everything Cotabby learns from a writer, each store holding something, the way the app has
+    /// them when "Clear Learned Words, Phrases and Fixes" is pressed. The correction memory is on
+    /// its own UserDefaults suite, never the real one.
+    @MainActor
+    private struct Learned {
+        let phrases = PersonalPhraseModel(fileURL: nil)
+        let vocabulary = PersonalVocabulary(fileURL: nil)
+        let recentWriting = RecentWriting()
+        let corrections: PersonalCorrectionMemory
+        let defaults: UserDefaults
+
+        func forgetEverything() {
+            CotabbyAppEnvironment.forgetEverythingLearned(
+                phrases: phrases, vocabulary: vocabulary, recentWriting: recentWriting, corrections: corrections
+            )
+        }
+    }
+
+    private func makeLearned() -> Learned {
+        let suiteName = "cotabby.test.learned.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        addTeardownBlock { defaults.removePersistentDomain(forName: suiteName) }
+        let learned = Learned(corrections: PersonalCorrectionMemory(userDefaults: defaults), defaults: defaults)
+        learned.phrases.learn(sentence: "We ship on Friday.")
+        for _ in 0..<2 {
+            learned.vocabulary.learn(
+                sentence: "Ask Lindqvist about it.", isDictionaryWord: { $0 != "lindqvist" }, isAcceptedSpelling: { _ in true }
+            )
+        }
+        learned.recentWriting.add("We ship on Friday.")
+        learned.corrections.recordAccepted(typo: "dady", replacement: "daddy")
+        learned.corrections.recordKept("wich")
+        return learned
+    }
+
+    func test_forgetEverythingLearned_forgetsAcceptedFixes() {
+        // #given a writer whose fix for a misspelling has been learned
+        let learned = makeLearned()
+
+        // #when they clear what Cotabby learned
+        learned.forgetEverything()
+
+        // #then that fix is no longer known, so it cannot be applied for them again
+        XCTAssertEqual(learned.corrections.acceptedReplacements(for: "dady"), [:])
+    }
+
+    func test_forgetEverythingLearned_forgetsWordsKeptAsTyped() {
+        // #given a writer who chose to keep a word as typed
+        let learned = makeLearned()
+
+        // #when they clear what Cotabby learned
+        learned.forgetEverything()
+
+        // #then the word is no longer treated as one they meant
+        XCTAssertFalse(learned.corrections.isKept("wich"))
+    }
+
+    func test_forgetEverythingLearned_leavesNoLearnedFixesInDefaults() {
+        // #given learned fixes and kept words saved in the app's defaults
+        let learned = makeLearned()
+
+        // #when the writer clears what Cotabby learned
+        learned.forgetEverything()
+
+        // #then neither list is still stored, so they do not come back at the next launch
+        let stored = [PersonalCorrectionMemory.defaultsKey, PersonalCorrectionMemory.keptDefaultsKey]
+            .filter { learned.defaults.object(forKey: $0) != nil }
+        XCTAssertEqual(stored, [])
+    }
+
+    func test_forgetEverythingLearned_forgetsPhrases() {
+        // #given learned phrases
+        let learned = makeLearned()
+
+        // #when the writer clears what Cotabby learned
+        learned.forgetEverything()
+
+        // #then no learned word follows another
+        XCTAssertNil(learned.phrases.nextWords(after: ["we"]))
+    }
+
+    func test_forgetEverythingLearned_forgetsTheWritersOwnWords() {
+        // #given a name the writer has used often enough to be learned
+        let learned = makeLearned()
+
+        // #when the writer clears what Cotabby learned
+        learned.forgetEverything()
+
+        // #then the name is gone from their vocabulary
+        XCTAssertNil(learned.vocabulary.preferredCasing(of: "lindqvist"))
+    }
+
+    func test_forgetEverythingLearned_forgetsRecentSentences() {
+        // #given a finished sentence the word model would be shown
+        let learned = makeLearned()
+
+        // #when the writer clears what Cotabby learned
+        learned.forgetEverything()
+
+        // #then there is nothing left to show it
+        XCTAssertEqual(learned.recentWriting.texts, [])
+    }
+
+    // MARK: - The learning switch
+
+    private func makeDefaults() -> UserDefaults {
+        let suiteName = "cotabby.test.learning.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        addTeardownBlock { defaults.removePersistentDomain(forName: suiteName) }
+        return defaults
+    }
+
+    func test_learning_isOnWhenNeitherSwitchWasTouched() {
+        // #given a Mac where neither switch was ever changed
+        let defaults = makeDefaults()
+
+        // #then finished sentences are learned from
+        XCTAssertTrue(PersonalPhraseModel.isLearningEnabled(in: defaults))
+    }
+
+    func test_learning_isOffWhilePredictionsAreOff_evenWithTheLearningSwitchLeftOn() {
+        // #given a writer who left "Learn From My Sentences" on and switched the word strip off,
+        // which greys the learning switch out in Settings
+        let defaults = makeDefaults()
+        defaults.set(true, forKey: PersonalPhraseModel.learningDefaultsKey)
+        defaults.set(false, forKey: WordPredictionController.enabledDefaultsKey)
+
+        // #then nothing new is learned from their sentences
+        XCTAssertFalse(PersonalPhraseModel.isLearningEnabled(in: defaults))
+    }
+
+    func test_learning_isOffWhenTheLearningSwitchIsOff() {
+        // #given the word strip on and the learning switch off
+        let defaults = makeDefaults()
+        defaults.set(false, forKey: PersonalPhraseModel.learningDefaultsKey)
+
+        // #then nothing is learned
+        XCTAssertFalse(PersonalPhraseModel.isLearningEnabled(in: defaults))
+    }
+
+    func test_predictionsKey_isTheWordStripsOwnKey() {
+        // #given the key the learner reads for "are predictions on", which is spelled a second time
+        // because the command-line tool builds this file without the controller
+        let learnersKey = PersonalPhraseModel.predictionsDefaultsKey
+
+        // #then it is the key the Settings switch and the word strip use
+        XCTAssertEqual(learnersKey, WordPredictionController.enabledDefaultsKey)
+    }
+
     // MARK: - Which words are counted
 
     private func vouching(words: Set<String>, ownNames: Set<String> = []) -> PersonalPhraseModel.Vouching {

@@ -110,6 +110,9 @@ final class PersonalCorrectionMemory {
         kept.contains(key.lowercased())
     }
 
+    /// Forgets every learned fix and kept word, here and in UserDefaults. Called when the writer
+    /// clears what Cotabby learned in Settings (`CotabbyAppEnvironment.forgetEverythingLearned`);
+    /// until it was, nothing in the app could undo a wrongly learned fix.
     func reset() {
         entries = [:]
         insertionOrder = []

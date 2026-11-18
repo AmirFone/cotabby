@@ -111,17 +111,27 @@ struct WritingPaneView: View {
                         title: "Learn From My Sentences",
                         description: "Remembers the words and word sequences of sentences you finish, so your own " +
                             "vocabulary and phrasing are predicted first, and lets the word model read your last few " +
-                            "sentences. Stored only on this Mac. A spelling it does not know is never learned.",
+                            "sentences. Stored only on this Mac. A spelling it does not know is never learned. " +
+                            "Nothing new is learned from your sentences while Show Next-Word Predictions is off; " +
+                            "what was learned before is kept until you clear it below.",
                         systemImage: "brain"
                     )
                 }
+                // Greyed out with the strip, and off with it too: the learner reads both switches
+                // (`PersonalPhraseModel.isLearningEnabled`), so this one cannot sit greyed out and
+                // showing "on" while sentences are still being learned.
                 .disabled(!wordPredictionsEnabled)
                 Toggle(isOn: $keepsJournal) {
                     SettingsRowLabel(
                         title: "Keep a Correction Journal",
                         description: "Records only misspelled words and what they became (auto-fixed, picked, undone, or " +
                             "fixed by you), never other text or password fields, so fixes can be tuned to your " +
-                            "mistakes. Words you fix yourself are learned and fixed for you next time. Stored only on this Mac.",
+                            "mistakes. Stored only on this Mac. The journal is only the record: the fixes you accept " +
+                            "or make yourself are remembered and applied next time whether or not it is on. Clear " +
+                            "Journal deletes this file and nothing else. Clear Learned Words, Phrases and Fixes makes " +
+                            "Cotabby forget everything it learned from you: those fixes, the words you chose to keep as " +
+                            "typed, your own words and phrases, and the recent sentences the word model reads. It " +
+                            "leaves the journal and saved training examples, which have their own buttons.",
                         systemImage: "book.closed"
                     )
                 }
@@ -133,7 +143,11 @@ struct WritingPaneView: View {
                     }
                     Button("Clear Journal") { correctionJournal.clear() }
                 }
-                Button(clearedLearnedPhrases ? "Cleared" : "Clear Learned Phrases") {
+                // The label lists what is forgotten because the button has no description row of its
+                // own: learned words and phrases (with the recent sentences the word model reads),
+                // and the fixes the writer accepted or declined. The journal and the training record
+                // are files with their own delete buttons and are left alone.
+                Button(clearedLearnedPhrases ? "Cleared" : "Clear Learned Words, Phrases and Fixes") {
                     clearLearnedPhrases()
                     clearedLearnedPhrases = true
                 }

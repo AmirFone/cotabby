@@ -17,9 +17,33 @@ final class PersonalPhraseModel {
     /// can collide with it, because a context is made of words and the three class marks.
     static let spreadKey = "<texts>"
     static let learningDefaultsKey = "cotabbyLearnPhrasesEnabled"
+    /// The word strip's own switch, as `WordPredictionController.enabledDefaultsKey` spells it. It
+    /// is written out a second time because this file is also built into the `cotabby-spell` tool,
+    /// which has no controller to read the key from; `test_predictionsKey_isTheWordStripsOwnKey`
+    /// fails if the two ever differ.
+    static let predictionsDefaultsKey = "cotabbyWordPredictionsEnabled"
+
+    /// Whether a finished sentence may teach Cotabby anything new. Both switches have to be on:
+    /// "Learn From My Sentences", and "Show Next-Word Predictions" above it.
+    ///
+    /// Why the second one counts: Settings greys out the learning switch while predictions are off,
+    /// and it stays showing "on". A writer who switched the strip off read that as the strip, with
+    /// its learning, being off, and had no way to turn the learning off short of switching the strip
+    /// back on first. Meanwhile every finished sentence was still being counted. So off means off:
+    /// with predictions off nothing new is learned from sentences, whatever the greyed-out switch
+    /// shows, and what was learned before is kept for when the strip comes back.
+    ///
+    /// The cost, accepted for that: a name the dictionary lacks is also not picked up as a spelling
+    /// target while predictions are off (`PersonalVocabulary` learns in the same step). Fixes the
+    /// writer accepts are remembered either way; that is `PersonalCorrectionMemory`, not this.
+    static func isLearningEnabled(in defaults: UserDefaults) -> Bool {
+        let showsPredictions = defaults.object(forKey: predictionsDefaultsKey) as? Bool ?? true
+        let learns = defaults.object(forKey: learningDefaultsKey) as? Bool ?? true
+        return showsPredictions && learns
+    }
 
     static var isLearningEnabledInDefaults: Bool {
-        UserDefaults.standard.object(forKey: learningDefaultsKey) as? Bool ?? true
+        isLearningEnabled(in: .standard)
     }
 
     /// Which words of a finished sentence may be counted as the writer's.
