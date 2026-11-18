@@ -20,10 +20,29 @@ final class AutoFixOutcomeTrackerTests: XCTestCase {
     func test_originalSpellingComingBack_revertsIt() {
         var tracker = AutoFixOutcomeTracker()
         tracker.noteAutoFix(typo: "Kubernets", fix: "Kubernetes", precedingText: "deploy to Kubernets ")
+        XCTAssertEqual(tracker.observe("deploy to Kubernetes "), [])
 
         let outcomes = tracker.observe("deploy to Kubernets ")
 
         XCTAssertEqual(outcomes, [.init(kind: .reverted, typo: "kubernets", fix: "kubernetes")])
+    }
+
+    func test_typoStillStandingBeforeTheFixWasEverSeen_isNotAnUndo() {
+        // #given a fix whose keys have not reached the field yet, or never did
+        var tracker = AutoFixOutcomeTracker()
+        tracker.noteAutoFix(typo: "recieve", fix: "receive", precedingText: "did you recieve ")
+
+        // #when the field is read and still holds what was typed
+        let early = tracker.observe("did you recieve ")
+
+        // #then nothing is concluded: the writer undid nothing, and the slip must not be marked
+        // as a word they meant
+        XCTAssertEqual(early, [])
+        XCTAssertEqual(tracker.pendingCount, 1)
+
+        // #and once the fix shows up and is typed past, it counts as kept
+        XCTAssertEqual(tracker.observe("did you receive "), [])
+        XCTAssertEqual(tracker.observe("did you receive it today ").first?.kind, .confirmed)
     }
 
     func test_backspacingIntoTheFix_waits() {
@@ -87,6 +106,31 @@ final class SentenceFixOutcomeTrackerTests: XCTestCase {
 
     func test_wordChanges_skipMergedWords() {
         XCTAssertTrue(SentenceFixOutcomeTracker.wordChanges(original: "a lot of", corrected: "alot of").isEmpty)
+    }
+
+    func test_sentenceFix_isUndoneOnlyAfterItWasSeenInTheField() {
+        // #given a sentence fix just sent to the field
+        var tracker = SentenceFixOutcomeTracker()
+        tracker.noteApplied(original: "Did you recieve it.", corrected: "Did you receive it.")
+
+        // #when the next read still shows the sentence as typed (the fix has not landed, or was lost)
+        XCTAssertEqual(tracker.observe("Did you recieve it. "), [])
+
+        // #then it is undone only if it lands and the original then comes back
+        XCTAssertEqual(tracker.observe("Did you receive it. "), [])
+        XCTAssertEqual(
+            tracker.observe("Did you recieve it. "),
+            [.reverted(original: "Did you recieve it.", corrected: "Did you receive it.")]
+        )
+    }
+
+    func test_sentenceFixThatNeverLanded_isNeverCalledUndone() {
+        var tracker = SentenceFixOutcomeTracker()
+        tracker.noteApplied(original: "Did you recieve it.", corrected: "Did you receive it.")
+
+        for text in ["Did you recieve it. ", "Did you recieve it. And", "Did you recieve it. And then some more."] {
+            XCTAssertEqual(tracker.observe(text), [], text)
+        }
     }
 
     func test_removedSentence_isDroppedWithoutAVerdict() {

@@ -115,6 +115,11 @@ final class SuggestionCoordinator: ObservableObject {
     var personalPhraseModel: PersonalPhraseModel?
     /// The writer's own words (names, jargon) as correction targets; set by the app environment.
     var personalVocabulary: PersonalVocabulary?
+    /// True from the moment Cotabby is switched back on until the writer's next key. What is in
+    /// the field then was written with Cotabby off, so nothing in it is fixed: rewriting it the
+    /// instant the switch flips is not what was asked for, and the edit went out while the key
+    /// taps were being put back, which lost its deletes and left the fix appended to the sentence.
+    var leavesExistingTextAlone = false
     /// The bundled software terms the spelling dictionary took (lowercase); the sentence model
     /// leaves them as typed. Empty when that vocabulary is off.
     var technicalTerms: Set<String> = []

@@ -30,6 +30,9 @@ nonisolated struct AutoFixOutcomeTracker {
         let fix: String
         /// Everything before the fixed word, as it was when the fix landed.
         let textBefore: String
+        /// True once the field has been seen holding the fix. Until then the typo still standing
+        /// is the text from before the fix, not the writer putting it back.
+        var wasSeen = false
     }
 
     /// Fixes waiting for a verdict; a writer rarely has more than one or two in flight.
@@ -57,20 +60,29 @@ nonisolated struct AutoFixOutcomeTracker {
     /// text was edited, or whose field changed, is dropped without a verdict.
     mutating func observe(_ precedingText: String) -> [AutoFixOutcome] {
         var outcomes: [AutoFixOutcome] = []
-        pending.removeAll { item in
-            guard precedingText.hasPrefix(item.textBefore) else { return true }
+        pending = pending.compactMap { item in
+            var item = item
+            guard precedingText.hasPrefix(item.textBefore) else { return nil }
             let rest = precedingText.dropFirst(item.textBefore.count)
             let word = rest.prefix { $0.isLetter || $0 == "'" || $0 == "’" }.lowercased()
             let wordIsFinished = rest.count > word.count
+            // The fix, or a start of it that the typo does not share (`th` of `the`, typed as
+            // `teh`): the writer is already backspacing through a fix that landed.
+            if word == item.fix || (!word.isEmpty && item.fix.hasPrefix(word) && !item.typo.hasPrefix(word)) {
+                item.wasSeen = true
+            }
             if word == item.typo, wordIsFinished {
+                // A read from before the fix landed shows the typo too; only a fix that was seen
+                // and is gone again was undone.
+                guard item.wasSeen else { return item }
                 outcomes.append(AutoFixOutcome(kind: .reverted, typo: item.typo, fix: item.fix))
-                return true
+                return nil
             }
             if word == item.fix, Self.hasFinishedAnotherWord(after: rest.dropFirst(word.count)) {
                 outcomes.append(AutoFixOutcome(kind: .confirmed, typo: item.typo, fix: item.fix))
-                return true
+                return nil
             }
-            return false
+            return item
         }
         return outcomes
     }

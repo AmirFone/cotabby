@@ -133,15 +133,9 @@ extension SuggestionCoordinator {
         settleAutoFixOutcomes(precedingText: rawContext.precedingText)
         noticeSelfCorrections(precedingText: rawContext.precedingText)
         traceTyping("typo gate")
-        if handleTypoGate(rawContext: rawContext, workID: workID) {
+        if runSpellingStages(rawContext: rawContext, workID: workID) {
             return
         }
-        // After the gate, so a sentence rewrite never races an edit the gate just made to the last word.
-        sentenceFixPresenter?.noteTypedText(
-            rawContext.precedingText,
-            caretRect: rawContext.caretRect,
-            focusChangeSequence: rawContext.focusChangeSequence
-        )
         if let pauseReason = ghostTextPauseReason() {
             clearSuggestion()
             hideOverlay(reason: pauseReason)
@@ -720,6 +714,24 @@ extension SuggestionCoordinator {
             confidence: inputs.autoFixConfidence(typed).map { ($0 * 1000).rounded() / 1000 },
             before: StripUseTracker.sentenceSoFar(before)
         ))
+    }
+
+    /// The typo gate for the word at the caret, then the sentence pass. True when the gate took
+    /// the turn (it fixed or offered something), so no continuation is generated. Skipped
+    /// entirely for text that was already there when Cotabby was switched back on (see
+    /// `leavesExistingTextAlone`).
+    private func runSpellingStages(rawContext: FocusedInputSnapshot, workID: UInt64) -> Bool {
+        guard !leavesExistingTextAlone else { return false }
+        if handleTypoGate(rawContext: rawContext, workID: workID) {
+            return true
+        }
+        // After the gate, so a sentence rewrite never races an edit the gate just made to the last word.
+        sentenceFixPresenter?.noteTypedText(
+            rawContext.precedingText,
+            caretRect: rawContext.caretRect,
+            focusChangeSequence: rawContext.focusChangeSequence
+        )
+        return false
     }
 
     /// Learns from the writer going back and retyping a misspelled word: the pair is recorded as an

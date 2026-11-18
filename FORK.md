@@ -34,7 +34,7 @@ What gives the best results, in order of how much it matters:
 
 On a Mac with less than 16 GB of memory, install tabby-2-mini (or tabby-2-nano under 12 GB) instead of tabby-2-base. With neither, everything still works; the strip is just right less often.
 
-**Turning it off and on:** Control+Option+C (⌃⌥C), from any app. A short notice at the caret says which way it went, and anything Cotabby had on screen goes away. Change or clear the shortcut in Settings → Shortcuts → Toggle Cotabby.
+**Turning it off and on:** Control+Option+C (⌃⌥C), from any app. Text written while it was off is left as written when it comes back on; help starts again with your next key. A short notice at the caret says which way it went, and anything Cotabby had on screen goes away. Change or clear the shortcut in Settings → Shortcuts → Toggle Cotabby.
 
 ## How it works while you type
 
@@ -51,7 +51,7 @@ On a Mac with less than 16 GB of memory, install tabby-2-mini (or tabby-2-nano u
   - fixed automatically: doubled words (`the the`), `hello ,world`, double spaces, leftover certain typos;
   - also fixed automatically: `could of` → could have (not `of course`);
   - reviewed in one pass: likely wrong words judged from both sides (`went their yesterday` → there, `to tired` → too, `I want to by a car` → buy) and uncertain typos. The card steps through them: Tab takes the fix and moves on, ←/→ pick another option, Esc keeps your word (and it is not flagged there again). Typing closes it with no change. Wrong words are never changed without asking.
-- **Learns you:** a fix you pick or retype ranks higher next time. Once you have made the same fix for the same slip twice, that word leads the bar whatever the dictionary thinks is likelier, and from the third time it is made for you (`wich` → which, for someone who always means *which*, even though *with* is the commoner word). A slip you correct to two different words about as often has no habit and stays a choice. Undoing a fix marks the word as meant; correcting it yourself later takes that back.
+- **Learns you:** a fix you pick or retype ranks higher next time. Once you have made the same fix for the same slip twice, that word leads the bar whatever the dictionary thinks is likelier, and from the third time it is made for you (`wich` → which, for someone who always means *which*, even though *with* is the commoner word). A slip you correct to two different words about as often has no habit and stays a choice. Undoing a fix marks the word as meant; correcting it yourself later takes that back. A fix only counts as undone once it has been seen in the field and is gone again, so a fix that never landed is not read as you rejecting it.
 - **Knows software terms:** about 870 engineering words are built in, so `backend`, `kubectl` and `jsonb` are not flagged, slips go to the term (`frontned` → frontend), and the strip offers `Kubernetes`, `JSON` or `repo` where the text calls for them (see "Software-engineering vocabulary").
 - **Learns your words:** a name or term the dictionary lacks, once you have written it twice, becomes a correction target in your capitals (`lindqvsit` → Lindqvist instead of Lundqvist). Stored locally; "Clear Learned Phrases" clears it.
 

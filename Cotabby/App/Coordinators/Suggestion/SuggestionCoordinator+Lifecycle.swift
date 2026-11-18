@@ -50,6 +50,10 @@ extension SuggestionCoordinator {
         }
 
         CotabbyLogger.suggestion.info("Settings changed, resetting suggestion state")
+        let wasOn = settingsSnapshot.isGloballyEnabled && !settingsSnapshot.isTemporarilyPaused
+        if !wasOn, snapshot.isGloballyEnabled, !snapshot.isTemporarilyPaused {
+            leavesExistingTextAlone = true
+        }
         settingsSnapshot = snapshot
         cancelPredictionWork()
         resetCachedGenerationContext()

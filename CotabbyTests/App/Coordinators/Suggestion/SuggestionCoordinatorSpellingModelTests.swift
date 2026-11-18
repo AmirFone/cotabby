@@ -137,6 +137,30 @@ final class SuggestionCoordinatorSpellingModelTests: XCTestCase {
         guard case .proceed = decision else { return XCTFail("Expected nothing to be done, got \(decision)") }
     }
 
+    func test_textAlreadyInTheFieldWhenSwitchedBackOn_isLeftAloneUntilTheNextKey() async throws {
+        // #given a slip the engine fixes without asking, typed while Cotabby was off
+        let text = "We met at the restarant "
+        let rig = try makeRig(text: text)
+        let on = rig.coordinator.settingsSnapshot
+        rig.coordinator.handleSuggestionSettingsChange(CotabbyTestFixtures.settingsSnapshot(isGloballyEnabled: false))
+
+        // #when Cotabby is switched back on and reads the field
+        rig.coordinator.handleSuggestionSettingsChange(on)
+        rig.coordinator.schedulePrediction()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        // #then nothing is typed into what was written without it
+        XCTAssertTrue(rig.coordinator.leavesExistingTextAlone)
+        XCTAssertEqual(rig.inserter.replacements.count, 0)
+
+        // #and from the writer's next key on, fixes are made as usual
+        _ = rig.coordinator.handleInputEvent(CapturedInputEvent(kind: .textMutation, keyCode: 49, characters: " ", flags: []))
+        XCTAssertFalse(rig.coordinator.leavesExistingTextAlone)
+        rig.coordinator.schedulePrediction()
+        await waitUntil("The fix never reached the field") { !rig.inserter.replacements.isEmpty }
+        XCTAssertEqual(rig.inserter.replacements.first?.text, "restaurant ")
+    }
+
     func test_unsureModel_opensTheBarAndTypesNothing() async throws {
         let text = "I drive a tyoda "
         let rig = try makeRig(text: text)

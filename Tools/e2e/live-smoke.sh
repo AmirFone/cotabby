@@ -359,7 +359,10 @@ toggle_cases() {
   # Not `teh`: the learning cases above keep it on purpose, and a kept word is left alone by every
   # stage from then on, the sentence model included.
   case_type "toggle: off leaves a misspelling alone" "Did you recieve it. " "Did you recieve it. "
-  send "$toggle"; sleep 1.0
+  send "$toggle"; sleep 2.0
+  # What was written with Cotabby off stays as written when it comes back on. (It used to be
+  # "fixed" at that instant, by an edit whose deletes were lost: `recieve it. eive it. `.)
+  check "toggle: switching back on leaves what was typed while off" "Did you recieve it. " "$(doc)"
   case_type "toggle: on fixes it again" "Did you recieve mine. " "Did you receive mine. "
 }
 

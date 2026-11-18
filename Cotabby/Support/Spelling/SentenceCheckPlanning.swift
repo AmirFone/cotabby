@@ -155,6 +155,11 @@ nonisolated struct SentenceFixOutcomeTracker {
             var item = item
             let hasCorrected = precedingText.contains(item.corrected)
             if precedingText.contains(item.original), !hasCorrected {
+                // Undone means it was there and is gone again. The original still standing before
+                // the corrected sentence was ever seen is a fix that has not landed yet, or never
+                // did (its keys were lost): the writer undid nothing, and calling it undone would
+                // mark their slip as a word they meant.
+                guard item.settledLength != nil else { return item }
                 outcomes.append(.reverted(original: item.original, corrected: item.corrected))
                 return nil
             }
