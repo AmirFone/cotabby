@@ -29,7 +29,24 @@ final class SentenceProofreadingTests: XCTestCase {
     }
 
     func test_knownMisspellings_neverTouchesRealWordsOrSlang() {
-        for word in ["gonna", "wanna", "wont", "lets", "well", "its", "sed", "strait", "which", "with"] {
+        for word in ["gonna", "wanna", "wont", "lets", "well", "its", "sed", "strait", "which", "with", "planed", "siting"] {
+            XCTAssertNil(KnownMisspellings.fix(for: word), word)
+        }
+    }
+
+    func test_knownMisspellings_leavesSlipsWithTwoCommonReadingsToTheRanker() {
+        // `wher` is where or were, `whos` who's or whose, `wird` weird or word, `agen` again or
+        // agent, `sayed` said or stayed, `brot` brought or broth: the words before decide, or the bar.
+        for word in ["wher", "whos", "wird", "agen", "sayed", "brot"] {
+            XCTAssertNil(KnownMisspellings.fix(for: word), word)
+        }
+    }
+
+    func test_knownMisspellings_fixesARegularEndingOnAnIrregularVerb_whenThePastIsTheOnlyReading() {
+        XCTAssertEqual(KnownMisspellings.fix(for: "buyed"), "bought")
+        XCTAssertEqual(KnownMisspellings.fix(for: "Thinked"), "Thought")
+        // `goed` is went after `they` and gone after `have`.
+        for word in ["goed", "taked", "writed", "knowed", "runned"] {
             XCTAssertNil(KnownMisspellings.fix(for: word), word)
         }
     }

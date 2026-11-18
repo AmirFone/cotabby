@@ -1,11 +1,26 @@
 import Foundation
 
 /// File overview:
-/// Misspellings Cotabby fixes without guessing: a missing apostrophe (`dont` → `don't`) or a common
-/// sound-it-out spelling (`enuf` → `enough`, `becos` → `because`, `skool` → `school`). They are a
-/// single dictionary lookup, so they are instant, and every key is a spelling that is not itself a
-/// word, so applying the fix can never damage correct text. Sound-alikes that are real words (`cud`,
-/// `tuff`, `strait`, `sed`) are left to `RealWordErrorDetector`, which needs context to decide.
+/// Misspellings Cotabby fixes without guessing: a missing apostrophe (`dont` → `don't`), a common
+/// sound-it-out spelling (`enuf` → `enough`, `becos` → `because`, `skool` → `school`), or a regular
+/// ending on an irregular verb (`buyed` → `bought`). They are a single dictionary lookup, so they are
+/// instant, and the ranker lets a fix from here lead whatever the sentence says. That is why the
+/// bar for an entry is high, and has two parts:
+///
+/// - **The key is not a word anyone means.** Applying the fix must never damage correct text.
+///   Sound-alikes that are real words (`cud`, `tuff`, `strait`, `sed`) are left to
+///   `RealWordErrorDetector`, which needs context to decide, and so are `planed` and `siting`: both
+///   are usually `planned` and `sitting` with a letter dropped, but wood is planed and a building is
+///   sited, so they are offered and never changed. The few keys a dictionary does list (`cant`,
+///   `hight`, `wot`, `nite`, `calender`) are jargon or archaic spellings no one writing a message
+///   means.
+/// - **One word is meant essentially always.** A slip with two common readings belongs to the
+///   ranker, which reads the words before it and shows the bar when they do not settle it: `wher`
+///   is `where` or `were` (`they wher`), `whos` is `who's` or `whose`, `wird` is `weird` or `word`,
+///   `agen` is `again` or `agent`, `sayed` is `said` or `stayed`, `brot` is `brought` or `broth`.
+///   None of those is here. The second reading has to come from the same kind of mistake (a sound,
+///   a dropped letter or apostrophe); that some other word is one mistyped key away does not count,
+///   or nothing could be listed.
 ///
 /// The table complements, not replaces, the general engines: `PhoneticKey` finds sound-alikes for any
 /// common word, and SymSpell covers slips of one or two letters. Entries here are the spellings those
@@ -19,7 +34,7 @@ nonisolated enum KnownMisspellings {
         "im": "I'm", "ive": "I've", "youre": "you're", "youve": "you've", "youll": "you'll",
         "youd": "you'd", "theyre": "they're", "theyve": "they've", "theyll": "they'll", "theyd": "they'd",
         "weve": "we've", "thats": "that's", "whats": "what's", "wheres": "where's", "heres": "here's",
-        "theres": "there's", "whos": "who's", "hows": "how's", "itll": "it'll", "shes": "she's",
+        "theres": "there's", "hows": "how's", "itll": "it'll", "shes": "she's",
         "hes": "he's", "shouldve": "should've", "couldve": "could've", "wouldve": "would've",
         "mightve": "might've", "yall": "y'all"
     ]
@@ -33,7 +48,6 @@ nonisolated enum KnownMisspellings {
         "actualy": "actually",
         "adres": "address",
         "adress": "address",
-        "agen": "again",
         "agenst": "against",
         "akshually": "actually",
         "alittle": "a little",
@@ -68,7 +82,6 @@ nonisolated enum KnownMisspellings {
         "biznes": "business",
         "bizness": "business",
         "bootiful": "beautiful",
-        "brot": "brought",
         "bruther": "brother",
         "buisness": "business",
         "busness": "business",
@@ -238,7 +251,6 @@ nonisolated enum KnownMisspellings {
         "peple": "people",
         "pepole": "people",
         "pepul": "people",
-        "planed": "planned",
         "poeple": "people",
         "probally": "probably",
         "probaly": "probably",
@@ -270,7 +282,6 @@ nonisolated enum KnownMisspellings {
         "runing": "running",
         "rythm": "rhythm",
         "rythym": "rhythm",
-        "sayed": "said",
         "schedual": "schedule",
         "seperate": "separate",
         "seperatly": "separately",
@@ -290,7 +301,6 @@ nonisolated enum KnownMisspellings {
         "sirprise": "surprise",
         "sirtain": "certain",
         "sistor": "sister",
-        "siting": "sitting",
         "skedule": "schedule",
         "skool": "school",
         "skul": "school",
@@ -343,12 +353,10 @@ nonisolated enum KnownMisspellings {
         "werid": "weird",
         "werk": "work",
         "werld": "world",
-        "wher": "where",
         "whut": "what",
         "wierd": "weird",
         "wimen": "women",
         "wimmin": "women",
-        "wird": "weird",
         "wonderfull": "wonderful",
         "wos": "was",
         "wot": "what",
@@ -367,10 +375,24 @@ nonisolated enum KnownMisspellings {
         "yesturday": "yesterday"
     ]
 
+    /// A regular `-ed` on a verb whose past is irregular. Edit distance cannot find these (`buyed` is
+    /// four edits from `bought` and one from `buyer`), so without the entry the bar offers look-alikes.
+    /// Only verbs whose past tense and past participle are the same word are listed, because only then
+    /// is there one answer: `goed` is `went` after `they` and `gone` after `have`, and the table cannot
+    /// see which. Forms that are words (`leaved`, `payed`, `costed`) or one letter from another verb
+    /// (`standed`/stranded, `selled`/spelled, `catched`/cached) are left out too.
+    private static let regularizedPasts: [String: String] = [
+        "bringed": "brought", "buyed": "bought", "cutted": "cut", "feeled": "felt", "fighted": "fought",
+        "heared": "heard", "hitted": "hit", "holded": "held", "hurted": "hurt", "keeped": "kept",
+        "meaned": "meant", "meeted": "met", "sended": "sent", "shutted": "shut", "sleeped": "slept",
+        "spended": "spent", "teached": "taught", "telled": "told", "thinked": "thought",
+        "understanded": "understood", "winned": "won"
+    ]
+
     /// The certain fix for `word`, recased to match it (`I` contractions keep their capital), or nil.
     static func fix(for word: String) -> String? {
         let key = word.lowercased()
-        guard let fixed = contractions[key] ?? soundSpellings[key] else { return nil }
+        guard let fixed = contractions[key] ?? soundSpellings[key] ?? regularizedPasts[key] else { return nil }
         let recased = TypoCaseTransfer.applying(caseOf: word, to: fixed)
         return fixed.hasPrefix("I'") ? recased.replacingOccurrences(of: "i'", with: "I'") : recased
     }

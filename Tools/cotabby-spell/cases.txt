@@ -241,3 +241,42 @@ auto:Etc	etc. |
 ## Archaic spellings the system dictionary accepts but nobody means
 auto:height	what is the hight |
 auto:cheese	more cheez |
+
+## Battle test: word data
+# A slip with two common readings is not in the certain-misspellings table: the words before it
+# decide, and the bar shows both when they do not.
+auto:were	they wher |
+auto:were	Yesterday we wher |
+auto:where	I know wher |
+bar-has:were	wher |
+bar-has:whose	the dog whos |
+bar-has:who's	the dog whos |
+!auto	I know whos |
+auto:who's	guess whos |
+bar:brought	she brot |
+!auto	I called my brot |
+bar:weird	that is wird |
+bar:word	the last wird |
+bar:again	I will try agen |
+bar:agent	ask the agen |
+auto:said	he sayed |
+bar-has:stayed	we sayed |
+bar-has:said	we sayed |
+# `he'd` and `who's` are counted as the common words they are, so the bar can offer them
+bar:he'd	I think hed |
+bar-has:he'd	hed |
+auto:had	I hed |
+auto:head	she hit her hed |
+# Real words are offered, never changed: wood is planed and a building is sited
+!auto	the wood was planed |
+realword:planned	we planed |
+proceed	the siting |
+realword:sitting	I was siting |
+# A regular ending on an irregular verb, where the past tense is the only reading
+auto:bought	I buyed |
+auto:thought	he thinked |
+auto:taught	she teached |
+auto:brought	we bringed |
+auto:kept	I keeped |
+auto:understood	he understanded |
+!auto	they goed |
