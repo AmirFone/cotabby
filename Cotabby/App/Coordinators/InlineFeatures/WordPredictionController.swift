@@ -32,6 +32,20 @@ import Logging
 /// typo gate lets the word through; this controller predicts (`NextWordPredictor` through the
 /// injected closure), shows or hides the strip, learns finished sentences into
 /// `PersonalPhraseModel`, and types a picked word through the shared inserter.
+///
+/// A pick deletes the letters typed so far and types the word, so a pick planned against the wrong
+/// text is wrong text in the writer's document. Three rules keep that from happening:
+/// - The strip completes the word that ends at the caret. With a letter or digit right after the
+///   caret the writer is editing inside a word and there is no strip (`caretIsInsideAWord`); with
+///   anything else after it on the line the pick types the word without its space, which the text
+///   already there provides.
+/// - A pick acts only when the field holds the text the strip was drawn for (`textToReplace`).
+///   Accessibility reports a key some time after it was typed (30–400 ms in Chromium and Electron
+///   apps), so a read can be older than the strip. `expectedText` follows the keys themselves, and
+///   a re-read that disagrees with it drops the pick instead of counting backspaces against text
+///   the field no longer holds.
+/// - What is remembered about a text belongs to the field it was read in (`enterField`): Escape, a
+///   strip held back, a picked space and the line Return would learn all end with their field.
 @MainActor
 final class WordPredictionController: WordPredictionPresenting, InlineCaptureParticipant {
     struct Showing: Equatable {
@@ -41,6 +55,9 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
         /// A key was typed since this prediction; the field has moved on and it must be recomputed
         /// before a pick.
         var isStale = false
+        /// Predicted for the text a pick is about to leave in the field, before the host has
+        /// reported that text (see `textToReplace`).
+        var followsPick = false
     }
 
     private struct PendingDecision {
@@ -93,6 +110,15 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
     private var sentSentence: String?
     /// The text before the caret at the last settled keystroke; read when Return sends a line.
     private var lastNotedText = ""
+    /// The field (`focusChangeSequence`) the text state here was read in; nil when no supported
+    /// field has focus. See `enterField`.
+    private var fieldSequence: UInt64?
+    /// The text before the caret as the keys say it must be by now: the last settled read with
+    /// every key typed since applied (`text(_:afterTyping:)`), and after a pick the text that pick
+    /// leaves. Nil once a key was seen whose effect the key alone does not tell, until the next
+    /// settled read. It is never typed from or drawn from; it is what a read of the field is held
+    /// against, to tell a host that has published the writer's last keys from one that has not.
+    private var expectedText: String?
     /// Uptime of the last key seen, for the key-to-strip latency in the debug log.
     private var lastKeyUptimeNanoseconds: UInt64?
     /// The text before the caret that the strip on screen was predicted for. It can be a key ahead
@@ -167,15 +193,35 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
     // MARK: - WordPredictionPresenting
 
     func noteTypedText(_ precedingText: String, caretRect: CGRect, focusChangeSequence: UInt64) {
+        enterField(focusChangeSequence)
         keysSinceNote = 0
         lastNotedText = precedingText
+        expectedText = precedingText
         if let use = stripUse.typed(precedingText) { onStripUse?(use) }
         learnFinishedSentence(in: precedingText)
-        guard isEnabled(), !isSuppressed, let prediction = predict(precedingText) else {
-            hide(because: "nothing to predict for this text")
+        guard isEnabled(), !isSuppressed, !caretIsInsideAWord, let prediction = predict(precedingText) else {
+            hide(because: "nothing to predict for this text, or the caret is inside a word")
             return
         }
         showOrAwait(Showing(prediction: prediction, caretRect: caretRect, focusChangeSequence: focusChangeSequence), for: precedingText)
+    }
+
+    /// What this controller remembers about a text belongs to the field it was read in. When
+    /// another field has focus, or none, all of it goes: carried over, an Escape would silence the
+    /// first word typed in the next field, a strip held back for the language model would be drawn
+    /// over it, the Space after a pick would be swallowed there, and Return there would learn the
+    /// old field's line as sent.
+    ///
+    /// Called from both places a field is named: the focus stream, and `noteTypedText`, in case
+    /// text for a new field arrives before that field's snapshot has been delivered here.
+    private func enterField(_ sequence: UInt64?) {
+        guard sequence != fieldSequence else { return }
+        fieldSequence = sequence
+        isSuppressed = false
+        pickedText = nil
+        lastNotedText = ""
+        expectedText = nil
+        hide(because: "focus moved")
     }
 
     /// Shows the strip now, or holds it for a moment when the language model is about to say which
@@ -207,6 +253,9 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
         awaitTimeout = nil
         guard let held = awaited else { return }
         awaited = nil
+        // The focus stream only speaks when a snapshot changes, so `enterField` may not have
+        // heard of a move yet; the strip was held for one field and is drawn in no other.
+        guard focusModel.snapshot.context?.focusChangeSequence == held.showing.focusChangeSequence else { return }
         var next = held.showing
         if let prediction = predict(held.text) {
             next = Showing(
@@ -229,6 +278,7 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
               let prediction = predict(shownText), prediction.words != current.prediction.words else { return }
         var next = Showing(prediction: prediction, caretRect: current.caretRect, focusChangeSequence: current.focusChangeSequence)
         next.isStale = current.isStale
+        next.followsPick = current.followsPick
         show(next, for: shownText)
     }
 
@@ -258,6 +308,31 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
     // MARK: - Keys
 
     func observe(_ event: CapturedInputEvent) -> Bool {
+        guard !claims(event) else { return true }
+        // The key goes on to the app. A strip held back for the language model was predicted for
+        // the text before it, so it is stale like one on screen, and the text the field is
+        // expected to hold moves on with the key.
+        awaited?.showing.isStale = true
+        expectedText = expectedText.flatMap { Self.text($0, afterTyping: event) }
+        return false
+    }
+
+    /// What `text` before the caret becomes when `event` reaches the field, or nil when the key
+    /// alone does not tell. Only plain typing is followed: a character, with or without Shift, and
+    /// Delete. Escape changes no text. Everything else (an arrow, Return, Tab, a shortcut, input
+    /// that composes several characters) may move the caret or edit in a way only the host knows,
+    /// and the next settled read has to say what the field holds.
+    private static func text(_ text: String, afterTyping event: CapturedInputEvent) -> String? {
+        if event.keyCode == KeyCode.escape { return text }
+        let modifiers = ShortcutModifierMask(eventFlags: event.flags)
+        guard event.kind == .textMutation, modifiers.isEmpty || modifiers == .shift else { return nil }
+        if event.keyCode == KeyCode.delete { return String(text.dropLast()) }
+        guard event.characters.count == 1 else { return nil }
+        return text + event.characters
+    }
+
+    /// The strip's own handling of a key: true when it takes the key from the app.
+    private func claims(_ event: CapturedInputEvent) -> Bool {
         pendingDecision = nil
         lastKeyUptimeNanoseconds = DispatchTime.now().uptimeNanoseconds
         if [KeyCode.space, KeyCode.returnKey, KeyCode.keypadEnter].contains(event.keyCode) {
@@ -272,7 +347,7 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
         if claimPunctuationAfterPick(event, modifiers: modifiers) { return true }
         guard showing != nil else { return false }
         if modifiers == .option, let slot = KeyCode.digits.firstIndex(of: event.keyCode) {
-            return claim(event) { ModifierRelease.perform { self.commit(slot: slot) } }
+            return claimWord(inSlot: slot, for: event)
         }
         guard modifiers.isEmpty || modifiers == .shift else {
             hide(because: "a shortcut key")
@@ -380,17 +455,39 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
         armIdleTimeout()
     }
 
-    /// Tab or Return on the highlighted word. The word itself is carried, not its slot: if keys
-    /// typed since the strip was drawn change its words, a slot number would pick a word the writer
-    /// never saw highlighted.
+    /// Tab or Return on the highlighted word.
     private func claimHighlightedWord(_ event: CapturedInputEvent) -> Bool {
-        guard let words = showing?.prediction.words, words.indices.contains(arrowedSlot ?? 0) else { return false }
-        let word = words[arrowedSlot ?? 0]
+        guard let word = word(inSlot: arrowedSlot ?? 0) else { return false }
+        return claim(event) { self.commit(word: word) }
+    }
+
+    /// Option+digit on a slot. The key is taken even when the slot is empty, so the chord never
+    /// types its own character (`¡`, `™`) while a strip is up. The pick waits for Option to be let
+    /// go, and the language model may reorder the strip in that time, so the word in the slot now
+    /// is what is carried (see `commit(word:)`).
+    private func claimWord(inSlot slot: Int, for event: CapturedInputEvent) -> Bool {
+        let word = word(inSlot: slot)
         return claim(event) {
-            self.refreshIfStale()
-            guard let slot = self.showing?.prediction.words.firstIndex(of: word) else { return }
-            self.commit(slot: slot)
+            ModifierRelease.perform {
+                guard let word else { return }
+                self.commit(word: word)
+            }
         }
+    }
+
+    private func word(inSlot slot: Int) -> String? {
+        guard let words = showing?.prediction.words, words.indices.contains(slot) else { return nil }
+        return words[slot]
+    }
+
+    /// Types `word` if the strip still offers it. A pick from the keyboard is carried as the word,
+    /// not its slot: the strip can show other words by the time the pick runs (keys typed since it
+    /// was drawn, or the language model's answer arriving), and a slot number would then type a
+    /// word the writer never chose.
+    private func commit(word: String) {
+        refreshIfStale()
+        guard let slot = showing?.prediction.words.firstIndex(of: word) else { return }
+        commit(slot: slot)
     }
 
     /// Records that the tap should swallow this key and runs `action` one runloop turn later: posting
@@ -404,13 +501,20 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
 
     /// Keys typed since the strip was computed are in the field but not in the strip; re-read the
     /// field so a pick never lands on a prefix the writer has already extended.
+    ///
+    /// The re-read is only believed when it shows every key typed since (`expectedText`). A host
+    /// that publishes late still reports the text before those keys; a strip rebuilt from that
+    /// would count its backspaces against letters the field has already moved past (`wh` typed, `w`
+    /// read back, one backspace takes the `h`: `wwhich`). Then the pick is dropped, and so it is
+    /// after a key whose effect is not known. The strip comes back with the next settled read.
     private func refreshIfStale() {
         guard let current = showing, current.isStale else { return }
         focusModel.refreshNow()
         guard let context = focusModel.snapshot.context,
               context.focusChangeSequence == current.focusChangeSequence,
+              let expected = expectedText, Self.isSameText(context.precedingText, expected),
               let prediction = predict(context.precedingText) else {
-            hide(because: "the field changed before a pick and nothing fits it now")
+            hide(because: "the field changed before a pick, or does not show the last keys yet")
             return
         }
         show(
@@ -426,14 +530,22 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
         guard let current = showing, current.prediction.words.indices.contains(slot) else { return }
         let word = current.prediction.words[slot]
         let prefix = current.prediction.prefix
-        let precedingText = focusModel.snapshot.context?.precedingText ?? ""
-        guard precedingText.hasSuffix(prefix) else {
-            hide(because: "the field no longer ends with the typed letters")
+        guard let precedingText = textToReplace(under: current), precedingText.hasSuffix(prefix) else {
+            hide(because: "the field does not hold the text the strip was drawn for")
             return
         }
+        guard !caretIsInsideAWord else {
+            hide(because: "the caret is inside a word")
+            return
+        }
+        // With text already after the caret on its line, the pick types the word alone: that text
+        // starts with the space or the mark that follows the word (`I want| to go` must not become
+        // `I wanted  to go`).
+        let addsSpace = caretEndsItsLine
+        let typed = addsSpace ? word + " " : word
         let inserted = prefix.isEmpty
-            ? inserter.insert(word + " ")
-            : inserter.replace(deletingUTF16Count: prefix.utf16.count, with: word + " ")
+            ? inserter.insert(typed)
+            : inserter.replace(deletingUTF16Count: prefix.utf16.count, with: typed)
         guard inserted else {
             hide(because: "the pick could not be typed")
             return
@@ -441,15 +553,64 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
         onStripUse?(stripUse.picked(slot: slot, word: word, shown: current.prediction.words, textBefore: precedingText))
         // Predict the following word from the text the field is about to hold, so the next pick is
         // available before the host has even published this one.
-        let expected = String(precedingText.dropLast(prefix.count)) + word + " "
-        pickedText = expected
-        if let next = predict(expected) {
-            show(Showing(prediction: next, caretRect: current.caretRect, focusChangeSequence: current.focusChangeSequence), for: expected)
+        let expected = String(precedingText.dropLast(prefix.count)) + typed
+        expectedText = expected
+        // Only a pick that typed a space leaves one for the next key to fight with, and only then
+        // does a next word start at the caret.
+        pickedText = addsSpace ? expected : nil
+        if addsSpace, let next = predict(expected) {
+            var following = Showing(prediction: next, caretRect: current.caretRect, focusChangeSequence: current.focusChangeSequence)
+            following.followsPick = true
+            show(following, for: expected)
         } else {
-            hide(because: "nothing to predict after the pick")
+            hide(because: addsSpace ? "nothing to predict after the pick" : "the pick joined text that was already there")
         }
         focusModel.invalidateTransientCaretCaches()
         onCommitted?()
+    }
+
+    /// The text before the caret that a pick may delete from and type after, or nil when the field
+    /// is not known to hold what the strip was drawn for. A pick types blind (backspaces, then the
+    /// word), so the letters it deletes must be the ones the strip showed a completion for.
+    ///
+    /// Normally that means the field reads back as `shownText`. If it does not, the caret was put
+    /// elsewhere, the host changed the text, or another field has focus, and there is no pick.
+    ///
+    /// The one exception is a pick right after a pick (Tab, Tab). The strip is then already ahead
+    /// of the host: it was predicted for the text the first pick leaves, which the host reports
+    /// some time later. A field that still reads as an earlier part of that text is only behind
+    /// Cotabby's own keys, and the next word is planned from `shownText`. That is safe because such
+    /// a strip follows a space: nothing is deleted, the word is typed after keys already on their
+    /// way. Planning from the lagging read instead would lose the first pick from the text the
+    /// next strip and the punctuation fix are worked out from.
+    private func textToReplace(under current: Showing) -> String? {
+        guard let context = focusModel.snapshot.context, !context.isSecure,
+              context.focusChangeSequence == current.focusChangeSequence else { return nil }
+        if Self.isSameText(context.precedingText, shownText) { return context.precedingText }
+        let isBehindOwnPick = current.followsPick && current.prediction.prefix.isEmpty
+            && shownText.hasPrefix(context.precedingText)
+        return isBehindOwnPick ? shownText : nil
+    }
+
+    /// Whether two readings of the text before the caret are the same text, judged by their last
+    /// `comparedTailLength` characters. The focus reader keeps only the last few thousand
+    /// characters before the caret, so in a long document one typed key pushes a character out at
+    /// the front and the readings never match as wholes. A shorter text is compared whole, since
+    /// `suffix` then returns all of it.
+    private static func isSameText(_ one: String, _ other: String) -> Bool {
+        one.suffix(comparedTailLength) == other.suffix(comparedTailLength)
+    }
+
+    private static let comparedTailLength = 200
+
+    /// A letter or digit right after the caret: the writer is editing inside a word, or directly
+    /// in front of one. The strip only knows the letters before the caret, so a pick here would
+    /// complete the left half and leave the rest standing (`Please wr|old` → `Please wrong old`).
+    /// An apostrophe counts when a letter follows it (`don|'t`), not as a closing quote.
+    private var caretIsInsideAWord: Bool {
+        guard let trailing = focusModel.snapshot.context?.trailingText, let next = trailing.first else { return false }
+        if next.isLetter || next.isNumber { return true }
+        return (next == "'" || next == "’") && trailing.dropFirst().first?.isLetter == true
     }
 
     static let closingPunctuation: Set<Character> = [".", ",", "!", "?", ";", ":"]
@@ -459,6 +620,9 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
     func notePickAddedSpace(expectedText: String) {
         guard !expectedText.isEmpty else { return }
         pickedText = expectedText
+        // That panel took the key that picked, so `observe` never saw it; the field has moved on
+        // from the last settled read all the same.
+        self.expectedText = expectedText
     }
 
     /// Claims the very next key after a pick when it would fight the space the pick added: a closing
@@ -472,6 +636,11 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
         }
         guard modifiers.isEmpty || modifiers == .shift, event.characters.count == 1,
               let mark = event.characters.first, Self.closingPunctuation.contains(mark) else { return false }
+        // The mark is typed by `movePickSpace`, a moment from now and in one of two ways, so what
+        // the field holds is not known until it is read again; the strip on screen was predicted
+        // for the text before the mark.
+        showing?.isStale = true
+        expectedText = nil
         return claim(event) { self.movePickSpace(after: mark, expected: picked) }
     }
 
@@ -534,6 +703,14 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
     /// that does end in a period waits out `learnDelay` like any finished sentence (in an editor
     /// Return only starts a new line, and the sentence pass may still fix it), but is remembered as
     /// sent so that the field being cleared does not lose it.
+    ///
+    /// The line is `lastNotedText`, a read that can be a few keys old: most messages end with a
+    /// word followed at once by Return, and a host that publishes late (Slack, Chrome) has not
+    /// reported those last letters yet. It is learned all the same. Sent chat lines are the main
+    /// thing the strip learns from, and the learner vouches for each word on its own
+    /// (`PersonalPhraseModel.Vouching`), so a last word cut short (`jo` for `job`) is not counted
+    /// while the rest of the line is. A line typed in another field is never learned here:
+    /// `enterField` empties `lastNotedText` when focus moves.
     private func learnSentLine() {
         let line = (lastNotedText.split(whereSeparator: \.isNewline).last.map(String.init) ?? "")
             .trimmingCharacters(in: .whitespaces)
@@ -590,10 +767,12 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
     }
 
     private func handleFocusSnapshot(_ snapshot: FocusSnapshot) {
-        guard let current = showing else {
-            if snapshot.context == nil { isSuppressed = false }
-            return
-        }
+        // Before anything that depends on a strip being up: Escape, a held-back strip and the
+        // noted line outlive the strip, and must still end with their field. A secure field counts
+        // as no field. The snapshot handed in is used, not `focusModel.snapshot`: a `@Published`
+        // property tells its subscribers before it changes.
+        enterField(snapshot.context.flatMap { $0.isSecure ? nil : $0.focusChangeSequence })
+        guard let current = showing else { return }
         guard let context = snapshot.context,
               !context.isSecure,
               context.focusChangeSequence == current.focusChangeSequence else {
