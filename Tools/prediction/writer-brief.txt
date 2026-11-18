@@ -62,3 +62,34 @@ misspelled copy; these are for prediction only. Themes:
   28 a customer writing at length: complaints, requests, reviews
   29 short essays and opinions on everyday subjects
 Even-numbered writers are the tuning half, odd-numbered the test half (merge_documents.py).
+
+One writer over three weeks (writers/w00.jsonl to w19.jsonl)
+
+A third set, to test what neither of the others can: whether the predictor learns one writer's
+recurring working vocabulary over time. Twenty writers, each one specific person in one job, each
+wrote 60 texts of 15 to 60 words in the order they would have been typed over about three weeks.
+The same handful of projects, systems, tools, tasks and colleagues come back through a writer's
+texts while new subjects appear and old ones fade, and about a third of the texts are ordinary talk
+(scheduling, thanks, lunch). Correct spelling, plain ASCII, invented names only. One JSON object
+per line with a "text". Jobs, in file order:
+  00 backend engineer who maintains data pipelines and SQL reports
+  01 hospital ward nurse
+  02 frontend web engineer on a design-system team
+  03 paralegal at a small litigation firm
+  04 site reliability engineer who is often on call
+  05 high school science teacher
+  06 data analyst at a retail company
+  07 bookkeeper for several small businesses
+  08 QA engineer testing a mobile app
+  09 kitchen manager at a busy restaurant
+  10 machine learning engineer training ranking models
+  11 B2B sales representative selling logistics software
+  12 engineering manager of a platform team
+  13 biology graduate student running lab experiments
+  14 IT helpdesk administrator at a mid-size office
+  15 construction site supervisor
+  16 technical writer documenting an API product
+  17 customer support agent for a subscription service
+  18 product manager for a payments feature
+  19 property manager for apartment buildings
+Writers 00 to 09 are for tuning, 10 to 19 are scored only.

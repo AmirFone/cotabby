@@ -20,6 +20,10 @@ struct PredictionHarness {
     let hardWords: Set<String>
     /// The word language model, run in step with the simulated typing (`--lm`); nil without it.
     let languageModel: SynchronousLanguageModel?
+    /// Writes every typing moment down for `Tools/prediction/lab` (TYPING_MOMENTS); nil otherwise.
+    var recorder: MomentRecorder?
+    /// Which words of a typed text `--typing --adaptive` learns (ADAPT_LEARN).
+    let learning: SimulatedLearning
 
     static func make(
         resourceRoot: URL,
@@ -55,35 +59,54 @@ struct PredictionHarness {
         )
         let hardWords = Set(((try? String(contentsOf: resourceRoot.appendingPathComponent("commonly_misspelled_en.txt"), encoding: .utf8)) ?? "")
             .split(separator: "\n").filter { !$0.hasPrefix("#") }.map(String.init))
-        return PredictionHarness(sources: NextWordPredictor.Sources(
-            model: model,
-            completions: { corrector.completions(of: $0, limit: $1) },
-            personal: { phrases?.nextWords(after: $0) },
-            personalWords: { phrases?.words(startingWith: $0) },
-            fuzzyCompletions: { prefix, limit in
-                guard ProcessInfo.processInfo.environment["NO_FUZZY"] == nil else { return [] }
-                return corrector.fuzzyCompletions(of: prefix, limit: limit)
-            },
-            isHardToSpell: { ProcessInfo.processInfo.environment["NO_HARD"] == nil && hardWords.contains($0) },
-            languageModel: { languageModel?.scores(forTextBefore: $0) },
-            isKnownWord: { supplement.contains($0) },
-            usualCapitals: { capitals[$0] },
-            americanSpellings: americanSpellings,
-            mix: mixFromEnvironment()
-        ), phrases: phrases, hardWords: hardWords, languageModel: languageModel)
+        func sources(learning phrases: PersonalPhraseModel?) -> NextWordPredictor.Sources {
+            NextWordPredictor.Sources(
+                model: model,
+                completions: { corrector.completions(of: $0, limit: $1) },
+                personal: { phrases?.nextWords(after: $0) },
+                personalWords: { phrases?.words(startingWith: $0) },
+                fuzzyCompletions: { prefix, limit in
+                    guard ProcessInfo.processInfo.environment["NO_FUZZY"] == nil else { return [] }
+                    return corrector.fuzzyCompletions(of: prefix, limit: limit)
+                },
+                isHardToSpell: { ProcessInfo.processInfo.environment["NO_HARD"] == nil && hardWords.contains($0) },
+                languageModel: { languageModel?.scores(forTextBefore: $0) },
+                isKnownWord: { supplement.contains($0) },
+                usualCapitals: { capitals[$0] },
+                americanSpellings: americanSpellings,
+                personalTotal: { phrases?.totalWords ?? 0 },
+                personalSpread: { phrases?.spread(of: $0) ?? 0 },
+                generalCount: { corrector.count(of: $0) },
+                mix: mixFromEnvironment()
+            )
+        }
+        let recorder = MomentRecorder.fromEnvironment(
+            unlearned: sources(learning: nil), phrases: phrases,
+            frequencies: resourceRoot.appendingPathComponent("frequency_dictionary_en_82_765.txt")
+        )
+        return PredictionHarness(
+            sources: sources(learning: phrases), phrases: phrases, hardWords: hardWords, languageModel: languageModel,
+            recorder: recorder,
+            learning: SimulatedLearning(isDictionaryWord: { corrector.isDictionaryWord($0) }, isListedWord: { supplement.contains($0) })
+        )
     }
 
     private static let noSupplement = ProcessInfo.processInfo.environment["NO_SUPPLEMENT"] != nil
     /// NO_TECHNICAL=1 leaves out the software-engineering terms, to measure what they change.
     private static let noTechnical = ProcessInfo.processInfo.environment["NO_TECHNICAL"] != nil
 
-    /// MIX_TABLE_WEIGHT, MIX_SLIP_PENALTY, MIX_CANDIDATES: try other numbers without rebuilding.
+    /// MIX_TABLE_WEIGHT, MIX_SLIP_PENALTY, MIX_CANDIDATES, MIX_HABITS…: try other numbers without rebuilding.
     private static func mixFromEnvironment() -> NextWordPredictor.LanguageModelMix {
         let environment = ProcessInfo.processInfo.environment
         var mix = NextWordPredictor.LanguageModelMix()
         if let value = environment["MIX_TABLE_WEIGHT"].flatMap(Double.init) { mix.tableWeight = value }
         if let value = environment["MIX_SLIP_PENALTY"].flatMap(Double.init) { mix.slipPenalty = value }
         if let value = environment["MIX_CANDIDATES"].flatMap(Int.init) { mix.modelCandidates = value }
+        // MIX_HABITS=0: the order without what the writer's history adds, to measure what it adds.
+        if environment["MIX_HABITS"] == "0" { mix.habits = .off }
+        if let value = environment["MIX_RATE_WEIGHT"].flatMap(Double.init) { mix.habits.rateWeight = value }
+        if let value = environment["MIX_PHRASE_WEIGHT"].flatMap(Double.init) { mix.habits.phraseWeight = value }
+        if let value = environment["MIX_LONG_PHRASE_WEIGHT"].flatMap(Double.init) { mix.habits.longPhraseWeight = value }
         return mix
     }
 
@@ -239,6 +262,50 @@ struct PredictionHarness {
     }
 }
 
+/// What a simulated writer's finished sentences teach the strip, in one of three ways, to put a
+/// number on the rule the app uses (ADAPT_LEARN):
+///   all       every lowercase word, the most there is to learn (the default, an upper bound)
+///   word      what the app learns: each word the dictionary or a bundled list has, and a word
+///             neither has from its second text on (standing in for the writer's vocabulary,
+///             which in the app also needs the system spelling checker to accept the word)
+///   sentence  what the app learned before: only sentences made entirely of dictionary words
+@MainActor
+final class SimulatedLearning {
+    private let mode = ProcessInfo.processInfo.environment["ADAPT_LEARN"] ?? "all"
+    private let isDictionaryWord: (String) -> Bool
+    private let isListedWord: (String) -> Bool
+    /// Texts each unlisted word has appeared in so far.
+    private var unlistedUses: [String: Int] = [:]
+
+    init(isDictionaryWord: @escaping (String) -> Bool, isListedWord: @escaping (String) -> Bool) {
+        self.isDictionaryWord = isDictionaryWord
+        self.isListedWord = isListedWord
+    }
+
+    /// Learns the sentences of one typed text.
+    func learn(_ sentences: [String], into phrases: PersonalPhraseModel) {
+        switch mode {
+        case "sentence":
+            phrases.learn(text: sentences.filter { sentence in
+                let tokens = NextWordPredictor.contextTokens(of: sentence).dropFirst()
+                return tokens.count >= 2 && tokens.allSatisfy { $0.hasPrefix("<") || isDictionaryWord($0) }
+            })
+        case "word":
+            for word in Set(sentences.flatMap { NextWordPredictor.tokens(in: Substring($0)) }.map { $0.lowercased() })
+            where !isDictionaryWord(word) && !isListedWord(word) {
+                unlistedUses[word, default: 0] += 1
+            }
+            let uses = unlistedUses
+            phrases.learn(text: sentences, vouching: PersonalPhraseModel.Vouching(
+                isWord: { [isDictionaryWord, isListedWord] in isDictionaryWord($0) || isListedWord($0) || uses[$0, default: 0] >= 2 },
+                isOwnName: { [isListedWord] in isListedWord($0) || uses[$0, default: 0] >= 2 }
+            ))
+        default:
+            phrases.learn(text: sentences)
+        }
+    }
+}
+
 /// The app asks the language model in the background and redraws when the answer arrives; the
 /// harness simply waits for it, which scores what the writer sees once the answer is there.
 @MainActor
@@ -342,17 +409,29 @@ extension PredictionHarness {
         var spelling = SpellingTally()
         var groups: [String: TypingTally] = [:]
         let started = DispatchTime.now().uptimeNanoseconds
-        for item in texts {
+        // LM_HISTORY=<characters>: each text is typed below the end of the texts before it, as if
+        // the model were also shown what the writer wrote last, to measure what that is worth.
+        let historyLength = ProcessInfo.processInfo.environment["LM_HISTORY"].flatMap(Int.init) ?? 0
+        // LM_HISTORY_FROM=<texts>: the texts shown are another writer's, the control that tells
+        // "the model knows this writer" from "the model has read something".
+        let strangers = ProcessInfo.processInfo.environment["LM_HISTORY_FROM"]
+            .flatMap { Self.loadTexts(path: $0, limit: limit) }?.map(\.text)
+        var earlier: [String] = []
+        for (position, item) in texts.enumerated() {
             var tally = TypingTally()
-            simulateTyping(item.text, families: families, into: &tally)
-            for slip in item.slips { typeMisspelling(slip.wrong, meaning: slip.right, after: slip.before, into: &tally) }
+            let shown = strangers.map { Array($0.prefix(position)) } ?? earlier
+            let history = Self.history(of: shown, characters: historyLength)
+            simulateTyping(history + item.text, from: history.count, families: families, into: &tally)
+            for slip in item.slips { typeMisspelling(slip.wrong, meaning: slip.right, after: history + slip.before, into: &tally) }
+            earlier.append(item.text)
             if let decide {
                 for slip in item.slips { finishMisspelling(slip, decide: decide, into: &spelling) }
             }
             // With `--adaptive` the text is learned after it is typed, like the app does.
             if let phrases {
-                item.text.split(whereSeparator: { ".!?\n".contains($0) }).forEach { phrases.learn(sentence: String($0)) }
+                learning.learn(item.text.split(whereSeparator: { ".!?\n".contains($0) }).map(String.init), into: phrases)
             }
+            recorder?.finished(text: item.text)
             Self.add(tally, to: &total)
             if let group = item.group { Self.add(tally, to: &groups[group, default: TypingTally()]) }
         }
@@ -457,8 +536,20 @@ extension PredictionHarness {
         total.nameFirstAsWritten += tally.nameFirstAsWritten
     }
 
-    private func simulateTyping(_ text: String, families: [String: [String]], into tally: inout TypingTally) {
-        var index = text.startIndex
+    /// The latest whole texts that fit in `characters`, oldest first, each on its own line.
+    private static func history(of texts: [String], characters: Int) -> String {
+        var kept: [String] = []
+        var length = 0
+        for text in texts.reversed() {
+            guard length + text.count + 1 <= characters else { break }
+            kept.append(text)
+            length += text.count + 1
+        }
+        return kept.reversed().map { $0 + "\n" }.joined()
+    }
+
+    private func simulateTyping(_ text: String, from start: Int = 0, families: [String: [String]], into tally: inout TypingTally) {
+        var index = text.index(text.startIndex, offsetBy: start)
         var startsSentence = true
         var namesSeen = Set<String>()
         while index < text.endIndex {
@@ -501,6 +592,7 @@ extension PredictionHarness {
         var keys = raw.count + 1
         for letters in 0...min(raw.count - 1, Self.lettersTracked) {
             let shown = shownWords(before + raw.prefix(letters), &tally)
+            recorder?.record(textBefore: before + raw.prefix(letters), letters: letters, target: target, shown: shown, sources: sources)
             tally.moments[letters] += 1
             if shown.first == target {
                 tally.firstRight[letters] += 1

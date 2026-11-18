@@ -1,0 +1,60 @@
+{"text": "Hey Marisol, quick one. Did the idempotency key section for Ledgerline get reviewed yet? I want to ship the reference page before Thursday's freeze."}
+{"text": "Thanks Teodor, that fixed the 409 example. The retry snippet still shows the old header name though, can you check it before I cut the draft?"}
+{"text": "Lunch today? I am stuck in the Corvid review until about 1 and then I have to re-run the Tessera build, so maybe 1:30 at the place near the office."}
+{"text": "Ingrid asked whether the pagination cursor should be opaque in the Python SDK docs. My answer is yes, we never expose the raw offset, so the example needs a note about that."}
+{"text": "Sorry for the late reply, I was out Monday. Reading the Ledgerline changelog now and it looks like the webhook retry change got merged into the wrong section."}
+{"text": "Nice work on the sandbox walkthrough, Lukas. Two small things: step four assumes the tenant already has a test card, and the screenshot is still from the old Heron dashboard."}
+{"text": "Quick question for the group. Do we still call it a tombstone when a Corvid scope is retired, or is that term only for deleted webhook endpoints? I want the glossary to be consistent."}
+{"text": "Bea wants the deprecation window on the v1 charges endpoint moved to March. I said fine if Teodor confirms the sunset header is already live in staging, otherwise we are stuck with the current date."}
+{"text": "Thanks everyone for covering the Friday office hours. I owe you all a coffee. Sending the Ledgerline recap to the team channel tonight."}
+{"text": "The error envelope in the Tessera output drops the request_id field for 5xx responses. Is that a bug in the generator or did someone hand-edit the template? I cannot tell from the diff."}
+{"text": "Lukas, can you pull the rate bucket numbers for the free sandbox tier? The table in the quickstart says 100 per minute but Marisol told me the limit moved last sprint."}
+{"text": "Had a long coffee with Bea about the docs site migration. We agreed to keep Docusaurus for one more quarter, which is not what I wanted but it is fine. Ping me if the build breaks again."}
+{"text": "Enum drift again. The status field on Ledgerline invoices now has seven values in the spec and five in the reference table. Teodor says the two new ones are internal only, so we should either hide them or document them."}
+{"text": "Any chance you can review the Corvid scope table before end of day? I rewrote the descriptions for the read and write scopes and I want a second pair of eyes on the wording."}
+{"text": "Ingrid, the TypeScript SDK snippet for webhook replay is missing the await. It compiles but the promise is dropped, so the example looks like it succeeded when it did not. Can you fix it in the next Tessera pass?"}
+{"text": "Sorry, running late. Traffic on the bridge is bad. Start without me if the release call starts before 10."}
+{"text": "The migration guide for the charges endpoint needs a before and after example for the idempotency header. Right now it only shows the after. Marisol wants both so customers can diff them."}
+{"text": "Kwabena says the staging Heron tenant was reset over the weekend, so anything you left there is gone. The seed script is in the repo again if you need to reload the fixtures."}
+{"text": "Does anyone know the right name for the field that holds the retry count in the webhook delivery log? Teodor calls it attempt, the schema says attempts, and the example uses retries. I'll pick one and fix the other two."}
+{"text": "Thanks for the quick turnaround on the pagination fix. The cursor docs read much better now, and I am going to use the same wording in the Tessera README. Have a good weekend."}
+{"text": "Dentist appointment moved to Thursday at 8, so I will be offline until about 9:30. If the Corvid token rotation breaks in the meantime, Kwabena knows the runbook."}
+{"text": "The changelog draft for Ledgerline 4.2 has an entry for the new idempotency TTL but no migration note. Anyone who relied on the old 24 hour default will be surprised, so that line needs a warning."}
+{"text": "Quick heads up. I pushed the stub response generator change to the docs branch. The mock server now returns 402 for declined cards instead of 400, so the sandbox examples need updating too."}
+{"text": "Went to the Fenwick Creek trail with the kids on Saturday, and the mud was unreal. Not a single clean pair of shoes left. Next time we are going up the other side."}
+{"text": "Ingrid wants to know if the Go client should expose a retry helper or leave retries to the caller. I lean toward leaving it out, since the webhook replay docs already explain backoff and two places would drift."}
+{"text": "Marisol approved the new error envelope shape, so the reference page can go out Monday. Please make sure the request_id is present on every 5xx example, including the ones in the Heron sandbox section."}
+{"text": "Lukas's screenshot tool is still producing blurry images on the retina display. Can you check whether the device scale factor is set in the capture config? Otherwise the diagram text is unreadable at print size."}
+{"text": "Anyone want to split a pizza tonight? Buying for the release crew since we stayed late. Let me know by 5 so I can order before the rush."}
+{"text": "The webhook delivery log now records the signature header for every attempt. That is useful for debugging but it also means the log includes secrets if we are not careful, so Teodor is adding a redaction step before the docs go live."}
+{"text": "The quickstart still says to install the CLI with pip, but the Tessera release moved to a standalone binary last week. I will rewrite the install block and ask Lukas to test it on a clean machine."}
+{"text": "Heads up, the Corvid client credentials doc has the wrong grant type for server to server calls. It says authorization_code but it should say client_credentials. Can you correct it before the partner newsletter goes out?"}
+{"text": "Lunch was great, thanks for picking the place. I think we should do this monthly, maybe rotate who chooses. Also Ingrid said she would send the Corvid diagram she mentioned, so keep an eye out."}
+{"text": "The webhook replay section is confusing because it describes the replay window twice with different numbers. Which one is right? I think it is 72 hours, but the scheduler config still says 48."}
+{"text": "Good morning. Ingrid pushed the Java SDK build but the javadoc links are broken on the pagination class. Probably the same generator bug as last week. Can you take a look when you get a chance?"}
+{"text": "I keep reading the same sentence in the Corvid overview and it does not land. Something like \"scopes are the unit of consent\" is accurate, but I think readers will skip it. Trying a version with a concrete example tonight."}
+{"text": "Teodor, the 429 response in the sandbox returns a retry_after value in seconds, but production returns milliseconds. That mismatch is going to bite someone. Should we normalize it or document it as is?"}
+{"text": "Did the Heron sandbox get the fix for the test card decline codes? Lukas says the 402 path still returns the old message. I need a yes or no before I write the troubleshooting section."}
+{"text": "Sorry, I missed the call. My phone died on the train. Happy to take notes if someone can send me the action items, or I can read the recording tomorrow morning."}
+{"text": "Ledgerline 4.2 is cut and in the staging branch. Kwabena is running the soak test overnight. If it passes, I will mark the release notes as final and send them to Bea for the customer email."}
+{"text": "Pick up the good coffee beans on the way in please, the office ones are gone again. Also the Tuesday standup moved to 9:15 because Ingrid is out for a school run. Thanks."}
+{"text": "Ingrid, the Java javadoc fix is in. Can you rerun the Tessera build on the release branch so I can see the links resolve before Kwabena cuts the tag?"}
+{"text": "Going to be out Thursday and Friday for my sister's wedding. Lukas has the Heron sandbox rotation and Marisol has the release sign off, so ping them if anything is on fire."}
+{"text": "Anyone know a good place near the office for a birthday lunch on Friday? Bea is turning 40 and wants something without a long wait."}
+{"text": "Corvid scope rewrite is merged. The read scopes now say what the caller can see, not what the database table is called. Please flag anything that still reads like internal naming when you do your pass."}
+{"text": "The SOC 2 evidence request came in and it asks for the change log of every public API version since January. Bea says the auditors only want the last two quarters, so I'll check with them before I pull anything."}
+{"text": "Finally got the couch delivered. It took three tries and a grumpy driver, but it fits in the living room, which is more than I expected."}
+{"text": "Lunch tomorrow? I would like to talk about the Heron sandbox versioning without a screen between us. Somewhere quiet, not the noodle place that is always loud on Wednesdays."}
+{"text": "The webhook replay window is now 72 hours everywhere, including the scheduler config. Teodor merged it this morning. Old retry docs still mention 48 in two places, so I am hunting those down before the freeze."}
+{"text": "Did you ever get your car looked at? The tire pressure light was on when you got in yesterday. Let me know if you want me to drive you to the shop Saturday, I have nothing going on."}
+{"text": "The idempotency TTL in the Ledgerline reference says 24 hours but the server code says 72. Which one did we ship? I need to know before I touch the migration note again, because I already wrote it twice."}
+{"text": "Thanks for covering the on-call shift this week. Everything went quietly except the one Heron tenant that kept timing out, which Kwabena traced to a stale DNS entry. You owe me nothing, but I owe you dinner."}
+{"text": "The screenshot tool Lukas maintains still blurs on retina. Can someone confirm whether the capture config still lives in the docs repo or moved to the platform repo? I cannot find it in either place I checked."}
+{"text": "Happy birthday Bea! Hope the cake was worth the wait. We are all very glad you keep this place running, so take the afternoon off if you want to."}
+{"text": "The Tessera codegen fails on any operation with a path parameter that contains a dot. Repro is in the ticket. Ingrid thinks it is the regex in the template, and I think it is the parser. Let's settle it in standup."}
+{"text": "Can't make the 3pm. My kid's school called and I need to pick her up early. I'll read the notes tonight and comment on the Corvid PR tomorrow morning, promise."}
+{"text": "The partner onboarding page still tells people to request a sandbox key from the old support form, which was shut down in May. Can you point it at the new form before the partner webinar? I don't want anyone stuck on day one."}
+{"text": "Quick sanity check on the release notes draft. Under 4.2 we say \"fixed a rare double charge\", but the ticket says the fix only covers the Heron sandbox. Can we say sandbox or cut the line entirely?"}
+{"text": "Sorry the bus was late again, so I missed the first ten minutes. Can we move the Thursday 1:1 to 2 if that works? I will bring the good coffee beans."}
+{"text": "The Ledgerline 4.2 soak test passed overnight, so the release notes are final. Bea sent the customer email draft, and I have marked it approved. Please do not change the TTL wording now."}
+{"text": "Long week, glad it is almost over. Anyone up for a walk along the creek Friday after standup? Weather looks decent, and I promise to pick a path that does not turn into a swamp this time."}

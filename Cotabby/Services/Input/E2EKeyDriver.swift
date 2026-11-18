@@ -172,6 +172,15 @@ nonisolated final class E2EKeyDriver: @unchecked Sendable {
             event.post(tap: .cghidEventTap)
             if isDown { usleep(8_000) }
         }
+        // The login session goes on reporting the modifiers of the last event it saw. A run that
+        // ended on a shortcut (Control+Option+8) left both "held" until someone touched the real
+        // keyboard: the app's picks then waited out `ModifierRelease`, and unit tests that read the
+        // keyboard failed. Saying that the modifiers are up again ends that.
+        if !flags.isEmpty, let release = CGEvent(source: source) {
+            release.type = .flagsChanged
+            release.flags = []
+            release.post(tap: .cghidEventTap)
+        }
         return true
     }
 

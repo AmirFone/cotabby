@@ -47,6 +47,14 @@ nonisolated enum NextWordPredictor {
         /// Set where the writer spells the American way: `travelling` is offered as `traveling`,
         /// once. Nil offers whatever the lists hold.
         var americanSpellings: AmericanSpellings?
+        /// How many words the writer has typed in everything learned from them so far.
+        var personalTotal: () -> Int = { 0 }
+        /// In how many of the writer's finished texts a word has appeared. A word typed fifty times
+        /// in one of them has a spread of one: a burst, not yet a habit.
+        var personalSpread: (String) -> Int = { _ in 0 }
+        /// A word's count in the frequency dictionary (0: not in it), for comparing how often this
+        /// writer uses a word with how often English does.
+        var generalCount: (String) -> Int = { _ in 0 }
         /// How the language model's answer and the table are combined. The app uses the defaults;
         /// the harness varies them to measure (`Tools/prediction/README.md`).
         var mix = LanguageModelMix()
@@ -70,7 +78,43 @@ nonisolated enum NextWordPredictor {
         /// points of first-suggestion accuracy from four letters on; 0.00001 cost five points of
         /// "still offers the word after a misspelled start".
         var slipPenalty = 0.005
+        /// What the writer's habits add to a word's score (`withWritersHabits`). Every number was
+        /// chosen on five invented writers and checked on fifteen others, on general documents and
+        /// on a day of one real writer's sentences (`Tools/prediction/README.md`).
+        var habits = Habits()
     }
+
+    /// How much the writer's own history may move a word (see `withWritersHabits`).
+    struct Habits: Equatable, Sendable {
+        /// Weight of the writer's rate of a word against its rate in general English. 0 turns the
+        /// whole of it off, and the order is the model's.
+        var rateWeight = 0.8
+        /// Pseudo-count on both sides of that ratio: one use of a rare word is a hint, not a habit.
+        var ratePrior = 2.0
+        /// The least and the most the log-ratio may be. A common word the writer has not needed yet
+        /// loses a little; no word gains without limit however often it was typed.
+        var rateFloor = -0.5
+        var rateCeiling = 4.0
+        /// Uses of a word counted per text it appeared in, beyond what general English expects: a
+        /// pasted page or one long afternoon on one subject does not become a lasting habit.
+        var usesCountedPerText = 3.0
+        /// Weight of ln(1 + times the writer typed this word after the last word), and after the
+        /// last two or three, which is surer evidence and weighs more.
+        var phraseWeight = 0.75
+        var longPhraseWeight = 2.0
+        /// How often the writer must have written the words before for one sighting after them to
+        /// count half: after `the`, which they write all day, one `the report` says little.
+        var commonContext = 50.0
+        /// What the phrase evidence is multiplied by before any letter is typed, when every word of
+        /// the language is still possible and a few sightings prove least.
+        var phraseTrustBeforeLetters = 0.5
+
+        static let off = Habits(rateWeight: 0, phraseWeight: 0, longPhraseWeight: 0)
+    }
+
+    /// The sum of the counts in the bundled frequency dictionary, which turns a word's count into
+    /// how often it comes up in general English.
+    static let generalWordTotal = 541_808_760_578.0
 
     static let maximumWords = 5
     static let maximumContext = 3
@@ -93,20 +137,13 @@ nonisolated enum NextWordPredictor {
     /// Extra value, in keys, of picking a commonly misspelled word: the correction avoided.
     static let hardWordBonusKeys = 3.0
     static func predict(textBefore: String, sources: Sources) -> NextWordPrediction? {
-        guard let parsed = parse(textBefore),
-              !isOtherLanguage(textBefore, model: sources.model, isKnownWord: sources.isKnownWord) else { return nil }
-        let prefix = parsed.prefix.lowercased().replacingOccurrences(of: "’", with: "'")
-        // Read `dont` and `becos` as the words they certainly are, so the context still matches.
-        let contextWords = parsed.context.map { KnownMisspellings.fix(for: $0)?.lowercased() ?? $0 }
-        let fuzzyWords = prefix.count >= fuzzyMinimumPrefix ? sources.fuzzyCompletions(prefix, fuzzyLimit) : []
-        let fuzzy = Set(fuzzyWords.filter { !$0.hasPrefix(prefix) })
-        var scores = backoffScores(context: contextWords, prefix: prefix, fuzzy: fuzzy, sources: sources)
-            .filter { !UnofferedWords.contains($0.key) }
-        scores.removeValue(forKey: prefix)
+        guard let inputs = inputs(textBefore: textBefore, sources: sources) else { return nil }
+        let parsed = inputs.parsed, prefix = inputs.prefix, fuzzyWords = inputs.fuzzyWords, scores = inputs.tableScores
         if let languageModel = sources.languageModel(textBefore) {
-            let ranked = wordsRanked(
+            let candidates = candidateScores(
                 by: languageModel, tableScores: scores, prefix: prefix, fuzzyWords: fuzzyWords, mix: sources.mix
             )
+            let ranked = wordsRanked(withWritersHabits(candidates, prefix: prefix, context: inputs.context, sources: sources))
             let words = inPreferredSpelling(ranked, prefix: prefix, sources: sources)
             return prediction(words, parsed: parsed, textBefore: textBefore) {
                 languageModel.display(of: $0) ?? sources.usualCapitals($0)
@@ -145,6 +182,51 @@ nonisolated enum NextWordPredictor {
         )
     }
 
+    /// What both orderings start from: the letters typed, the words before them, and the table's
+    /// score for every word that fits.
+    private struct Inputs {
+        let parsed: Parsed
+        let prefix: String
+        let context: [String]
+        let fuzzyWords: [String]
+        let tableScores: [String: Double]
+    }
+
+    private static func inputs(textBefore: String, sources: Sources) -> Inputs? {
+        guard let parsed = parse(textBefore),
+              !isOtherLanguage(textBefore, model: sources.model, isKnownWord: sources.isKnownWord) else { return nil }
+        let prefix = parsed.prefix.lowercased().replacingOccurrences(of: "’", with: "'")
+        // Read `dont` and `becos` as the words they certainly are, so the context still matches.
+        let contextWords = parsed.context.map { KnownMisspellings.fix(for: $0)?.lowercased() ?? $0 }
+        let fuzzyWords = prefix.count >= fuzzyMinimumPrefix ? sources.fuzzyCompletions(prefix, fuzzyLimit) : []
+        let fuzzy = Set(fuzzyWords.filter { !$0.hasPrefix(prefix) })
+        var scores = backoffScores(context: contextWords, prefix: prefix, fuzzy: fuzzy, sources: sources)
+            .filter { !UnofferedWords.contains($0.key) }
+        scores.removeValue(forKey: prefix)
+        return Inputs(parsed: parsed, prefix: prefix, context: contextWords, fuzzyWords: fuzzyWords, tableScores: scores)
+    }
+
+    /// Every word the language model's ordering considers for this text, with its score before the
+    /// writer's own word counts are mixed in. For `cotabby-spell` (`TYPING_MOMENTS`), which writes
+    /// these down once so other ways of ordering them can be measured without running the model
+    /// again. Nil when there is nothing to predict or the model has no answer.
+    struct Candidates {
+        let prefix: String
+        /// The words before the caret as the tables key them, oldest first.
+        let context: [String]
+        let scores: [String: Double]
+    }
+
+    static func candidates(textBefore: String, sources: Sources) -> Candidates? {
+        guard let inputs = inputs(textBefore: textBefore, sources: sources),
+              let languageModel = sources.languageModel(textBefore) else { return nil }
+        let scores = candidateScores(
+            by: languageModel, tableScores: inputs.tableScores, prefix: inputs.prefix, fuzzyWords: inputs.fuzzyWords,
+            mix: sources.mix
+        )
+        return Candidates(prefix: inputs.prefix, context: inputs.context, scores: scores)
+    }
+
     /// The first five of `words` in the spelling the writer uses (see `AmericanSpellings`): a
     /// British spelling becomes the American one, a word then listed twice is listed once, and the
     /// letters typed are never offered back as the whole suggestion.
@@ -176,17 +258,25 @@ nonisolated enum NextWordPredictor {
     /// Likeliest first, not "most keys saved" first: the model is right often enough that the first
     /// slot should simply be the word, and it is what makes the right verb form come before the
     /// wrong ones (`walked` before `walking` after `Yesterday I`).
+    private static func wordsRanked(_ scores: [String: Double]) -> [String] {
+        scores.sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }
+            // A few more than are shown: two spellings of one word may fold into one slot.
+            .prefix(maximumWords + 3)
+            .map(\.key)
+    }
+
+    /// The score of every candidate: the model's log-probability plus a little of the table's.
     ///
     /// Candidates are everything the table scored for these letters, the model's own best words for
     /// them, and the forgiven misspelled starts. A word the model's dictionary does not have (a name
     /// the writer taught Cotabby) is scored by the table alone.
-    private static func wordsRanked(
+    private static func candidateScores(
         by languageModel: LanguageModelScores,
         tableScores: [String: Double],
         prefix: String,
         fuzzyWords: [String],
         mix: LanguageModelMix
-    ) -> [String] {
+    ) -> [String: Double] {
         var scores: [String: Double] = [:]
         scores.reserveCapacity(tableScores.count + mix.modelCandidates)
         let slip = log(mix.slipPenalty)
@@ -220,12 +310,74 @@ nonisolated enum NextWordPredictor {
         where candidate.word != prefix && !UnofferedWords.contains(candidate.word) {
             scores[candidate.word] = max(scores[candidate.word] ?? -.infinity, Double(candidate.logProbability) + unseen)
         }
-        return scores
-            .filter { $0.value > -.infinity }
-            .sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }
-            // A few more than are shown: two spellings of one word may fold into one slot.
-            .prefix(maximumWords + 3)
-            .map(\.key)
+        return scores.filter { $0.value > -.infinity }
+    }
+
+    /// The candidates' scores with what this writer's own history says about each word added.
+    ///
+    /// Why: the model knows the language and the text in front of it, not the writer. Someone who
+    /// writes `replay`, `partition` and `backfill` all day got `really`, `people` and `because` after
+    /// the first letter, because those are likelier in general. The writer's counts used to reach
+    /// the order only through the table's twentieth of a weight, which can move a word by a factor
+    /// of two at most, where the model's candidates differ by factors of twenty.
+    ///
+    /// Two kinds of evidence are added to the model's log-probability, both in the same unit, so a
+    /// habit can settle a close call and never overturn a model that is sure:
+    ///
+    /// - **Their rate of the word against English's**, once a letter is typed:
+    ///   `ln((uses + prior) / (expected + prior))`, where `expected` is how often general English
+    ///   would have used the word in as many words as the writer has typed. A word they use far
+    ///   more than English does (the terms of their trade) gains; `the`, which everyone uses,
+    ///   gains nothing, however often they typed it. Counting raw uses instead (the first attempt)
+    ///   mostly boosted the common words the model already had right.
+    /// - **What they wrote after the same words**: `ln(1 + sightings)` for the last word, and with
+    ///   more weight for the last two and three. A sighting counts for less after words they write
+    ///   constantly, and a word counts at most once per text it appeared in.
+    ///
+    /// Why added to the score and not mixed as shares of probability: the counts see one to three
+    /// words, the model the whole text. As a share, four sightings could outvote a model that was
+    /// nearly certain, which cost general text a full point of first-suggestion accuracy; as a few
+    /// tenths of a nat to about two, they decide only where the model was undecided.
+    ///
+    /// With nothing learned the scores come back unchanged.
+    static func withWritersHabits(
+        _ scores: [String: Double], prefix: String, context: [String], sources: Sources
+    ) -> [String: Double] {
+        let habits = sources.mix.habits
+        let typedWords = Double(sources.personalTotal())
+        guard typedWords > 0, habits.rateWeight > 0 || habits.phraseWeight > 0 || habits.longPhraseWeight > 0 else { return scores }
+        let own = prefix.isEmpty || habits.rateWeight <= 0 ? nil : sources.personalWords(prefix)?.counts
+        let after = (1...maximumContext).map { length in
+            context.count >= length ? sources.personal(Array(context.suffix(length))) : nil
+        }
+        let phraseTrust = prefix.isEmpty ? habits.phraseTrustBeforeLetters : 1
+        var result = scores
+        for word in scores.keys {
+            var gain = 0.0
+            // Asked for only where a count needs it: most candidates were never typed by the writer.
+            var knownSpread: Double?
+            func spread() -> Double {
+                if let knownSpread { return knownSpread }
+                let value = Double(sources.personalSpread(word))
+                knownSpread = value
+                return value
+            }
+            if !prefix.isEmpty, habits.rateWeight > 0 {
+                let expected = typedWords * Double(max(sources.generalCount(word), 1)) / generalWordTotal
+                var uses = Double(own?[word] ?? 0)
+                if uses > 0 { uses = min(uses, expected + habits.usesCountedPerText * spread()) }
+                let ratio = log((uses + habits.ratePrior) / (expected + habits.ratePrior))
+                gain += habits.rateWeight * min(habits.rateCeiling, max(habits.rateFloor, ratio))
+            }
+            for (index, found) in after.enumerated() {
+                guard let found, let count = found.counts[word], count > 0 else { continue }
+                let sightings = min(Double(count), spread())
+                let weight = index == 0 ? habits.phraseWeight : habits.longPhraseWeight
+                gain += phraseTrust * weight * log1p(sightings * habits.commonContext / (habits.commonContext + Double(found.total)))
+            }
+            if gain != 0 { result[word] = (result[word] ?? 0) + gain }
+        }
+        return result
     }
 
     /// Stupid-backoff scores for every word that fits the typed prefix (or is a forgiven slip of it)

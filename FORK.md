@@ -54,6 +54,12 @@ On a Mac with less than 16 GB of memory, install tabby-2-mini (or tabby-2-nano u
   - reviewed in one pass: likely wrong words judged from both sides (`went their yesterday` → there, `to tired` → too, `I want to by a car` → buy) and uncertain typos. The card steps through them: Tab takes the fix and moves on, ←/→ pick another option, Esc keeps your word (and it is not flagged there again). Typing closes it with no change. Wrong words are never changed without asking.
 - **Learns you:** a fix you pick or retype ranks higher next time. Once you have made the same fix for the same slip twice, that word leads the bar whatever the dictionary thinks is likelier, and from the third time it is made for you (`wich` → which, for someone who always means *which*, even though *with* is the commoner word). A slip you correct to two different words about as often has no habit and stays a choice. Undoing a fix marks the word as meant; correcting it yourself later takes that back. A fix only counts as undone once it has been seen in the field and is gone again, so a fix that never landed is not read as you rejecting it.
 - **Knows software terms:** about 900 engineering words are built in, so `backend`, `kubectl` and `jsonb` are not flagged, slips go to the term (`frontned` → frontend), and the strip offers `Kubernetes`, `JSON` or `repo` where the text calls for them (see "Software-engineering vocabulary").
+- **Learns your working vocabulary** (Settings → Writing → Learn From My Sentences, on by default). Three things, all on this Mac:
+  - every word of a sentence you finish is counted, with the words before it. A sentence with a system name or a term in it used to teach nothing; now only the unknown spelling itself is left out, so a slip is never offered back;
+  - the strip's order then leans toward the words you use far more than general English does (`replay`, `tenant`, `backfill` for someone who writes them all day) and toward what you wrote after the same words before, without overruling the model where it is sure;
+  - the word model reads your last few finished sentences before the field you are typing in, so in a chat box it starts a new message already knowing the subject, the terms and the names of the last ones. Those sentences are kept in memory only, about a page, and are gone when Cotabby quits.
+
+  On a day of real work sentences this took the first suggestion from right 44% of the time after one typed letter to 54%, and from 54% to 65% after two (see "Learning the writer"). "Clear Learned Phrases" clears all three.
 - **Learns your words:** a name or term the dictionary lacks, once you have written it twice, becomes a correction target in your capitals (`lindqvsit` → Lindqvist instead of Lundqvist). Stored locally; "Clear Learned Phrases" clears it.
 
 ## Training data (opt-in)
@@ -337,6 +343,10 @@ and blind to everything that sets a tense or a subject: `Yesterday`, the verbs e
 sentence, the paragraph before. So the strip is ordered by a language model that reads back up to
 1,600 characters of what you have written.
 
+- **Your last sentences first.** In a short field (a chat box, a comment) the model is first shown
+  the sentences you finished lately, up to about a page (`RecentWriting`), then the field's text. A
+  field with 800 characters of its own is read alone. The page changes its beginning only once in
+  many sentences, so the model's memory of it stays valid and a key costs what it did before.
 - **Once per word, not per key.** The model's answer depends only on the text before the word being
   typed, so every letter of a word reuses one answer. One pass takes 11 ms on its own and 15 to 25 ms
   inside the running app.
@@ -390,6 +400,36 @@ model gets far past a third: many words are possible there. Larger models were m
 the default: a 12B model adds about three points while typing for two and a half times the time per
 word and twice the memory. Everything that was tried, the test data and how to run it are in
 `Tools/prediction/README.md`.
+
+### Learning the writer
+
+The strip was right on written test documents and far less so on a real writer's working day:
+after one typed letter the first suggestion was right 70% of the time on the documents and 44% on
+the day's sentences. Three faults, three fixes; the full account with what was tried and dropped
+is in `Tools/prediction/README.md` ("Round three").
+
+| First suggestion right | 1 letter | 2 letters | 3 letters | all moments |
+|---|---|---|---|---|
+| A real day of work sentences, 0.4.2 | 43.9% | 53.7% | 66.3% | 46.0% |
+| now | 53.5% | 64.9% | 74.6% | 53.7% |
+| Ten invented writers the design never saw, before | 54.3% | 66.3% | 76.1% | 58.2% |
+| now | 63.4% | 75.9% | 84.3% | 65.8% |
+| General documents (nothing to learn), before | 71.0% | 83.0% | 90.2% | 71.7% |
+| now | 70.4% | 83.0% | 90.1% | 71.5% |
+
+- **Not fitted to one person.** Every number in the design was chosen on five invented writers in
+  five jobs, checked on five others, and scored once on ten more (a nurse, a paralegal, a kitchen
+  manager, engineers, a bookkeeper…). All ten gained, 5 to 9 points. The real day was only ever
+  scored, never tuned on. The general documents are the price check, and they lose 0.2 points.
+- **It grows with use.** For a word you have typed ten times or more the first suggestion is right
+  about four times in five; for a word it sees for the first time, less than half the time. One
+  day of sentences is mostly first times, so expect it to keep improving over the first weeks.
+- **Guards.** A spelling nothing vouches for is never counted. A word typed many times in one text
+  counts as three uses of it, so a pasted page does not become a habit. Habits are added to the
+  model's score in small amounts and cannot overrule it where it is sure. The recent sentences are
+  only ones the proofreader would not change, and a pasted block longer than half a page is not kept.
+- **Not covered yet.** Counts do not fade, so the vocabulary of a job you left stays boosted until
+  "Clear Learned Phrases". Text you paste and then send is learned like text you typed.
 
 ## Sentence model
 

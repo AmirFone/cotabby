@@ -1,0 +1,60 @@
+{"text": "Hi Dana, thanks for the time today. Attaching the RateLane walkthrough recording and the rate sheet we talked about. Happy to set up a 20 min call with Tove on DockFlow whenever works for your team."}
+{"text": "Brightwater wants accessorials split out on the quote, not bundled. Darnell says fine as long as the all-in number stays on page one. Gabe needs the detention assumption by Thursday."}
+{"text": "Lunch today? I'm stuck at the Hollis site until about 1 but I can grab something after. Text me."}
+{"text": "CRM note: Spoke w/ Ruth O (VP ops, Kettering Packaging). Current 3PL is slow on POD and dwell at their cross dock is killing them. Ruth is champion, CFO owns budget. Next step: send YardIQ one pager."}
+{"text": "Darnell, Brightwater is pushing for a 90 day ramp on the tender feed, not 60. I think we can do it if Priya runs the sandbox early. Can you ok the change in the SOW before I reply?"}
+{"text": "Thanks Priya, that fixed the EDI 214 mismatch. Can you add it to the onboarding checklist so Tove doesn't hit it again on the Marrow account next week?"}
+{"text": "Quick one for Sanjay: do we have a carrier on the Dallas to Memphis reefer lane that can cover a Monday pickup? Kettering needs a spot quote back by 3."}
+{"text": "Following up on Tuesday. Happy to walk your ops folks through DockFlow appointment rules. Would Thursday at 10 work? I'll send an invite once you confirm."}
+{"text": "Mireille sent the new one pager, looks good. Can we swap the logo on page two though, the old one is still on there. Also the phone number is wrong."}
+{"text": "Hey, are you still good for the Marrow kickoff at 2? Tove wants to go through the lane setup before Priya joins. I'll bring the carrier list."}
+{"text": "Note to self and Gabe: rate lock on Brightwater expires the 30th. If they slip past that we need a rerate on all 14 lanes. Flag it on the forecast call."}
+{"text": "Sanjay confirmed two carriers on Dallas Memphis. Sending names to Kettering now. Still waiting on the reefer rate from Crowley Transport, they said end of day."}
+{"text": "The sandbox tender feed was dropping 214s again this morning. Priya thinks it's the timeout on the ERP side. Ticket is open, I'll ping you when it moves."}
+{"text": "Pipeline update for the Monday forecast: Kettering moved from commit to best case. Marrow is still in discovery. Brightwater I'm calling commit but I want Gabe to look at the discount first."}
+{"text": "Thank you for the thoughtful feedback on the demo, Ruth. Your point about exception alerts is exactly what the product team is building next. I'll share the roadmap once it's final."}
+{"text": "Ramp call went well. Tove got the dock doors mapped in DockFlow after one pass. Two open items: the yard move codes and the appointment reminder timing. Ticket filed."}
+{"text": "Marrow wants to do the trial on their Charlotte DC first before the other two. Makes sense to me. Can you check if we have a carrier onboarding deck that covers the Charlotte region?"}
+{"text": "Hi Jordan, sorry for the slow reply. I was on the road for the Hollis site visit. Yes, we can do a pilot on their southeast lanes. Let's connect Friday."}
+{"text": "Pricing question: does the contract rate hold if the shipper adds a second pickup on the same BOL? Asking because Brightwater does this every week and I don't want to promise something we can't do."}
+{"text": "Quick note on the Halvorsen discovery call. They run TMS on the old system and want a read-only feed first. I told them that's doable. Need Priya to confirm the API scope."}
+{"text": "Week one recap sent to Darnell. Brightwater pilot is live on 4 lanes, 2 dock doors. Tove is handling hypercare. Biggest risk is still the EDI feed on the Sunday batch."}
+{"text": "Done with the Kettering call. They want exception alerts by text and email. I said we can do text for now. Logging the feature request in the CRM with Ruth as the source."}
+{"text": "Sanjay, Crowley dropped their reefer rate by eight percent for the next quarter. I think that's enough to win the Dallas lane outright. Can you get it in writing before Monday?"}
+{"text": "Got your note about the spreadsheet. Honestly I'd rather not reconcile the accessorials by hand again. Can Gabe pull them straight from the rate tables? That's the only way I see this scaling."}
+{"text": "Heads up, I'm out Wednesday and Thursday for a family thing. Priya is covering the Marrow demo. Her notes are in the shared folder. Ping her if anything comes up with the trial."}
+{"text": "Marrow trial is on. Charlotte DC, four doors, two carriers signed. They want the first weekly report Monday. I'll send the template to Tove tonight so she can check the lane codes."}
+{"text": "Met with Priya and Gabe about the discount structure. We agreed on a tiered ramp fee, not a flat discount. It protects the margin on the 60 day lanes. I'll write it up for Darnell."}
+{"text": "Brightwater's procurement contact called asking about insurance certificates for the carriers. I told her we have them on file. Can you send the current COI bundle to me by end of day?"}
+{"text": "Lunch was good, thanks for picking up the tab. Can we do the Hollis follow-up next week instead? My calendar is packed Monday and Tuesday."}
+{"text": "Logged the Halvorsen discovery notes in the CRM. They run a warehouse system and want a light TMS layer. Good fit for RateLane if the rating engine can take their zone rules."}
+{"text": "DockFlow reminder texts went out at the wrong time for Kettering. Tove says the timezone is set to Eastern for a Central site. Priya is fixing it now. Please let Ruth know before she calls."}
+{"text": "Small win: Brightwater's dock utilization was 71 percent last week, up from 58. Ruth's team is happy. I want that in the case study if Mireille can get the approval."}
+{"text": "Darnell, I need a decision on the ramp fee before I send the Marrow proposal. Gabe is OK with the tiered version but wants your sign off. Can you look today?"}
+{"text": "Good morning. Can you resend the RateLane sandbox login? The old one expired and Priya is locked out. Thanks."}
+{"text": "Kettering wants a second pilot on their Atlanta lane. Good sign. The catch is they want the same accessorial logic from the Dallas lane. Tove will need two days to map it."}
+{"text": "Tender acceptance rate on the pilot is at 88 percent. Brightwater expected 85. Sanjay thinks the reefer capacity is the issue on the weekend lanes. Going to look at it with him on Monday."}
+{"text": "Reminder that the Marrow security review is Thursday. Priya needs the SOC report and the data flow diagram by Wednesday. Send to her directly, not the shared inbox."}
+{"text": "Hey, you around for a quick question on the Halvorsen zone rules? Their zone table uses three digit prefixes and our engine wants five. I'm not sure if the mapping is a config change or a dev ticket."}
+{"text": "Mireille, can you make the Brightwater case study shorter? The customer wants one page, not three. Keep the dock number and the tender rate, drop the background section."}
+{"text": "Sanjay, thanks for the pickup on the Memphis lane. I know it was short notice. Crowley is great but I want a second carrier on standby for when they run out of trucks."}
+{"text": "Week three starts with Marrow's security review. I'll be on the call. Tove, can you have the trial metrics ready for the 2pm? Target is 95 percent on-time pickups."}
+{"text": "Gabe, rerate on the Kettering lanes came back high by about 4 percent. I think it's the fuel surcharge table, not the base rate. Can you check the effective date before we send anything."}
+{"text": "Ruth wants the exception alert feature by the end of Q1. I told her I'd check with product. Logging it so I don't forget. Not promising a date."}
+{"text": "Brightwater signed the expansion. Four more lanes, two more dock doors. Darnell is taking the win call. I'm going to update the forecast and move it to closed won tonight."}
+{"text": "Hey, the BidDesk login is still asking for the old password. Is it worth moving to the new tool or should I just stick with the spreadsheet? I'd rather not waste time if it's going away."}
+{"text": "Sanjay, I need the carrier scorecard for the top ten by Friday. Mostly on-time and claims. Darnell wants it for the QBR. Use last quarter's data so it's stable."}
+{"text": "Priya, the Marrow API call is timing out at around 800 loads per batch. Ticket is open with engineering. Can you tell me the max batch size we officially support so I can set expectations?"}
+{"text": "Good call today. Let's schedule the Halvorsen demo once their zone table is cleaned up. I'll send them a template for the table so they can format it before the next call."}
+{"text": "Coffee tomorrow? I want to talk about how to position the YardIQ module against the big yard management vendors. I think we win on setup time, not features."}
+{"text": "Note: Halvorsen signed the NDA. Sending over the RateLane sandbox access this afternoon. Priya will do the onboarding call on Thursday. I'll stay on for the first ten minutes."}
+{"text": "Kettering invoice got kicked back because the PO number was missing. Ruth's AP team needs the PO on every BOL. I'll get Gabe to add it to the invoice template so it stops happening."}
+{"text": "Forecast call notes: commit is Brightwater expansion and Marrow pilot. Best case is Kettering Atlanta. Pipeline for Halvorsen is early, they are still deciding between us and one other vendor."}
+{"text": "Hi Ruth, quick note to say thanks for being so patient through the ramp. Your team did most of the work on this one. We'll set up a check-in in January to review the dock numbers together."}
+{"text": "Darnell, the trial on Marrow ends in three weeks and they want a yes or no on the full rollout before the holidays. I need your call on whether to offer the tiered fee again."}
+{"text": "Tove said the DockFlow calendar sync is dropping appointments that cross midnight. Priya has a repro. Can you tell the Brightwater team to hold off on overnight bookings until it's patched?"}
+{"text": "Thinking about the Q1 territory split. Sanjay's carrier network is strong in the Southeast, so I'd like to take Atlanta and Charlotte off Darnell's list. Not final. Want to talk it through first."}
+{"text": "Thanks for the quick turnaround on the redlines, Gabe. Legal had two notes on the indemnity clause. I'll send them over once I've read through them twice. Looks mostly clean."}
+{"text": "Fine by me if we push the Halvorsen follow-up to next week. They are still working on their zone table. No need to chase them. I'll send a short check-in note Monday."}
+{"text": "Mireille, the new deck has the wrong logo on slide three again. Can you check the master file? Also the carrier count is outdated. It should be 1,400, not 1,200."}
+{"text": "Quick favor: can you cover my 9am with Marrow tomorrow? I have a dentist appointment I cannot move. Notes are in the CRM under the latest activity. Thanks, you're the best."}

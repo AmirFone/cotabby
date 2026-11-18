@@ -1,0 +1,60 @@
+{"text": "Ledger p99 has been above 900ms since 14:10 and the availability burn rate is sitting around 6x. Priya is pulling traces from the payments path, I'm on the bridge if anyone needs me."}
+{"text": "Handoff for the night: Kestrel ingest lag cleared after Dmitri cordoned the two bad nodes. There is still a ghost consumer group on the old topic, so don't reset offsets until I say so."}
+{"text": "Anyone want the last slice of the lemon cake in the kitchen? If not it goes to whoever is on nights at three."}
+{"text": "Harbor 2.14 canary is at 10 percent, error rate flat, no retry storm yet. Bake for 45 minutes then widen to half the fleet if Tobias signs off."}
+{"text": "Thanks Marisol, the cert rotation runbook fix saved us about twenty minutes this morning. I'm adding a kubectl context check to the top so nobody hits the staging cluster by accident again."}
+{"text": "The Lantern page storm was retry noise from one old mobile client build. I silenced the alert for four hours and opened a ticket for Ruben to fix the backoff jitter."}
+{"text": "Ledger postmortem draft is in the doc. Timeline is mostly done but the root cause section still says \"TBD\" because we haven't confirmed the connection pool exhaustion theory yet."}
+{"text": "Could you swap the Thursday 2am pager with me? I've got a dentist appointment that morning and I owe you a coffee."}
+{"text": "Kestrel shard 7 is flapping again, leader election every ninety seconds. Looks like clock skew on kz-14, Hana is checking chrony now and I'm keeping the shard pinned to the other replicas."}
+{"text": "Burn rate alert on Harbor egress fired at 03:40. The new TLS cipher list dropped handshakes from two partner IPs. Rolled back the ConfigMap and the budget stopped bleeding within five minutes."}
+{"text": "Morning standup notes: Dmitri is taking the Terraform drift cleanup for the eu-west VPC, Marisol has the Argo sync failures, and I'm still on the Kestrel compaction backlog."}
+{"text": "Quick question, does anyone know if the PagerDuty escalation policy for Lantern still points at the old team? Page went to nobody for about eleven minutes last night."}
+{"text": "Drain on node pool c3 is stuck because a pod has a PodDisruptionBudget of zero. Not touching it until Ruben confirms the batch job can be killed."}
+{"text": "The noisy disk alert on the ledger replicas is a known issue. Log rotation was set to weekly instead of daily after the last image bump. Fixed it in the chart, PR is up for review."}
+{"text": "Thanks everyone for staying on the bridge last night. Ledger is green, error budget for the month is at 41 percent remaining, which is fine but not comfortable."}
+{"text": "I'm going to shed load on the batch ingest path while we figure out why the queue depth is climbing. Customers should not notice, the reconciliation jobs will just run late."}
+{"text": "Tobias says the brownout on search was caused by a retry storm from the old SDK. He is pushing a hotfix to cap retries at three with exponential backoff and jitter."}
+{"text": "Lunch today is the taco truck on Fifth, I'm going at noon if anyone wants to come. Bring cash, the card reader has been broken since Monday."}
+{"text": "Zombie shard on Kestrel is still holding a lease after the node was reimaged. Need to force release it through the admin endpoint, Hana has the token and I'm waiting on her."}
+{"text": "Can we move the change freeze window to after the holiday traffic peak? The Harbor cutover is booked for the 22nd and I do not want it landing during the sale."}
+{"text": "Silence on the Lantern latency alert is set for six hours. That is longer than I would like, but the upstream vendor is doing maintenance and the signal is pure noise until they finish."}
+{"text": "Heads up, Argo CD is out of sync for the ledger-gw staging app. It is not a prod issue, but if you deploy from main before Marisol fixes the values file the rollback will be annoying."}
+{"text": "Postmortem action items are in the tracker now. Four of them have owners and due dates, the fifth was a vague \"improve observability\" which I rewrote as an actual dashboard for connection pool wait time."}
+{"text": "Found the tagdrift on the Harbor sidecars. Three clusters are running 1.9 while the rest are on 1.11 because the Helm values override was never removed. Dmitri is doing the bump Monday."}
+{"text": "Going out for a run at lunch, back by 1:30. Pager is with Ruben until then so if Kestrel pages, ping him instead of me."}
+{"text": "Noticed the bake alerts are firing on every canary because the threshold was copied from a service with twice our traffic. I'll rescale them to the request rate before we widen anything."}
+{"text": "We got a sev-2 for the Ledger reconciliation mismatch, about 0.2 percent of refunds posted twice. Priya declared it and I'm running the replay script in dry mode first."}
+{"text": "Dry run finished, 312 candidate duplicates, and all of them match the idempotency key collision pattern. Running the real replay on the staging copy next, then I will ask for approval for prod."}
+{"text": "Thanks Hana, the admin token worked and the zombie lease is released. Shard 7 elected a leader in four seconds and lag is draining now at about 20k messages per minute."}
+{"text": "Hey, are you still good for the vendor call at four? I can take notes if you want to focus on the questions about the SLA credit terms."}
+{"text": "Stale cache on the Lantern edge nodes was serving old flag values for about forty minutes. Purged the POPs by hand and added a version header so the bug shows up in the dashboard next time."}
+{"text": "Kubernetes upgrade for the Kestrel control plane is scheduled for Wednesday night. We have one etcd member that still runs the old snapshot schedule, so I'm patching that before the window."}
+{"text": "Hard reset on the Harbor gateway is a last resort. Let's try cordoning the bad pod first and see if the connection table recovers without dropping the 2,000 long-lived sockets."}
+{"text": "Lemon cake is gone. Someone ate the whole thing, I'm assuming Dmitri, but I'm not going to confront anyone without evidence."}
+{"text": "The alert routing for the eu-west Kestrel cluster went to a dead channel for three weeks. Fixed the Slack webhook in the Alertmanager config and sent a test page to the rotation to confirm it lands."}
+{"text": "Marisol confirmed the Argo sync issue was a stale service account token. Rotated it, sync is green on all six apps and the runbook now mentions the token expiry date."}
+{"text": "Can someone sanity check my math? Error budget is 0.1 percent of 40 million requests, and we have burned about 31,000 of them, which puts us close to the line for the month."}
+{"text": "Quiet week on the Ledger side. Two low severity pages, both self-resolved, and the only real work is the quota bump for the batch jobs on Thursday."}
+{"text": "Canary on the new Lantern SDK caused a memory leak in the flag evaluator. We caught it at 5 percent, rollback took under two minutes, and the heap graph is already back to baseline."}
+{"text": "Priya asked for a retro on the paging policy changes. I wrote three paragraphs, the main point is that we paged on symptoms instead of the burn rate, and that is why the team was getting woken up for nothing."}
+{"text": "Heads up for the change window, we are freezing deploys from Friday noon through Monday morning. Hotfixes still go through, but they need two approvals and a link to the incident."}
+{"text": "Shard rebalancing on Kestrel moved about 14 percent of partitions in one go. That was too aggressive, I've slowed the throttle to one partition at a time and the lag graph looks much calmer now."}
+{"text": "Jumping on the Harbor cutover bridge. Tobias has the DNS record change queued, I'm watching the ingress error rate and the 502 count from the load balancer logs."}
+{"text": "Shout out to Ruben for writing the drain script that respects the PDB. It caught the batch job before we killed it and nobody lost a checkpoint."}
+{"text": "Did the flapping alert on the staging Lantern cluster go away after the NTP fix? I'm closing the ticket unless someone sees it again before end of day."}
+{"text": "Forgot to mention, the cost report for the Kestrel storage tier shows the compaction job doubled the disk spend. Not urgent, but I want to talk to Hana about tiering the cold segments before the quarter closes."}
+{"text": "Runbook update: if the leader election loop lasts more than three minutes, first check chrony on the node, then the lease TTL, and only then restart the controller. Restarting first made the last incident worse."}
+{"text": "Vendor SLA credit came through, it's about 4,200 dollars for the March outage. Priya wants it routed to the on-call fund, so please add that to the expense sheet."}
+{"text": "Mild panic about the ledger replicas, one of them is lagging by 90 seconds. It's catching up fine now, but I'm keeping an eye on the replication slot until the lag goes back to under two seconds."}
+{"text": "Good morning all, planned maintenance on the Harbor control plane starts at 10:00, expect a few seconds of config reload delay but no dropped connections. Ping me if anything looks weird in the dashboards."}
+{"text": "Can you tag the Lantern release candidate and push it to the canary ring? I'll watch the bake and call it if the p95 holds for the full forty minutes."}
+{"text": "Found a runaway cron on the old reporting box that was rebuilding the whole index every hour. Disabled it, filed a ticket with the data team, and I'm not deleting the job until they confirm they don't need it."}
+{"text": "Traffic on the sale page is roughly three times normal and the edge cache hit ratio is holding at 91 percent. We do not need to scale the origin tier yet, so I'm keeping the autoscaler on its current settings."}
+{"text": "Priya is out tomorrow, so I'm the incident commander for the morning window. If a sev-1 lands, please page me first and then ping Dmitri as the secondary."}
+{"text": "The request_id gap in the Ledger logs is because the sidecar was dropping headers on retries. Patched the filter in staging, we'll verify the trace stitching in prod after the Thursday deploy."}
+{"text": "Thanks for covering my shift on Saturday, the kids' recital went long and I wouldn't have made it back in time. Dinner is on me next week."}
+{"text": "Kestrel compaction backlog is down to 3 hours from 19 after we added the two extra workers. I'm leaving them on for now, but I'll set a scaling rule so they drop off when the queue empties."}
+{"text": "Quick heads up, the new on-call handbook is in the wiki. It has the escalation tree, the silence policy, and a section on what to do when a vendor status page lies to you, which happens more than you'd think."}
+{"text": "Harbor egress fixed, the upstream partner had rotated their cert and our trust bundle was stale. Updated the bundle, reran the health checks, and everything is green across all three regions."}
+{"text": "Shard 7 leader is stable at 18 hours and counting. I'm marking the zombie shard incident resolved, and I'll write the follow-up on clock drift monitoring tomorrow morning."}

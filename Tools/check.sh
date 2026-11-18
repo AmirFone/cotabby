@@ -20,7 +20,13 @@ mkdir -p "$OUT"
 TESTS_DERIVED="$HOME/Library/Developer/Xcode/DerivedData/CotabbyFork-Check"
 TOOL_DERIVED="$HOME/Library/Developer/Xcode/DerivedData/CotabbyFork-CheckTool"
 MODEL="$HOME/Library/Application Support/Cotabby Dev/LlamaRuntime/gemma-4-E2B.i1-Q6_K.gguf"
-SENTENCE_MODEL="/Applications/Cotabby Dev.app/Contents/Resources/spelling-qwen3-0.6b-q8_0.gguf"
+# The sentence model for the replay: the copy inside a released app, else the one the app downloads
+# or a source build installs. A build made by Tools/install-dev.sh has none inside.
+SENTENCE_MODEL=""
+for candidate in "/Applications/Cotabby Dev.app/Contents/Resources/spelling-qwen3-0.6b-q8_0.gguf" \
+  "$HOME/Library/Application Support/Cotabby Dev/SentenceModel/spelling-qwen3-0.6b-q8_0.gguf"; do
+  if [ -z "$SENTENCE_MODEL" ] && [ -f "$candidate" ]; then SENTENCE_MODEL="$candidate"; fi
+done
 STARTED=$(date +%s)
 
 # stage <name> <command...>: runs it in the background, logs to $OUT/<name>.log, records the status
@@ -64,8 +70,10 @@ tool_suites() {
   # Speed is reported, not judged: it depends on what else the Mac is doing.
   "$cli" --suite Tools/cotabby-spell/cases.txt --bench 2>/dev/null | grep -E "keystrokes" | head -1
   if [ -n "${REPLAY:-}" ]; then
-    local model_arguments=()
-    [ -f "$SENTENCE_MODEL" ] && model_arguments=(--sentence-model "$SENTENCE_MODEL")
+    # Without the model the replay would still run, on the local rules alone, and print lower
+    # numbers that look like a regression; that is a failed check, not a quiet pass.
+    if [ -z "$SENTENCE_MODEL" ]; then echo "replay: no sentence model found, so its numbers would not be comparable"; return 1; fi
+    local model_arguments=(--sentence-model "$SENTENCE_MODEL")
     "$cli" --american --replay "$REPLAY" --adapt ${model_arguments[@]+"${model_arguments[@]}"} 2>/dev/null \
       | grep -E "replayed|fixed without|made or shown first|changed to another|changed without" || failed=1
   fi

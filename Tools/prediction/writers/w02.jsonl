@@ -1,0 +1,60 @@
+{"text": "Morning all, I pushed the first pass of the Tokenmill rename to the trunk branch. The old names still work through the shim but they will warn in the console, so please don't ship anything that imports from the legacy path."}
+{"text": "Can you take a look at the Grove Button PR when you get a sec? Tomasz left a comment about the slot API and I think he's right about the forwardRef typing."}
+{"text": "lunch at the usual place? Dana said she could come if we go before 12:15, she has a call at 12:30."}
+{"text": "Kiln sync is drifting again on the spacing ramp. Figma has 4 px steps in the Space collection but the generated file still emits 0.25rem for step three, so token drift shows up in every snapshot diff."}
+{"text": "Thanks for the quick review Hana, merged. Going to cut 3.4.0 of grove-ui on Thursday once the changesets are in."}
+{"text": "The focus ring on the Menu trigger is invisible in high contrast mode. I think the outline is getting overridden by the reset in the base layer, which means the layer order in Tokenmill output is wrong."}
+{"text": "Standup notes: finished the Tooltip positioning fix, started on the density scale for Table, and blocked on Yusuf's review for the Pylon nav rework."}
+{"text": "Anyone know if the Chromatic baseline job is still running on the old runner? Mine has been queued for 40 minutes and nothing is moving."}
+{"text": "I'd rather not add a new dependency for this. We already have the semantic alias map in Tokenmill, so the dark theme can just point at the same ghost tokens with a different primitive ramp."}
+{"text": "Hey, sorry for the late reply. Friday works for the sync with Gabe about the codemod. Can you send me the list of components still using the deprecated Stack API?"}
+{"text": "The density scale is the hard part. Compact, default, and roomy each need their own padding and line height, and I don't want the component to know which density it is in. Pass it through the theme contract instead."}
+{"text": "Quick note on the Kiln plugin: it now writes a sidecar json next to each frame so the diff bot can tell primitives from semantics. Gabe asked for this, so please don't delete the sidecar when you clean up."}
+{"text": "Pylon build is green again after the MDX upgrade. The code fence highlighter was choking on the tokens prop, so I pinned the plugin and added a regression test."}
+{"text": "Honestly the barrel file in grove-ui is killing our tree shaking. Everything re-exports everything, so the Dialog pulled in the whole Charts package in the last bundle report."}
+{"text": "Can we do the release notes as prose this time? The bullet lists in 3.3.0 got copied into the newsletter and nobody could read them."}
+{"text": "Priya, the hydration mismatch on Select only happens when the locale is set to Arabic. My guess is the numeric formatting differs between server and client, will dig in after lunch."}
+{"text": "Looks good to me. One nit: the slot name should be trailing instead of suffix, to match what we did in Tabs. Otherwise approve, ship it."}
+{"text": "Got the Kiln export working for the dark theme. The ghost tokens were resolving to the light values because the semantic layer was never re-aliased, so I added a second pass in the build script."}
+{"text": "Going to be out Wednesday afternoon for a dentist appointment, back Thursday morning. Marisol has the Pylon on-call rotation until then."}
+{"text": "The a11y audit flagged 14 focus traps in the Drawer and Sheet components. Most are the same bug, the portal is mounted before the trap is armed, so I'm fixing it once in the primitive."}
+{"text": "Anyone else seeing a flake in the Combobox snapshot tests on CI? It passes locally every time but fails about one in four runs on the Linux runner."}
+{"text": "Thanks everyone for the patience on the migration. The codemod ran clean on 212 files and the deprecation shims will stay for two minor versions, so nothing breaks on the next release."}
+{"text": "I rewrote the changeset for the Tokenmill breaking change because the old one said minor. It is a major bump, we are changing the default primitive names and that breaks any consumer importing the raw ramp."}
+{"text": "Grabbing coffee before the design critique. Can you bring the printed Badge variants? Lena wants to compare the outline and the soft fill side by side."}
+{"text": "The contrast check on the Toast colors fails at 4.2 to 1 for the warning variant. We need the amber ramp one step darker, which changes the primitive, which changes every semantic alias that touches it."}
+{"text": "Tomasz found that the Kiln diff bot posts on every push, even on draft PRs. Mute it for drafts, it is just noise for the rest of us and the channel is getting ignored."}
+{"text": "Tokenmill dropped the px fallback for the radius tokens, so Card corners look different in Safari 15. I think the calc expression is being stripped by the minifier, will check the emitted CSS."}
+{"text": "Still no answer on whether the Pylon search index can be rebuilt on the nightly job. If not I will just run it by hand on Friday, but I'd rather not own that."}
+{"text": "Heads up, the new Stepper component is in alpha. The keyboard handling is done, but the slot for custom labels is not, so please don't build on it yet."}
+{"text": "Sorry I missed the planning meeting. Did we agree to keep the Tabs underline variant or fold it into the segmented control? Let me know before I start the refactor."}
+{"text": "The emitted CSS custom properties are colliding with the host app's own variables. We need to prefix everything with the grove namespace, which is a breaking change for anyone reading --color-surface directly."}
+{"text": "I can take the Popover positioning bug since I already have the floating-ui branch open. Give me until Monday and I'll post a repro in the thread."}
+{"text": "Cookies were not the problem, the theme provider was mounting twice because Pylon and the playground both import the same root. Fixed by moving the provider into the shared shell."}
+{"text": "Really happy with how the Kiln sidecar turned out. Designers can now flip a primitive in Figma and the diff bot tells us which components need a visual review before anything merges."}
+{"text": "Quick one. Do we still need the legacy Icon wrapper, or can I remove it in the next major? Only four consumers left according to the import report, and two of them are in Marisol's team."}
+{"text": "Got the Lighthouse run for Pylon back. Hydration cost went down by a lot after we lazy loaded the code block highlighter, but the search modal is now the biggest contributor, so I'm looking there next."}
+{"text": "Thanks for covering the on-call yesterday Dana. I owe you lunch, and I'll take the Friday deploy window so you can sleep in."}
+{"text": "The reduced motion path for the Accordion is still animating the height. Use the prefers-reduced-motion query inside the token layer instead of hardcoding it per component, otherwise we will miss the next one."}
+{"text": "Ran the density codemod across the Table stories. About 30 stories had hardcoded padding that bypassed the scale, so those now read from the roomy and compact tokens and look a bit tighter than before."}
+{"text": "Honest question, is anyone using the Avatar size prop with a raw number? I want to narrow it to the scale tokens, but that might break the marketing site, and I don't want to find out from a bug report."}
+{"text": "Priya's fix for the Select keyboard typeahead landed. It was clearing the query on every keydown because the state lived in the wrong effect, the test she added covers the exact case that failed last week."}
+{"text": "Let's not block the Kiln export on the sidecar format. Ship the simple version, we can add the primitive map in 3.5 when Gabe has time to review the schema with the design tools group."}
+{"text": "Weekend plans? I am going to the lake with the family, Ruben has the on-call and he said he would page me only if the world ends."}
+{"text": "The token diff tool reports 0 changes but the Figma file clearly has a new surface color. Either the export ran against the cached file or the collection id changed when Lena reorganized the variables."}
+{"text": "Need a second reviewer on the Charts axis label PR. It touches the formatter that every dashboard depends on, so please check the locale cases and not just the English snapshot."}
+{"text": "Pushed the release candidate for Tokenmill 2.0. The primitive names changed, the old aliases still resolve, and the migration guide is in the docs folder under the Pylon section if anyone wants to read it before Thursday."}
+{"text": "The Sheet overlay is eating clicks on iOS when the virtual keyboard opens. I suspect the visualViewport offset is not being subtracted from the portal position, so I'm trying a fixed inset approach first."}
+{"text": "Can you hold off merging the Combobox refactor? Yusuf found a regression in the grouped options where the active descendant points at the wrong index after filtering."}
+{"text": "Thanks Hana, the screenshots helped a lot. The line height on the Card title was set in the component instead of the type scale, which is why it looked off in the new theme."}
+{"text": "I'm going to write up the token naming rules as a short doc so we stop arguing about primitive versus semantic in every review. Two paragraphs, maybe three, nothing fancy."}
+{"text": "Pylon's search now returns deprecated components at the top. Marisol wanted them demoted, so I added a weight field to the index and set it to zero for anything tagged legacy in the manifest."}
+{"text": "The release went out at 11. Two bug reports already, both from the same consumer on an old Vite version. I replied in the thread and asked them to bump, but if it repeats we roll back the Tooltip change."}
+{"text": "Anyone want to pair on the Kiln schema validator tomorrow afternoon? It is a small thing but the error messages are terrible right now, and I keep guessing which field is wrong."}
+{"text": "I think the ghost token approach is fine for dark mode but it is going to be painful for the high contrast theme. We need a separate primitive ramp, not more aliases pointing at the same values."}
+{"text": "Gonna be a few minutes late to the sync, my kid's bus is running behind. Start without me and I will catch up on the Stepper notes in the doc."}
+{"text": "The Menu keyboard model now matches the ARIA menu pattern exactly, arrow keys wrap, typeahead works, and Escape returns focus to the trigger. I added tests for all three cases but would like someone to test with VoiceOver."}
+{"text": "Dana asked whether the Grove docs should show the token names or the resolved values. My vote is names with the resolved value next to it in a small mono label, so people can search for what they see in Figma."}
+{"text": "Let's kill the Tooltip v1 path next minor. Telemetry shows almost nothing reads the old positioning prop and the three teams still using it have a migration ticket already."}
+{"text": "Good work on the Pylon redesign launch, the new sidebar reads much better and the mobile nav finally stays out of the way. Thanks to Gabe and Marisol for the late nights on the code examples."}
+{"text": "Last thing before I log off. The Kiln token export now runs nightly and posts the diff to the design channel, so if the numbers look weird in the morning, check the collection id first before you file anything."}

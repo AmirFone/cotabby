@@ -1,0 +1,60 @@
+{"text": "Morning all. Pulled the remap table for Checkout Recovery and the soft declines from the big US issuer BINs are spiking again. Can someone from Priya's team check if the retry cadence change went out Friday? I want to see auth rate by bucket before standup."}
+{"text": "Thanks Hanna, that cohort cut is exactly what I needed. The ramp to 10 percent looks safe on the 3DS step-up numbers. Let's hold at 10 through Thursday and decide after the weekend data lands."}
+{"text": "Quick q for Dmitri: can the decline banner on the card-on-file screen say try again in a few minutes instead of the generic error? Keep it under two lines please."}
+{"text": "Lunch today? I'm stuck in the spec for Payouts v2 until about noon but could do 12:30 at the Thai place on Market."}
+{"text": "PRD for Payouts v2 is up in Confluence. Section 4 has the payout hold rules and the reserve logic, Tomas flagged that the T+2 settlement assumption breaks for the new merchants in the Nordics. Comments by Wednesday please."}
+{"text": "Ben asked for a one line status on the disputes inbox. Tell him we are parked until the evidence upload bug is fixed, no new scope this sprint. Ticket is PAY-388 if he wants the detail."}
+{"text": "Idempotency key collisions on the retry path. Priya found it in the webhook replay logs, the key is reused when the first attempt times out. We need the key derived from the order plus attempt number, not the timestamp."}
+{"text": "Thanks everyone for the fast turnaround on the compliance sign off. Lena, appreciate you reading the low value exemption memo over the weekend. Ship notes are in the release channel."}
+{"text": "Authorization rate on the Germany cohort dropped about 1.8 points after the 3DS challenge threshold change. Hanna is splitting by issuer to see if it is one bank or the whole region. Expect a readout tomorrow."}
+{"text": "Can we get five minutes on the dunning email copy before the Figma review? Dmitri thinks the second reminder is too pushy and I agree. Draft is in the Recovery folder, version three."}
+{"text": "Shadow mode for the new SCA exemption engine is running on about 40 percent of EU traffic now. The disagreement rate against the legacy router is 0.6 percent, mostly on MCC 5812 restaurants. Tomas is pulling samples."}
+{"text": "Ok sounds good, I will take the reconciliation gap for the Friday settlement file. Ledger shows 14 thousand short on the ACH returns, probably the late return codes from last week."}
+{"text": "Hey, is the Tuesday sync moved to 3? I have the dentist at 2 and cannot make it earlier. Happy to send my notes async if that works for everyone."}
+{"text": "Remap table v4 is live. Soft declines with code 05 now go to the retry bucket after one hour, not immediately. Watch the recovery rate on the dashboard for the next two days and flag anything weird in the thread."}
+{"text": "Recovery rate went from 31 to 34 percent in the holdout test, but the lift is inside the noise band at this sample size. I would not call it until we get another week of traffic. Priya agrees."}
+{"text": "Lena raised a concern that the reserve hold for new merchants could look like a payout delay in the regulator filing. We need the wording reviewed before the Payouts v2 launch gate on the 24th."}
+{"text": "Please don't merge the 3DS step-up flag change before the bake finishes. We agreed on a 48 hour soak in the canary region. Tomas, can you add the alert on challenge completion rate so we see it early?"}
+{"text": "Good work on the postmortem for the webhook outage. The action items are clear. I want owners named by end of day and due dates in the tracker, not in a doc nobody opens."}
+{"text": "Hanna, can you send the weekly cut of the authorization rate by issuer country? Specifically the top 12 BINs by volume, I want to see which ones moved since the threshold change."}
+{"text": "Coffee at 10 tomorrow? I want to talk through the roadmap tradeoffs for Q1 without the whole team in the room. Bring your list of the stuff you think we can cut."}
+{"text": "Disputes inbox is officially sunset as of today. The evidence upload work moves into the Chargeback Hub project. Dmitri has the new mocks, I will post the link once the copy is approved."}
+{"text": "Payouts v2 canary is running for 6 merchants in the UK. Payout hold rule fired correctly on two of them. One merchant got a double payout on the retry, Tomas is tracing the idempotency key path now."}
+{"text": "Priya, the decline code remap for issuer code 51 insufficient funds should not retry the same day. Can you confirm the cadence table has that exception before the Monday release? I do not want to repeat last month."}
+{"text": "Thanks for jumping on the call with Corvane. Their team confirmed the network token rollout is ready on their side. Our cutover is the bottleneck now, which is on us."}
+{"text": "Hmm the recovery dashboard shows zero attempts for the Brazil cohort since Tuesday. Probably a tagging change in the event schema. Can you check the pipeline before we tell anyone the numbers are wrong?"}
+{"text": "Dmitri, the new decline banner tested well with the five participants from research. Two people said try again in a few minutes felt like a promise. We could say we will retry for you instead."}
+{"text": "Lunch with the Halvo partner team got moved to Thursday. I will still bring the list of the payout hold questions. Let me know if you want to join the first 15 minutes."}
+{"text": "SCA exemption engine shadow mode disagreement dropped to 0.3 percent after the MCC fix. Tomas is ramping to 60 percent of EU traffic on Monday if the alerts stay quiet over the weekend."}
+{"text": "Lena confirmed the regulator filing wording is fine as long as we describe the reserve as a risk control, not a delay. I will update the PRD section 4 and tag her again for the final read."}
+{"text": "Ben wants the Payouts v2 launch gate moved to the 31st so QA has time on the multi currency payouts. I think that is the right call but flagging the impact on the Q4 revenue plan."}
+{"text": "Reconciliation gap closed. The 14 thousand was a timing issue from the Thursday ACH cutoff, not missing returns. Ledger is balanced as of this morning. Posting the breakdown in the finance channel."}
+{"text": "Quick one. Who owns the webhook replay tool now? Priya said it moved to the platform team but I can't find the runbook. Need it for the Payouts v2 canary rollback plan."}
+{"text": "Thanks for the feedback on the card-on-file flow. I rewrote the intro to lead with the saved card, not the error. Let me know if the new copy still feels pushy or if it reads right to you."}
+{"text": "Authorization rate on Mexico went up 2.4 points after we turned on network tokens for Visa. Hanna confirmed the lift holds across issuers, which is good news for the Q1 forecast."}
+{"text": "Can you review the cohort definition in the experiment doc before we lock it? I changed the window from 7 days to 14 for the recovery metric because the retry cadence is longer now."}
+{"text": "Lunch tomorrow with Hanna and the data eng folks? We need to decide if the attempt level table gets rebuilt or if we patch the existing one. My vote is rebuild, Tomas disagrees."}
+{"text": "Payout hold is causing support tickets from merchants in Germany who think their money is gone. We need a clearer status string in the merchant dashboard. Can someone draft the copy by Wednesday?"}
+{"text": "Ok, the 3DS step-up canary is clean for 48 hours. Challenge completion rate matches the control within half a point. I am comfortable moving to 25 percent of traffic in the EU region on Monday."}
+{"text": "Sorry for the late reply, I was in back to back vendor reviews all day. The Chargeback Hub mocks look good. Two small notes on the evidence upload progress bar, comments are in Figma."}
+{"text": "Good call on the retry jitter. The thundering herd on the 6am batch was real. Priya has the patch in review and it should land before the weekend rush hits on Friday."}
+{"text": "Payouts v2 launch gate passed on the 31st. Canary is now 100 percent of UK merchants. Reserve logic held up under load. Tomas will write the rollback runbook today and link it in the release thread."}
+{"text": "Hi team, reminder that the Q4 review deck is due Thursday. I need the decline taxonomy slide and the 3DS challenge numbers from Hanna by Tuesday night. Thanks in advance."}
+{"text": "The idempotency fix is in production. No duplicate payouts in the last 72 hours across 4 thousand transactions. Closing PAY-402 and opening a follow up to add the alert on key collisions."}
+{"text": "Priya, I think the issuer code 57 remap needs its own bucket. Transaction not permitted is a hard decline for most issuers but a few EU banks send it for SCA. Can we test on the shadow traffic first?"}
+{"text": "Coffee with the new designer, Marta, went well. She has strong instincts on the progress states for multi step payouts. I suggested she shadow the next dunning review with Dmitri."}
+{"text": "Lena asked for the audit trail on every change to the reserve percentage. Make sure the config history is exported from the admin tool, not just the git log. She needs it for the November review."}
+{"text": "Recovery rate for the holdout is now 36 percent against 31 control. The lift is real this time, the interval excludes zero. I am calling it. Recommend we roll out to 100 percent next Monday."}
+{"text": "Hanna pulled the attempt level data and found the retry cadence exception for code 51 was never applied in the EU cohort. That explains the cliff at hour 24. Fix is small, but I want Priya to review before it ships."}
+{"text": "Thanks for covering the on call rotation this week, I owe you one. Tomas is picking up the payout escalations starting Friday, so you should be clean through the holiday."}
+{"text": "Quick heads up that the Corvane sandbox is down for maintenance until 4pm. Do not run the 3DS regression suite against it, the results will look like failures but they are just timeouts."}
+{"text": "Dmitri, can you make the Chargeback Hub empty state friendlier? The current one says no disputes, which reads like we failed. Maybe something about all clear and when we last checked."}
+{"text": "Ben approved the headcount for a second payments engineer. We will post the req this week. Priya wants someone who has run a ledger migration before, so keep an eye out in the network."}
+{"text": "Reserve percentage for new merchants in the Nordics dropped from 10 to 7 after the risk model refresh. Lena signed off but wants the change logged with the model version and the date."}
+{"text": "Yeah the decline bucket looks better after the cadence fix, but we still have a tail of about 9 percent of soft declines that never recover. Worth a separate look next sprint, not blocking launch."}
+{"text": "Sorry I missed the standup. The Payouts v2 rollback drill ran clean in staging. Recovery time was under 6 minutes. Notes are in the runbook under drills, Tomas added the screenshots."}
+{"text": "Can someone sanity check the lift math in the recovery readout? I used the pooled variance but Hanna thinks we should stratify by issuer. If she is right the confidence interval gets wider."}
+{"text": "Thanks all for a tight launch week. Next up is the multi currency settlement work, which will eat the next quarter. Let us keep the Friday demo short and make sure every ticket has a clear owner."}
+{"text": "Marta sent the revised progress states for the payout timeline. The pending and held states need different colors, not just different icons. I agree with her, can you update the Figma library?"}
+{"text": "Priya's out Monday and Tuesday, so Tomas is the point person for the 3DS rollout to 50 percent. Please route any blocking questions to him and copy me so I can track the decisions."}
+{"text": "Last one before the holiday. Huge thanks to the whole crew for getting Checkout Recovery over the line. Enjoy the break, and if anyone sees a spike in soft declines over the weekend, ping me."}

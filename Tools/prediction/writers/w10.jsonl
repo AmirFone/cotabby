@@ -1,0 +1,60 @@
+{"text": "Ranker v3 candidate finished the overnight run but NDCG at 10 dropped about 0.4 points vs the baseline. Probably the new hard negatives from the Lexicon dedup pass. Can you check the label distribution before we ramp anything?"}
+{"text": "Tomasz, can you kick off the backfill for Pelican on the last six partitions? Sticky bucketing is fine but I want the holdout to stay frozen this time."}
+{"text": "thanks Dana, the cold tail numbers look way better than I expected. Lunch at 12:30 still on or did you bail?"}
+{"text": "Pelican feature skew is back on the recency bucket. Marcus says the freshness window got shortened in the config PR and nobody re-ran the parity check. I'm writing it up in the wiki before standup."}
+{"text": "Lexicon vocab snapshot v7 is out. The subword merges changed on the code tokens so anything keyed on the old ids will look like drift for a day or two."}
+{"text": "Can't make the sync today, I have the dentist at ten and then I need to babysit the Ranker shadow traffic until the afternoon. Send me the notes?"}
+{"text": "Ines flagged that the calibration curve on the Ranker candidate bends up in the top decile. Could be the sigmoid temperature we left at one. Try a temp sweep on the holdout before anyone touches the gate."}
+{"text": "lol yes the coffee machine in the 4th floor kitchen is cursed again. Anyone else get the error on the Grafana board or is it just me"}
+{"text": "Olu the hard negative miner is hitting the same query twice in the candidate pool. Dedup key is off because the Lexicon ids changed. I put a patch on the branch, can you review before the next rebuild?"}
+{"text": "Got it, will look at the miner patch after lunch. Also reminder that the PyTorch bump is blocked on the CUDA-less eval box, so do not merge anything that imports the new extension."}
+{"text": "Quick one: is the lift on the Ranker v2 ramp still positive if we drop the sticky holdout? I keep getting a different sign depending on which bucket I slice."}
+{"text": "Dana pushed the Pelican parity dashboard. Sample rows look right but the per-slice null rate is off for the new merchant categories. Please don't trust the summary tab until I fix the join."}
+{"text": "Thanks for covering standup. Honestly the best thing this week was the warm start checkpoint, cut training time almost in half. Want to pair on the sparse shard loader Thursday?"}
+{"text": "Priya wants the Ranker rollout gated on a stub model comparison, not on raw NDCG. I think she's right, the metric hides the tail. Drafting the gate config now, will ping you when it's in the repo."}
+{"text": "Lunch Friday at the Thai place? I'm not doing the cafeteria again. Also bring the printout of the Lexicon merge table, Olu wants to argue about the code tokens."}
+{"text": "Ranker candidate v3 cleared the gate with a small lift on the cold tail, but the warm bucket regressed on long queries. Holding the ramp at five percent until Marcus confirms the query length feature isn't leaking."}
+{"text": "Sorry I missed the review, my kid had a fever and I was on the couch with the laptop half open. I read the diff though, the label smoothing change looks fine to me."}
+{"text": "Need a reviewer on the Pelican backfill job. It writes to the same partition twice when the retry fires, and the idempotency key is built from the wrong timestamp field. Small diff, maybe fifteen minutes."}
+{"text": "The Ranker nightly failed on the feature fetch step again. Pelican returned empty for about four percent of the candidate ids, I think a stale cache key. Restarted it with the cache bypassed and it's running now."}
+{"text": "Thanks for the fast turnaround on the holdout split. Ines is going to ask about the calibration numbers at the review, so have the temp sweep table ready. Coffee on me Monday."}
+{"text": "Cairn is finally running end to end on the new harness. Every candidate gets the same stub model, the same holdout, and a paired bootstrap on the NDCG delta. Much less hand waving in the review docs now."}
+{"text": "Priya, can you look at why Cairn reports a 0.0 variance on the cold tail? I think the resampler is drawing from the wrong bucket id. Small bug probably but it makes the whole gate look too confident."}
+{"text": "Morning. Still no word from the Thistle team about the batch endpoint, so the Ranker shadow is only scoring the first page of results. Ticket is open, I pinged Marcus to chase it."}
+{"text": "Does anyone remember why the dedup threshold is 0.92 and not 0.9? Olu says it was tuned on the old Lexicon ids and we should redo it. I'd rather not touch it until the Cairn numbers are in."}
+{"text": "lol the Thistle docs say the p99 latency budget is 40ms and the screenshot next to it says 400. One of them is a typo and I bet it's the screenshot."}
+{"text": "Tuesday works for the Pelican retro. Bring the list of features that got dropped for the new parity check, I want to see if any of them were carrying the recency bucket. Also please finally rename the ghost columns."}
+{"text": "Ran the paired bootstrap with 10k resamples on the v3 delta. The 95 percent interval crosses zero on NDCG at 5 but clears it at 10. Pretty sure the lift is real only in the head of the list."}
+{"text": "Thanks for the Cairn writeup. The paragraph on tail buckets is the clearest thing anyone has written about this, I'm stealing it for the planning deck. Also you owe me a coffee for the stub model fix."}
+{"text": "Ines pinged about the temperature sweep again. She wants the reliability diagram split by query length before she signs off on the gate. Can you regenerate it from the Cairn run and drop it in the folder?"}
+{"text": "Nope, not coming in today. Feeling rough and the Thistle batch job is still throwing 503s overnight, so I'll watch the dashboards from home and ping if the shadow queue backs up."}
+{"text": "Tomasz found a label leak in the click feature. The position field is computed after the impression log is joined, so top slots look better than they are. Removing it drops the lift to basically nothing."}
+{"text": "Good news, the Thistle team fixed the batch endpoint and the shadow traffic is now scoring full pages. Bad news the first hour of data looks weird, probably a warm cache problem. Don't read anything into it yet."}
+{"text": "Olu, the miner fix is merged. Cairn now sees the same negatives as Ranker, which should kill the phantom gains in the mid ranks. Rerun the stub comparison when you get a chance please."}
+{"text": "Coffee, then I'm in the cage with Cairn. If the bootstrap intervals still look wide after the miner fix, I'll bump resamples to 50k and see if anything moves. Ping me before lunch."}
+{"text": "Thanks everyone for the patience on the Pelican outage. Root cause was an expired service token on the feature store, Dana rotated it and added an alert so it can't sneak up like that again."}
+{"text": "Two things for Thursday: the rollout runbook needs the new gate section, and somebody has to decide whether the cold tail threshold is 200 or 500 impressions. My vote is 500. Thoughts?"}
+{"text": "Lexicon merge table is in the shared sheet, row 14 is the one Olu hates. I don't think it's the tokenizer, I think it's the normalizer stripping the trailing slash from code paths. Test it on the code slice first."}
+{"text": "ok the tea kettle is broken again, someone please stop buying the cheap ones. Also whoever ate my yogurt, I see you."}
+{"text": "Ranker v3 is at 25 percent on the warm bucket now. Cairn says the lift is inside noise on long queries and positive on short ones, so the ramp will stay flat there until the query length feature is fixed."}
+{"text": "Priya's review note says the stub model should be frozen per cycle and never retrained inside a comparison window. Agreed. Can you add a hash check to the Cairn config so it fails loudly if someone changes it?"}
+{"text": "Happy Monday. I'm out Wednesday and Thursday for a family thing, so Olu has the Thistle rollout and Dana has the Pelican backfill. Shout if something breaks before I'm back."}
+{"text": "Thistle batch endpoint is fast now, p99 down to 38ms in shadow. The rerank budget is the next thing to argue about. Olu wants 200 candidates, I want 80 and a better first stage recall."}
+{"text": "Anyone want the leftover bagels from the team lunch? They're in the fridge by the sparse loader room and they will not last the weekend."}
+{"text": "Embedding refresh for the query tower finished. The new vectors shift the nearest neighbors on about a third of the head queries, so the Cairn baseline has to be regenerated before any comparison means anything."}
+{"text": "Dana, the Pelican backfill for the new merchant categories is done. Null rate is now under half a percent on every slice. Can you sign off on the parity dashboard so Ranker can read the new columns?"}
+{"text": "Thanks for the birthday card, the cake was too sweet but the team meant well. Let's do the ramp review Monday instead of Friday since half the group is at the offsite."}
+{"text": "Hard negative miner v2 is in shadow. It pulls from the Thistle impression logs instead of the old synthetic pool, so the negatives look like real misses for once. Early numbers are noisy but not worse."}
+{"text": "Honestly I think we spent too long on the Lexicon ids. Let's freeze snapshot v7 and stop changing it, every rebuild costs us a day of Cairn reruns. Anyone against that?"}
+{"text": "Quick question for whoever owns the rewrite service: does the spelling correction run before or after the query normalizer? Ranker is seeing two forms of the same token and I can't tell which stage added the second one."}
+{"text": "Rerank budget decision is in. We're going with 120 candidates and a two second timeout on the cold path, Priya signed it. Olu, please update the runbook and the alert thresholds before Thistle goes wider."}
+{"text": "The cold tail is shrinking as the sticky holdout rotates in new users. That's a good sign for Ranker but it breaks the old Cairn bucket definition, so I'm proposing a rolling version."}
+{"text": "Got your message about the ramp. I'll hold at 25 until the rolling bucket numbers come back, and if they look flat I'll go to 50 on Monday. Don't push the flag before then."}
+{"text": "Random thought, the Thistle logs show users reformulating queries about four times more on mobile. That might be the real tail, not the bucket we've been staring at for two weeks."}
+{"text": "Can you two take the standup thing off my calendar this week? I'm dead on my feet and the notes are better when someone else writes them anyway. Thanks Ines."}
+{"text": "Found the reason the stub model keeps drifting. Someone's nightly job overwrites the frozen checkpoint with the latest warm start, so every comparison silently moves. Tomasz is writing a guard."}
+{"text": "Yes lunch works, the new noodle place by the parking garage is supposed to be decent. I'll grab a table if you can get there before twelve, they fill up fast on Fridays."}
+{"text": "Lexicon v7 frozen per the new policy. Tokenizer changes now go through a versioned branch and a full Cairn rerun, no exceptions. Marking the old merge table as deprecated in the sheet."}
+{"text": "Thistle team says the batch endpoint will be paused Friday night for an index rebuild, so shadow scoring will drop to zero for about two hours. Plan the Pelican backfill around that window please."}
+{"text": "Olu, the hard negative v2 results are up on the Cairn board. Recall at 20 went up two points but the cold tail got worse, so I'm not sure we ship it yet. Can we sit down Thursday and look at the miner's sampling rate?"}
+{"text": "Thanks all, good week. Ranker v3 goes to fifty percent Monday if the rolling numbers hold, Thistle stays on the new batch path, and Lexicon is parked until next quarter. Go enjoy the weekend."}

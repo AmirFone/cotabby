@@ -11,17 +11,23 @@ import Logging
 /// elsewhere. That keeps lifecycle ownership easy to follow.
 @MainActor
 final class CotabbyAppEnvironment {
+    /// Where what is learned from the writer's sentences is kept, and the bundled lists that vouch
+    /// for a word beyond the spelling dictionary.
+    private struct WriterKnowledge {
+        let vocabulary: PersonalVocabulary
+        let phrases: PersonalPhraseModel
+        let memory: PersonalCorrectionMemory
+        let listedWords: Set<String>
+        let recentWriting: RecentWriting
+    }
+
     /// What the app learns from a sentence the writer finished and left unchanged. Their own words
-    /// (names, jargon the dictionary lacks and the system checker accepts, or words they kept) are
-    /// learned from any sentence; phrasing only from sentences made entirely of dictionary words
-    /// that the proofreader would not change (`went their` is all real words).
-    private static func learn(
-        _ sentence: String,
-        vocabulary: PersonalVocabulary,
-        phrases: PersonalPhraseModel,
-        memory: PersonalCorrectionMemory,
-        coordinator: SuggestionCoordinator
-    ) {
+    /// (names, jargon the dictionary lacks and the system checker accepts, or words they kept) go
+    /// into their vocabulary; every word something vouches for is counted for the word strip, with
+    /// the words before it (`PersonalPhraseModel.Vouching`).
+    private static func learn(_ sentence: String, into knowledge: WriterKnowledge, coordinator: SuggestionCoordinator) {
+        let vocabulary = knowledge.vocabulary, phrases = knowledge.phrases, memory = knowledge.memory
+        let listedWords = knowledge.listedWords
         let corrector = coordinator.symSpellCorrector
         // Before the dictionary is read every word looks like one it lacks, and a sentence finished
         // in the first moment after launch taught `the` and `that` as the writer's own words.
@@ -32,9 +38,22 @@ final class CotabbyAppEnvironment {
             isDictionaryWord: { corrector.isDictionaryWord($0) },
             isAcceptedSpelling: { memory.isKept($0) || !coordinator.spellChecker.isTypo($0, language: english) }
         )
-        guard PersonalPhraseModel.isLearnable(sentence, isWord: { corrector.isDictionaryWord($0) }),
-              coordinator.isCleanForLearning(sentence) else { return }
-        phrases.learn(sentence: sentence)
+        // A word the proofreader would still change (a slip it only suggests a fix for, or a
+        // wrong-word mix-up like `went their`, which is all real words) is not counted; a sentence
+        // it would rewrite on its own is not the writer's final text yet and is left out whole.
+        guard let flagged = coordinator.wordsNotToLearn(in: sentence) else { return }
+        // Shown to the word model before the next thing the writer types. Only a sentence with
+        // nothing left to fix: a slip in it would otherwise be offered back from there.
+        if flagged.isEmpty { knowledge.recentWriting.add(sentence) }
+        phrases.learn(sentence: sentence, vouching: PersonalPhraseModel.Vouching(
+            isWord: { word in
+                !flagged.contains(word) && (corrector.isDictionaryWord(word) || listedWords.contains(word)
+                    || vocabulary.preferredCasing(of: word) != nil || memory.isKept(word))
+            },
+            isOwnName: { word in
+                !flagged.contains(word) && (vocabulary.preferredCasing(of: word) != nil || listedWords.contains(word))
+            }
+        ))
     }
 
     /// The sentence model stage of the sentence pass, or nil when its file is not installed (the
@@ -305,6 +324,7 @@ final class CotabbyAppEnvironment {
         let jevKeyModel = JevKeyModel()
         let personalPhraseModel = PersonalPhraseModel()
         let personalVocabulary = PersonalVocabulary(fileURL: PersonalVocabulary.defaultFileURL())
+        let recentWriting = RecentWriting()
         let correctionJournal = CorrectionJournal()
         // The opt-in training record hears of every word event through the journal, so the call
         // sites that already report to the journal need no second line.
@@ -333,6 +353,7 @@ final class CotabbyAppEnvironment {
             clearLearnedPhrases: {
                 personalPhraseModel.reset()
                 personalVocabulary.reset()
+                recentWriting.clear()
             },
             correctionJournal: correctionJournal,
             trainingLog: trainingLog
@@ -506,6 +527,12 @@ final class CotabbyAppEnvironment {
 
         // One memory-mapped n-gram table serves the word strip and sentence-aware spelling.
         let nextWordModel = NextWordModel.bundled(prewarm: true)
+        // Words the bundled lists vouch for beyond the spelling dictionary (everyday words it
+        // lacks, software terms), so a sentence with one of them still teaches the strip.
+        let knowledge = WriterKnowledge(
+            vocabulary: personalVocabulary, phrases: personalPhraseModel, memory: personalCorrectionMemory,
+            listedWords: WordPredictionController.supplementWords(), recentWriting: recentWriting
+        )
         suggestionCoordinator.nextWordModel = nextWordModel
         suggestionCoordinator.autoFixModel = AutoFixFeatures.bundledModel()
         let americanSpellings = AmericanSpellings.preferredOnThisMac()
@@ -520,7 +547,8 @@ final class CotabbyAppEnvironment {
         // loaded in the background so the first word does not wait for it.
         let wordLanguageModel = WordLanguageModelService(
             modelURL: WordLanguageModelService.defaultModelURL(),
-            wordListURLs: WordLanguageModelService.bundledWordListURLs()
+            wordListURLs: WordLanguageModelService.bundledWordListURLs(),
+            recentWriting: recentWriting
         )
         wordLanguageModel.warmUp()
         let wordPredictionController = WordPredictionController(
@@ -531,6 +559,7 @@ final class CotabbyAppEnvironment {
                 model: nextWordModel,
                 symSpellCorrector: symSpellCorrector,
                 phrases: personalPhraseModel,
+                vocabulary: personalVocabulary,
                 languageModel: wordLanguageModel,
                 americanSpellings: americanSpellings
             ),
@@ -538,15 +567,7 @@ final class CotabbyAppEnvironment {
                 suggestionSettings.snapshot.isGloballyEnabled && WordPredictionController.isEnabledInDefaults
             },
             learn: { sentence in
-                // A sentence the proofreader would still change (a wrong-word slip like `went their`
-                // is all dictionary words) must not be learned as the writer's phrasing.
-                Self.learn(
-                    sentence,
-                    vocabulary: personalVocabulary,
-                    phrases: personalPhraseModel,
-                    memory: personalCorrectionMemory,
-                    coordinator: suggestionCoordinator
-                )
+                Self.learn(sentence, into: knowledge, coordinator: suggestionCoordinator)
             },
             isSpellingPending: { [weak suggestionCoordinator] in
                 suggestionCoordinator?.isSpellingPendingForLastKey ?? false

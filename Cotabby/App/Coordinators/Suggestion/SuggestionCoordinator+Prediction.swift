@@ -806,11 +806,13 @@ extension SuggestionCoordinator {
         )
     }
 
-    /// True when the local proofreader would leave `sentence` exactly as written, so it is safe to
-    /// learn as the writer's phrasing.
-    func isCleanForLearning(_ sentence: String) -> Bool {
+    /// The words of `sentence` (lowercased) that must not be learned as the writer's, because the
+    /// local proofreader would offer to change them; nil when it would change the sentence on its
+    /// own, which means this is not the text the writer ends up with.
+    func wordsNotToLearn(in sentence: String) -> Set<String>? {
         let result = proofreadLocally(FinishedSentence(sentence: sentence + ".", trailingWhitespace: " ", precedingContext: ""))
-        return !result.hasAutoFixes && !result.hasSuggestions
+        guard !result.hasAutoFixes else { return nil }
+        return Set(result.flags.map { $0.typed.lowercased() })
     }
 
     /// The instant on-device proofread of a finished sentence (see `LocalSentenceProofreader`).

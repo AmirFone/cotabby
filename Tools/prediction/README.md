@@ -32,6 +32,8 @@ scored apart.
 | `documents-dev.jsonl` | 50 documents of 200 to 320 words, five writers | tuning |
 | `documents-test.jsonl` | 50 documents, five other writers | scored only |
 | real held-out sentences | every 50th sentence of the context-table corpora (`Tools/ngram/`) | scored only |
+| `writers/w00.jsonl` to `w09.jsonl` | ten writers in ten jobs, 60 texts each in the order typed over three weeks | tuning how the strip learns a writer |
+| `writers/w10.jsonl` to `w19.jsonl` | ten more writers in ten other jobs | scored only |
 
 The passages are 3 to 5 sentences each, with a declared tense (past, present, future, or mixed),
 and a second copy with a few misspellings. The documents are two to four paragraphs about one
@@ -205,7 +207,84 @@ Tried and not kept:
   5,077 misses, and the real-sentence score is the same with and without `--american`. The app
   still folds the two spellings into one slot (`AmericanSpellings`), because offering both is noise.
 
+## Round three: learning the writer
+
+**The problem.** On the test documents the first suggestion after one typed letter is right about
+70% of the time. On a day of one real writer's work sentences it was right 44% of the time, and
+switching on learning changed nothing. Three causes, found by reading the code and by recording
+every typing moment (below), and three changes.
+
+**How it was measured.** `writers/` holds twenty invented writers, each one person in one job
+writing 60 short texts over three weeks, so that what the strip learns from a writer's earlier
+texts can be scored on their later ones. Ten are for tuning, ten are scored only, and the real
+writer's day is never tuned on. `cotabby-spell --typing … --adaptive` types each writer's texts
+in order and learns after each. With `TYPING_MOMENTS=<file>` it also writes every moment down
+with the candidates and everything known about each (`Tools/cotabby-spell/MomentRecorder.swift`),
+and `lab/lab.py` then scores another way of ordering those candidates in seconds, with no model
+run. Twelve designs were built and compared that way; each was fitted on five writers, checked on
+five others and on general documents, then scored once on the ten held-back writers.
+
+| First suggestion right | 0 letters | 1 | 2 | 3 | all moments |
+|---|---|---|---|---|---|
+| Ten held-back writers, before | 25.2% | 54.3% | 66.3% | 76.1% | 58.2% |
+| with the recent texts shown to the model | 31.6% | 62.8% | 75.0% | 83.6% | 65.4% |
+| and the writer's habits in the order | 31.6% | 63.4% | 75.9% | 84.3% | 65.8% |
+| One real writer's day (164 sentences), before | 19.8% | 43.9% | 53.7% | 66.3% | 46.0% |
+| with the habits alone | 19.8% | 46.0% | 56.7% | 69.2% | 48.0% |
+| with the recent texts alone | 23.3% | 53.3% | 64.6% | 74.0% | 53.4% |
+| with both | 23.4% | 53.5% | 64.9% | 74.6% | 53.7% |
+| General test documents (no habits to learn), before | 37.7% | 71.0% | 83.0% | 90.2% | 71.7% |
+| after | 37.7% | 70.4% | 83.0% | 90.1% | 71.5% |
+
+Every one of the ten held-back writers gained (5.2 to 8.9 points over all moments). The general
+documents are the price check: nothing there is the writer's habit, and they lose 0.2 points.
+
+1. **What is learned: each word, not each sentence** (`PersonalPhraseModel.Vouching`). A sentence
+   was learned only if every word was in the dictionary. A writer's working sentences are the
+   ones with a system name, an acronym or a term in them, so exactly those taught nothing: on the
+   real day the word about to be typed had been counted before at 40% of the moments, and at 59%
+   with each word judged alone. An unknown spelling is still never counted, so it is never
+   offered back. A capitalized term of the writer's (`Kubernetes`) is now counted too.
+2. **The writer's habits in the order** (`NextWordPredictor.withWritersHabits`). Their counts
+   reached the model's order only through the table's weight of 0.05, which can move a word by a
+   factor of two where candidates differ by twenty. Two things are now added to a word's score:
+   how much more this writer uses it than general English does (so `the` gains nothing and a
+   term of their trade gains), and what they wrote after the same last one to three words. Both
+   are a few tenths of a nat to about two, so a habit settles a close call and never overturns a
+   model that is sure. A word counts at most three uses per text beyond what English expects, so
+   a pasted page is not a habit. Worth 1.8 points with a letter typed on unseen writers, with no
+   writer worse and nothing lost on general text.
+3. **The model reads what the writer wrote last** (`RecentWriting`). In a chat box the model saw
+   only the message being typed and began each one knowing nothing of the subject. It is now
+   shown the last finished sentences first, about a page, kept in memory only. This is the large
+   one. As a control, showing it another writer's texts gives about a third of the gain: some of
+   it is the model seeing what kind of text this is, most of it is this writer's own subject and
+   words.
+
+Tried and not kept, all measured in the lab:
+
+- **Mixing shares of probability** (the first attempt: the model's softmax share plus the
+  writer's share of uses). It boosts the words the writer uses most, which are the common words
+  the model already has right: +0.8 on writers, -0.6 on general text.
+- **The model as a prior over the writer's phrase counts** (a Dirichlet posterior). The largest
+  gain on writers (+2.4) and a full point lost on general text, five with no letter typed: four
+  sightings after a word can outvote a model that has read the whole text.
+- **A small learned model** over the same evidence: +2.3 on writers, a point lost on general
+  text, for the same reason.
+- **Recency** (discounting words not used lately) and **requiring a word in two texts**: no
+  better on writers whose job does not change. Not tested on a writer who changes subject.
+- **Evidence before any letter is typed** beyond the phrase counts: noise. About +0.3 at best.
+- **A longer or shorter page of recent texts.** 600 characters instead of 1,200: about a point
+  less. 2,400 (with the model's reach doubled to hold it): 0.7 to 1.6 points more on three
+  invented writers, 0.1 on the real day, for twice the text to re-read when the page moves.
+- **A slot reserved for the writer's best word**: the word typed was in that slot 3.5% of the
+  time, and it displaces the model's fifth word on general text.
+
 ## Files
+
+- `writers/w00.jsonl` to `w19.jsonl`: one `text` per line, in the order typed.
+- `lab/lab.py`: scores a ranker (a Python file with `order(m)`) on recorded moments; its
+  docstring has the fields and the one command to run.
 
 - `passages-*.jsonl`: `id`, `register`, `tense`, `text`, and usually `typed` (the misspelled copy)
   and `fixes` (`[wrong, right]` pairs). `documents-*.jsonl`: `id`, `register`, `tense`, `text`.

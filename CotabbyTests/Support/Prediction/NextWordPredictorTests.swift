@@ -382,6 +382,137 @@ final class NextWordPredictorTests: XCTestCase {
 
         XCTAssertEqual(prediction?.words.first, "to")
     }
+
+    // MARK: - The writer's habits in the order
+
+    /// Sources for a writer who has typed `total` words: `own` counts of their words, `after`
+    /// counts following the one word before, `spread` in how many texts each appeared.
+    private func writer(
+        total: Int, own: [String: Int] = [:], after: [String: Int] = [:], afterTotal: Int = 0,
+        spread: [String: Int] = [:], general: [String: Int] = [:], habits: NextWordPredictor.Habits = .init()
+    ) -> NextWordPredictor.Sources {
+        var sources = NextWordPredictor.Sources(
+            model: NextWordModelFixture.make(["": (10, [("the", 10)])]),
+            completions: { _, _ in [] },
+            personal: { context in context.count == 1 && afterTotal > 0 ? (afterTotal, after) : nil }
+        )
+        sources.personalWords = { prefix in (total, own.filter { $0.key.hasPrefix(prefix) }) }
+        sources.personalTotal = { total }
+        sources.personalSpread = { spread[$0] ?? own[$0] ?? 0 }
+        sources.generalCount = { general[$0] ?? 0 }
+        sources.mix.habits = habits
+        return sources
+    }
+
+    /// `signal` is common in general English and `stanza` is rare; counts as in the bundled list.
+    private let general = ["signal": 30_000_000, "stanza": 300_000, "still": 300_000_000]
+
+    func test_habits_nothingLearned_leavesTheScoresAlone() {
+        // #given a writer who has typed nothing yet
+        let scores = ["still": -2.0, "stanza": -3.0]
+
+        // #when the habits are added
+        let result = NextWordPredictor.withWritersHabits(scores, prefix: "st", context: ["the"], sources: writer(total: 0, general: general))
+
+        // #then the order is the model's
+        XCTAssertEqual(result, scores)
+    }
+
+    func test_habits_aWordTheWriterUsesFarMoreThanEnglishDoes_gains() {
+        // #given 2,000 words typed, a rare word among them eight times in eight texts
+        let sources = writer(total: 2_000, own: ["stanza": 8], general: general)
+
+        // #when it competes with a common word the model prefers by a little
+        let result = NextWordPredictor.withWritersHabits(["still": -2.0, "stanza": -3.0], prefix: "st", context: [], sources: sources)
+
+        // #then the writer's word comes first
+        XCTAssertGreaterThan(result["stanza"] ?? -.infinity, result["still"] ?? .infinity)
+    }
+
+    func test_habits_aCommonWordTypedOften_gainsNothing() {
+        // #given a word typed as often as general English would have it (300M of 542G is 1.1 per 2,000)
+        let sources = writer(total: 2_000, own: ["still": 1], general: general)
+
+        // #when the habits are added
+        let result = NextWordPredictor.withWritersHabits(["still": -2.0], prefix: "st", context: [], sources: sources)
+
+        // #then its score has hardly moved
+        XCTAssertEqual(result["still"] ?? 0, -2.0, accuracy: 0.05)
+    }
+
+    func test_habits_doNotOverturnAModelThatIsSure() {
+        // #given the same habit, and a model that finds the other word 400 times likelier
+        let sources = writer(total: 2_000, own: ["stanza": 8], general: general)
+
+        // #when the habits are added
+        let result = NextWordPredictor.withWritersHabits(["still": -1.0, "stanza": -7.0], prefix: "st", context: [], sources: sources)
+
+        // #then the model's word stays first
+        XCTAssertGreaterThan(result["still"] ?? -.infinity, result["stanza"] ?? .infinity)
+    }
+
+    func test_habits_aBurstInOneText_countsAsAFewUses() {
+        // #given the same word typed 60 times, once in 20 texts and once all in one text
+        let scores = ["stanza": -3.0]
+        let habit = writer(total: 2_000, own: ["stanza": 60], spread: ["stanza": 20], general: general)
+        let burst = writer(total: 2_000, own: ["stanza": 60], spread: ["stanza": 1], general: general)
+
+        // #when the habits are added
+        let asHabit = NextWordPredictor.withWritersHabits(scores, prefix: "st", context: [], sources: habit)["stanza"] ?? 0
+        let asBurst = NextWordPredictor.withWritersHabits(scores, prefix: "st", context: [], sources: burst)["stanza"] ?? 0
+
+        // #then the burst gains clearly less
+        XCTAssertLessThan(asBurst, asHabit - 1)
+    }
+
+    func test_habits_whatTheWriterWroteAfterTheSameWord_gains() {
+        // #given a writer who wrote `signal` after `the` six times, in six texts, of 40 uses of `the`
+        let sources = writer(total: 2_000, after: ["signal": 6], afterTotal: 40, spread: ["signal": 6], general: general)
+
+        // #when no letter is typed yet after `the`
+        let result = NextWordPredictor.withWritersHabits(["signal": -4.0, "same": -4.0], prefix: "", context: ["the"], sources: sources)
+
+        // #then their phrase is ahead of a word the model finds as likely
+        XCTAssertGreaterThan(result["signal"] ?? -.infinity, result["same"] ?? .infinity)
+    }
+
+    func test_habits_aSightingAfterAWordWrittenAllDay_countsForLess() {
+        // #given one sighting after a context seen 20 times, and one after a context seen 2,000 times
+        let scores = ["signal": -4.0]
+        let rare = writer(total: 5_000, after: ["signal": 1], afterTotal: 20, spread: ["signal": 1], general: general)
+        let common = writer(total: 5_000, after: ["signal": 1], afterTotal: 2_000, spread: ["signal": 1], general: general)
+
+        // #when the habits are added
+        let afterRare = NextWordPredictor.withWritersHabits(scores, prefix: "", context: ["x"], sources: rare)["signal"] ?? 0
+        let afterCommon = NextWordPredictor.withWritersHabits(scores, prefix: "", context: ["x"], sources: common)["signal"] ?? 0
+
+        // #then the first says more
+        XCTAssertGreaterThan(afterRare, afterCommon + 0.1)
+    }
+
+    func test_habitsOff_leavesTheScoresAlone() {
+        // #given a writer with habits, and the habits turned off
+        let sources = writer(total: 2_000, own: ["stanza": 8], general: general, habits: .off)
+        let scores = ["still": -2.0, "stanza": -3.0]
+
+        // #then nothing moves
+        XCTAssertEqual(NextWordPredictor.withWritersHabits(scores, prefix: "st", context: [], sources: sources), scores)
+    }
+
+    func test_generalWordTotal_isTheSumOfTheBundledFrequencyDictionary() throws {
+        // #given the dictionary the app ships
+        let url = try XCTUnwrap(Bundle(for: SymSpellCorrector.self).url(forResource: "frequency_dictionary_en_82_765", withExtension: "txt")
+            ?? Bundle.main.url(forResource: "frequency_dictionary_en_82_765", withExtension: "txt"))
+        let contents = try String(contentsOf: url, encoding: .utf8)
+
+        // #when its counts are added up
+        let total = contents.split(separator: "\n").reduce(0.0) { sum, line in
+            sum + (line.split(separator: " ").last.flatMap { Double($0) } ?? 0)
+        }
+
+        // #then the constant the habits divide by is that sum
+        XCTAssertEqual(total, NextWordPredictor.generalWordTotal, accuracy: NextWordPredictor.generalWordTotal * 0.001)
+    }
 }
 
 /// Encodes a table in the `CNW1` layout `Tools/ngram/export_binary.py` writes, so tests exercise the

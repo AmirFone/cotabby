@@ -1,0 +1,60 @@
+{"text": "Smoke pass on the CartSync build 4.12.0 is done on the iPhone 13 and the Pixel 7. Ghost cart still shows up after removing the last item on Android, filed as PNT-2231 with repro steps. Dario says it is the stale cache in the cart store."}
+{"text": "Hey Priya thanks for pulling me into the triage call yesterday, that was super helpful. Can you send me the TestRail link for the regression bucket again, I lost it."}
+{"text": "Lunch at the Thai place on Fulton today? Ravi said he would come if we go before 12:15."}
+{"text": "PNT-2231 repro confirmed on 4.12.0 and 4.11.3. Only happens when the coupon stack is applied before the last removal, so it is not a pure cart bug."}
+{"text": "Regression run on Lantern push is at 38 of 52 cases. Failing ones are all deep link drift from the Android 14 notification channel change. Opened PNT-2240 for Tomas and tagged Helen as the release owner."}
+{"text": "Sounds good, I will hold the RC candidate until the dead tap on the substitution sheet is fixed. Not shipping a build where people can't accept a sub."}
+{"text": "Quick question, does the delivery slot window use the store local timezone or the customer one? Sunita asked and I don't know the answer."}
+{"text": "Flaky on the cold start test again. Splash jank shows up about one in six runs on the old Pixel 4a in the device farm. Adding a retry is a band aid so I want Dario to look first."}
+{"text": "Bitrise build for the hotfix branch is green. Pushing to Firebase App Distribution for the internal testers now and posting the release note in the pantry qa channel."}
+{"text": "Helen, the sev2 on the checkout sheet is closed. Root cause was a cut-off time check reading UTC on the backend while the app showed local time. Retro is Thursday at 3."}
+{"text": "Thanks Priya, appreciate you taking the nightly flake rotation this week. I owe you a coffee, Blue Bottle on me Friday."}
+{"text": "Exploratory session on the new coupon stack flow turned up three issues. Stacked codes cap at two in the UI but accept three on the API, the total goes negative with a free delivery code, and the banner won't dismiss in landscape."}
+{"text": "Ran the Appium suite against the BrowserStack iOS 17 pool. 91 percent pass. The other nine are all tap target timing issues on the bottom sheet, which is a known soft spot."}
+{"text": "Sunita wants the Lantern opt in copy changed before the build train leaves on Monday. I drafted two versions in the Confluence page, please pick one so I can file the ticket."}
+{"text": "Need Postman collection updated for the new cart_v3 endpoints before Tomas merges. The old bearer token flow still works but the refresh path returns a 401 after 15 minutes, so test that path too."}
+{"text": "Kofi from design flagged the empty state for pickups looks broken on small phones. It is not a layout bug, the illustration is clipping at 320pt. Filing as cosmetic for now."}
+{"text": "Coffee break, then I will finish the Charles Proxy captures for the substitution flow. Ravi already grabbed the staging logs and dropped them in the shared drive."}
+{"text": "Build train is locked. RC candidate 4.12.1 goes to the app store review tonight, Helen has the submission checklist. No new merges to release/4.12 unless it is a P1 or a crash."}
+{"text": "I'm out Thursday afternoon for the dentist, back Friday morning. Triage queue is with Ravi, he knows the Lantern items better than me."}
+{"text": "Crash rate on 4.12.0 is 0.4 percent on Android, mostly from the image cache when the device is low on memory. Dario is looking at it but nobody has a clean repro yet."}
+{"text": "Morning all. 4.12.1 is in review and should clear by noon. Lantern opt in copy went with option B, so PNT-2246 can close once the strings are merged."}
+{"text": "Pickslot prototype is in the dev build now. Tomas has the new endpoint behind a flag called pickslot_v1, default off. Dogfood it on your own account and log anything weird in the feedback sheet."}
+{"text": "Ghost cart is back on 4.12.1 but only on iOS, which points to the SwiftUI list diffing. Dario thinks the stable id is reusing the sku when a substitution happens. Will confirm with a repro tonight."}
+{"text": "Pickslot dogfood, first findings. The slot picker shows Saturday 6 to 8 pm as open but the cut-off already passed. Filed as PNT-2259, severity 2, because it lets people book slots the warehouse cannot pack."}
+{"text": "Helen, can you check whether the Lantern deep link allowlist covers the new pickslot route. Otherwise the push tap will land on home and the tester thinks the feature is broken."}
+{"text": "Quick note, Ravi is moving over to the payments squad starting next week, so I am taking over his regression bucket and the Lantern triage. Send anything with his name on it my way."}
+{"text": "Congrats on the store approval, that was a fast one. Sunita is going to want a quick smoke on the production build before the email goes out, can you do it at 9?"}
+{"text": "Smoke run on production 4.12.1 is clean. Login, cart add, coupon apply, pickslot select, and checkout all pass on the iPhone 15 and the Galaxy S23. Lantern push tap lands on the right screen now."}
+{"text": "Okay so the flaky cold start test is actually a race between the feature flag fetch and the first render. Priya said the pickslot flag fetch has a 2 second timeout and that is the whole problem. Not a device issue after all."}
+{"text": "Can we set up a pairing session with Oksana tomorrow for the coupon stack API mismatch? She owns the discount engine and she said three codes is intentional for the bundle promo only."}
+{"text": "Anyone have the TestRail run ID for the 4.12.1 regression? I need it for the audit trail Sunita asked for. I can dig through Slack but it is faster if someone just pastes it."}
+{"text": "Good catch on the negative total. Free delivery code plus a 10 dollar credit should floor at zero, and I think the bug is that the credit is applied after the tax step. Tomas is writing the fix behind the existing flag."}
+{"text": "Ghost cart root cause found. The cart store keeps a tombstone for removed rows and the list view re-adds it when the coupon recompute fires. Dario is writing the fix, it is a small change to the reducer, nothing scary."}
+{"text": "Dentist was rescheduled, so I'm around for the afternoon sync after all. Bring the pickslot question list, I want to close the timezone item before the build train on Monday."}
+{"text": "The timezone question is answered. Slot windows use the store local timezone, and the app should show that label next to the time so a customer in another zone does not get confused. Filing it as a copy change."}
+{"text": "Crash on 4.12.1 is down to 0.2 percent after the image cache limit change. The remaining crashes are all in the old Samsung A12 pool on Android 12, which we are phasing out in January anyway."}
+{"text": "Reminder that the regression freeze for 4.13 starts next Wednesday at 5. Anything still in review after that waits for the next train, no exceptions unless Helen signs off on a hotfix."}
+{"text": "Tried the pickslot flow on the Pixel 8 with a slow network throttle and the spinner never stops when the slot lock request times out. That is the most important bug on my list right now, filed it as PNT-2271."}
+{"text": "Pairing with Oksana went well. She confirmed the three code cap was meant for bundle promos only, so the UI is right and the API is too permissive. We agreed to a server side guard that rejects a third code outside bundles."}
+{"text": "Ravi sent over the handoff doc for the Lantern triage. It is thorough, but the deep link section still refers to the old scheme so I will update it once I confirm the new route names with Tomas."}
+{"text": "4.13 is in regression. Pickslot is the big one. Running the slot lock timeout case across the device farm now, 14 of 22 cases done, and the spinner bug from PNT-2271 is still reproducing on the old Pixel."}
+{"text": "Mina joined QA today from the Lisbon office, she is going to shadow me on the coupon stack regression for a week. Be nice to her, she has already found two issues in the onboarding copy."}
+{"text": "Thanks for the lunch rec, the poke bowl place was great. We should do it again before the freeze hits and everybody disappears into triage for two weeks."}
+{"text": "PNT-2271 fix is in the 4.13 branch. Dario changed the lock request to a retry with backoff and surfaces an error sheet after the third attempt, so the spinner cannot run forever anymore."}
+{"text": "Pickslot dogfood week 3 summary: 61 bookings through the flag, zero warehouse rejections, and one real complaint about the slot picker scroll jumping when you change the day. Filed as PNT-2284, cosmetic, but Sunita wants it fixed."}
+{"text": "Build train status. 4.13 RC1 is cut, RC2 pending the Lantern payload fix. Helen says the store submission is booked for the 24th, so please keep release notes short and avoid the word beta in the copy."}
+{"text": "Can someone review my test plan for the substitution sheet before I push it to TestRail? I wrote it against the old scheme and I want a second set of eyes on the edge cases like partial sub and refund on sub."}
+{"text": "Partial substitution with a refund is the scariest case. The refund lands on the original card at full value even when the sub was cheaper, so customers get over credited. Oksana says the refund path has its own ticket, PNT-2290."}
+{"text": "Sorry for the late reply, I was in the Lantern postmortem for most of the afternoon. Short version, the payload schema changed without a version bump and the Android client silently dropped every push for six hours."}
+{"text": "Writing the postmortem action items now. One is a contract test in the Lantern repo so Tomas gets a failing build instead of a silent drop. Another is an alert on push delivery rate under 90 percent for 10 minutes."}
+{"text": "Anyone want to grab coffee before the freeze? I have a 30 minute gap at 2 and I would like to talk through the pickslot rollout plan with someone who has not lived inside it for three weeks."}
+{"text": "Sounds good, let's do 2:30 at the Rivoli place. Mina can come too, I think she will like seeing how the regression bucket is organized before she starts running it solo."}
+{"text": "Pickslot rollout plan. 5 percent of accounts on Monday, 25 percent Wednesday, full on the 24th if the warehouse rejection rate stays under 0.5 percent. Kill switch is the pickslot_v1 flag, Tomas owns it."}
+{"text": "Device farm credits are almost gone for the month. I cut the old Samsung A12 pool from the nightly run since we are dropping Android 12 anyway. If you need one for a repro, ping Helen before you book it."}
+{"text": "The substitution sheet dead tap is finally closed. Bottom sheet now uses the native detent instead of the custom drag handler, which also fixed the flaky tap target timing in the Appium suite."}
+{"text": "Heads up, the coupon stack server guard from PNT-2279 is in staging. Three codes outside bundles now return a 422, and the app shows the rejection sheet with the right copy. Please retest the stacked codes case before you sign off."}
+{"text": "Retested the stacked codes case on staging. The 422 comes back correctly, but the sheet copy says your code could not be applied, which is vague. Pasting the screenshot in the thread, can someone own the wording with Sunita?"}
+{"text": "Wording is mine now, I already sent Sunita two options and she picked the shorter one. The new copy goes out in the 4.13 RC2 build, so the regression bucket needs a case for it."}
+{"text": "Regression bucket for 4.13 is at 96 percent. Remaining items are the pickslot scroll bug, the Lantern payload contract test, and the partial sub refund case. Everything else is green on iOS 17 and 18 and the Android 14 and 15 pool."}
+{"text": "Last one from me this sprint. Thanks everyone for the patience this month, especially Dario for the ghost cart fix and Tomas for staying up on the Lantern rollback. See you on the other side of the freeze."}

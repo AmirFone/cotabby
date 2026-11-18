@@ -259,9 +259,11 @@ struct ExportReplay {
             isDictionaryWord: { corrector.isDictionaryWord($0) },
             isAcceptedSpelling: { memory?.isKept($0) == true || !checker.isTypo($0, language: english) }
         )
-        if PersonalPhraseModel.isLearnable(final, isWord: { corrector.isDictionaryWord($0) }) {
-            harness.phrases.learn(sentence: final)
-        }
+        let vocabulary = harness.vocabulary
+        harness.phrases.learn(sentence: final, vouching: PersonalPhraseModel.Vouching(
+            isWord: { corrector.isDictionaryWord($0) || vocabulary.preferredCasing(of: $0) != nil || memory?.isKept($0) == true },
+            isOwnName: { vocabulary.preferredCasing(of: $0) != nil }
+        ))
     }
 
     /// A word lowercased and without the punctuation around it, for comparing an offer with it.

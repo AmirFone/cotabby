@@ -1,0 +1,60 @@
+{"text": "Morning all. The bramble replay finished overnight but the gap report still shows 14 missing hours for the Tuesday partition, can someone from ingest take a look before standup?"}
+{"text": "Tavi thanks for flagging the dedupe key thing. I checked and the composite key was missing account_region so we were collapsing two regions into one row. Patch is up for review."}
+{"text": "Anyone want to grab lunch at the place near the office today? I can be out by 12:15 if the canary run finishes on time, otherwise I'm eating at my desk."}
+{"text": "Quick question on heron: does the monthly churn rollup pull from the silver layer or the raw bronze events? Trying to figure out why the numbers moved last week."}
+{"text": "Ruthie, the cinder build broke on the snapshot lag test again. Looks like the upstream table got a late arriver with a null timestamp and the freshness check tripped. Rerunning now."}
+{"text": "Sounds good, let's push the sync to Thursday. I need the quarry backfill window cleared first so I don't stomp on Lenka's reprocess job."}
+{"text": "Heads up the bramble ingest lag is back up to forty minutes. Probably the fanout on the events topic after the schema change. I'm adding a sentinel row check to catch it earlier."}
+{"text": "Thanks so much for covering on-call yesterday, I owe you one. Coffee on me next time you're in the building."}
+{"text": "Drafted the design note for the shadow table migration. Short version: we write to both the old and new table for two weeks, then flip reads, then drop the old one after a clean reconcile."}
+{"text": "Did the orphan sweep actually delete the tombstone rows or just mark them? The row counts in Metabase look unchanged to me and I want to be sure before we trust the dashboard."}
+{"text": "Brannick, the Airflow dag for quarry is paused again. Not sure who paused it. Can you check the audit log and unpause it if it's safe to run?"}
+{"text": "Hey, can we move the 2pm sync? My dentist appointment ran long and I won't be back until 2:40. Maybe 3 works for everyone."}
+{"text": "The gap report for silver is clean now. Only expected holes from the vendor outage on the 4th. Marking the ticket done and attaching the query in the comments for reference."}
+{"text": "Dedupe logic in cinder is doing a window function over the full history every run, which is why the build takes forty minutes. Proposing we scope it to the last seven days plus the late arriver buffer."}
+{"text": "Sefa, can you sanity check the grain of the new subscriptions fact table? I'm pretty sure it's one row per invoice line but the spec says per subscription period and I don't trust either."}
+{"text": "Good morning. Heads down on the snapshot lag issue today so I might be slow on Slack. Ping me if the bramble consumer falls over again."}
+{"text": "Replay lane is hot again. Tavi kicked off a full reprocess of the vendor feed without checking the watermark, so now two days of data are being written twice until we kill it."}
+{"text": "Thanks for the review. I'll rename the column to settled_at and add a comment about why it isn't posted_at. Also fixed the typo in the drift check threshold."}
+{"text": "Can someone confirm which Postgres replica heron reads from? The reports are showing stale numbers since about 9am and I suspect the replica is behind again."}
+{"text": "Lunch was great, thanks for the recommendation. The dumplings were better than I expected. Next time I'm choosing the place."}
+{"text": "Started a canary run on the new partition pruning config for quarry. Early numbers look fine, scan bytes down about 40 percent on the big daily joins. Will report back after the weekend load."}
+{"text": "Brannick says the quarantine bucket filled up because the schema validator rejected anything with a trailing space in the sku field. Probably should trim on ingest instead of quarantining."}
+{"text": "Quick reminder that the rollup for the finance team is due Friday. They want the refund-adjusted gross, not the raw version, so make sure the sentinel rows are excluded from the join."}
+{"text": "Ozzie asked why the active users number jumped eight percent overnight. Turns out the sessionization job double counted anonymous sessions after the cutover. Fix is in branch, rerunning the backfill now."}
+{"text": "Moving the standup to 9:30 this week because of the all hands. Please update your Friday notes before then, the drift check output needs a human read."}
+{"text": "I looked at the heron export and the currency column is stored as text in one partition and numeric in the rest. That's the reason the union in the report is silently dropping rows."}
+{"text": "Not sure this is the right place but the Snowflake warehouse credits spiked on Tuesday. Probably the cinder full refresh I kicked off by accident. Sorry about that, I've reverted the schedule."}
+{"text": "Sefa, the late arriver window is set to 72 hours for subscriptions but only 24 for refunds. Is that intentional or a leftover from the first migration? Want to align them before the next release."}
+{"text": "Sounds like a plan. I'll write the runbook for the bramble failover tonight and post it in the wiki so Ruthie can dry run it tomorrow morning."}
+{"text": "The orphan sweep finished. Removed 212 thousand rows that had no parent in accounts, mostly from the old sandbox import. Logged the ids in the quarantine table in case finance asks."}
+{"text": "Can you review the PR for the dedupe key change? It's small, just adds the region to the hash and updates two tests. I want a second pair of eyes before I merge it into main."}
+{"text": "Been a rough week, two incidents and a schema change nobody told me about. Thanks for picking up the gap report work, I really appreciate it."}
+{"text": "Pulled the nightly job logs. The fanout to the notifications topic is what's causing the spike, and it looks like the retry policy is multiplying messages during partial failures."}
+{"text": "Any objections to switching the Metabase refresh schedule from hourly to every 15 minutes for the ops board? Feels like the numbers are always a little behind when people check them."}
+{"text": "Lenka, I think the reconcile job is fine but the drift check thresholds are too tight for the weekend traffic pattern. I'm going to loosen them for Saturday and Sunday only."}
+{"text": "Made the reprocess idempotent by writing to a staging table first and swapping partitions at the end. Slower by about ten percent but we can rerun it without worrying about doubles."}
+{"text": "Anyone else seeing the orchestrator timeouts on quarry from about 3am? Got three alerts overnight and the retries eventually cleared them, but I want to know if it's the database or the scheduler."}
+{"text": "Ruthie, did you get a chance to look at the schema registry change? The new field is optional but the consumer in heron expects it to be non-null and will crash on old messages."}
+{"text": "Thanks for the heads up on the holiday schedule. I'll move the backfill to Monday so nothing runs during the freeze window."}
+{"text": "Working draft of the grain doc is in the folder. It defines one row per subscription period per account, with a separate line table for add-ons. Please poke holes in it before Thursday."}
+{"text": "I'm not going to be able to finish the migration this week. Shadow writes are on but the reconcile still has about 3000 mismatched rows, mostly timezone offsets on the old events."}
+{"text": "The ledger check is green for the first time in two weeks. Honestly didn't expect that. Going to celebrate by not touching anything until Monday."}
+{"text": "Dinner plans still on for Friday? I'm trying to decide whether to bring the bread or the wine. Let me know by Thursday so I can plan the grocery run."}
+{"text": "Brannick, the new heron report template breaks when the region filter is empty. The coalesce fallback returns zero instead of null so the chart shows a flat line. I can patch it tonight."}
+{"text": "Sefa caught a bug in the snapshot lag monitor. It was measuring against the scheduler start time instead of the data watermark, so the alert never fired during the outage."}
+{"text": "Need a decision on whether we keep the sentinel rows in the silver layer or drop them at the boundary. Keeping them makes the gap report easy but it complicates every downstream join."}
+{"text": "Quick update: the vendor finally sent the corrected feed for the March gap. Starting the backfill now, expect it to take about six hours on the replay lane, so don't kick off anything heavy."}
+{"text": "Talked to finance and they want the refund adjusted rollup at monthly grain, not weekly. That's an easy change in cinder, just need to rename the model and update two dashboards."}
+{"text": "Is anyone else getting permission denied on the quarry sandbox schema? I can read but not create tables and my last job failed right at the write step. Probably a grant that got dropped in the migration."}
+{"text": "Good work on the shadow reconcile. Mismatches are down to 40 and they all look like the timezone thing. Let's flip reads on Monday if nothing new shows up over the weekend."}
+{"text": "Thanks, really appreciate you covering the 2am page. I slept through the first one, sorry. I'm setting a second alarm on my phone so it doesn't happen again."}
+{"text": "Writing the postmortem for the replica lag. Root cause was a long running report holding a snapshot open, which blocked vacuum and let the replica fall behind by four hours."}
+{"text": "Do we still need the legacy export job? Nobody in the finance team has touched the CSV in three months but it still runs every night and costs us a couple of hours of compute."}
+{"text": "Ozzie wants the cohort retention table backfilled for the last six months. Estimate is two days on the replay lane, which means we push the quarry cleanup to next sprint. Okay with everyone?"}
+{"text": "Pushed the heron change to staging. The coalesce fallback now returns null and the chart handles it. Lenka please check the regional breakdown when you get a minute, I want a second look."}
+{"text": "Heads up that the schema registry will be read only from 6 to 7pm for maintenance. Don't deploy anything touching bramble during that window or the consumers will get stuck on old offsets."}
+{"text": "Lunch tomorrow? I'll bring the leftover curry from last night, it's better the second day. Meet at the usual table around 12:30 if the sync doesn't run long."}
+{"text": "Final numbers for the Q3 close are in the finance folder. Subscription revenue ties to the ledger within four dollars, which is good enough for the auditors. Writing up the reconciliation notes now."}
+{"text": "Tavi, can you own the dedupe window change in cinder? I already spent the week on the replica issue and I'd like someone fresh to review the late arriver logic before we ship."}
+{"text": "Wrapping up the month. Migration to the new warehouse is about 80 percent done, remaining work is mostly the legacy quarry jobs and the orphan sweep for the sandbox. Thanks everyone for pushing through."}

@@ -1,0 +1,60 @@
+{"text": "Morning Priya, the Glidepath weekly refresh landed at 6am but sell-through for the Midwest stores looks off. Can you check whether the shrink adjustment ran twice? I am looking at the snapshot grain now."}
+{"text": "Heads up that Basket Lens is down until Tomasz pushes the dbt fix. Use the cached extract in the shared drive for the Monday review, and tag the numbers as stale."}
+{"text": "Thanks Dana, that worked. OTB variance for footwear is now inside two points, so I will send the revised plan to Jules this afternoon."}
+{"text": "Can we move our sync to 3? I have the planogram review with Marcus until then and it will run long."}
+{"text": "Weeks of supply for outerwear is inflated because of ghost SKUs left over from the spring reset. I need to filter those out before the numbers go to merch."}
+{"text": "Did anyone else get the freshness SLA alert on the transactions snapshot? The row count looks normal but the max load timestamp is nearly eleven hours old."}
+{"text": "Lunch at the taqueria near the office today? Keisha said she would come if we go before noon, so let me know by 11."}
+{"text": "Markdown ladder for clearance is set to 30, 45, and 60 percent. Jules wants a test cell with a 25 percent first step to see whether promo lift holds in the small-format stores."}
+{"text": "The attach rate on Basket Lens dropped after the bundle change, which is expected, but the loyalty cohort decay curve has a bump at week six that I cannot explain yet."}
+{"text": "Is the comp sales definition still excluding the two relocated stores, or did Marcus change that in the last planning cycle? I need to know before I rebuild the store tilt table."}
+{"text": "Query note: the replen forecast join is fanning out on the SKU dimension because we have dupe SKUs with two active vendor codes. Adding a QUALIFY on the primary vendor flag fixed the row count."}
+{"text": "Thanks for the quick review Tomasz. I pushed the change to the PriceRadar elasticity model and reran the holdout, and the promo lift came out at 1.12 instead of 1.31."}
+{"text": "Reminder that the monthly KPI tile refresh for the exec deck is due Thursday. Keisha needs the attach rate and the sell-through by region, both as of the Sunday close."}
+{"text": "Sorry, running late, the Snowflake warehouse was suspended and I had to resume it manually. Give me ten minutes and I will have the shrink numbers up."}
+{"text": "The bucketer I wrote for store clusters is splitting the coastal stores into too many groups. I think the threshold on comp sales needs to be looser before we show it to Priya."}
+{"text": "Can you send me the planogram change log for the Northgate Outlet stores? I want to match the reset dates against the sell-through break in the week of the 14th."}
+{"text": "I'm out Friday for the dentist, so please cover the Glidepath standup if Marcus asks. The backlog ticket for the snapshot grain fix is linked in the sprint board."}
+{"text": "Good catch on the duplicate loyalty IDs. That explains why the cohort counts were 4 percent high in the August extract. I will backfill September and note the correction in the readme."}
+{"text": "Fast question: does the week_ref field in the calendar table start on Sunday or Monday? The promo calendar and the fiscal weeks disagree and it is breaking the lift calc."}
+{"text": "Shrink came in at 1.8 percent for the quarter, which is within tolerance, but the back room adjustments in the Tampa stores are doing something strange and I want Dana to look at the receiving logs."}
+{"text": "Dana, can you check the receiving log for the Tampa DC? There are about 300 units that show as received twice, and I think it is the same pallet scanned at two docks."}
+{"text": "Glidepath v2 is ready for review. The new seasonality term reduces the forecast error on basics by about nine percent but makes the outerwear curve noisier than I would like."}
+{"text": "I rebuilt the OTB waterfall in Tableau and removed the manual plug row. Jules said the merch team will only trust it if the plug is gone, so this version is what we show Monday."}
+{"text": "Thanks for covering standup Priya. Marcus raised the question about the ghost SKU filter again, so I wrote up a short note with the before and after counts."}
+{"text": "Not sure yet whether the cohort decay is real or an artifact of the loyalty re-enrollment in mid-September. I am splitting the cohort by enrollment date to see if the bump moves."}
+{"text": "The markdown test on small-format is live in four stores. Early read says promo lift is 1.09 at 25 percent, which is lower than I hoped, so I will hold the readout until we have two full weeks."}
+{"text": "Lunch is on me Friday if the Basket Lens fix ships before then. Tomasz has been carrying that migration for two weeks and deserves the coffee."}
+{"text": "Heads up, the Looker schedule for the weekly sell-through email is still pointing at the old Glidepath table. I rerouted it to the v2 view, but please check the Monday send looks right."}
+{"text": "Quick sanity check on the dbt test that flags negative on-hand. It caught 212 rows in the replen snapshot, mostly from the Florida returns backlog that Keisha is clearing this week."}
+{"text": "I'd keep the store tilt table at the regional level for the deck. The store-level version is too noisy after the relocation and will invite questions we cannot answer yet."}
+{"text": "The comp sales numbers for September are final. I excluded the two relocated stores as before, and the rollup now ties to finance within a rounding error of 0.02 percent."}
+{"text": "Jules asked whether we can get weeks of supply by vendor code instead of parent SKU. It is doable, but the join will get heavier, so I want to check the warehouse size first."}
+{"text": "Got it, I will use the cached extract for now and flag it in the deck footnote. Can you tell me when the dbt run is expected to finish so I can plan the refresh?"}
+{"text": "Please do not drop the staging snapshot table yet. I still need the pre-reset states to reconcile the August planogram changes against the sell-through break."}
+{"text": "The bundle recommender gave three suggestions that look like the same product in different colors. I think the SKU family mapping needs a fix, and I will open a ticket for Tomasz."}
+{"text": "Morning all, the Glidepath forecast accuracy report is in the usual folder. Basics are at 88 percent weighted accuracy and seasonal is at 81, which is an improvement on last month."}
+{"text": "Dana sent over the revised receiving logs for Tampa and the double scans are gone. The shrink adjustment for the quarter drops by about 0.3 points, so the earlier number was overstated."}
+{"text": "Can you check whether the loyalty dashboard filters exclude guest checkouts by default? Marcus thinks the attach rate is inflated, and I want to confirm before we present it."}
+{"text": "I wrote a short note on the rollup logic in the readme. If the numbers still look wrong after the fix, ping me and we can walk through the join conditions together."}
+{"text": "Thanks, that solved it. Lunch next week is still on for Keisha and me, and we should try the Vietnamese place on Fourth if she is free."}
+{"text": "Glidepath v2 is now the default in the weekly planning view. v1 is archived but still queryable if anyone wants to compare the old bias term."}
+{"text": "The outerwear forecast was 40 percent low for the first two weeks of October. I checked the holiday calendar and the promo lift term is missing the early-season event, so I am adding it."}
+{"text": "Priya, the exec deck has the attach rate on slide six, but the number changed after the guest checkout filter. Can you swap it before the Thursday review?"}
+{"text": "Query note: the promo lift view needs the calendar join on fiscal week, not calendar week, otherwise the Black Friday cell gets pulled into the wrong bucket. I am pushing the fix now."}
+{"text": "The cohort decay curve for loyalty members is flatter now that we split by enrollment date. The bump at week six was mostly re-enrolled customers, which makes sense given the September change."}
+{"text": "Marcus wants to know if the planogram shift in Dallas explains the sell-through drop. I looked at it and the timing matches the reset but the magnitude does not, so I want to dig a bit more."}
+{"text": "Sorry for the late reply, I was in the Tampa store walk all morning. The receiving team is fixing the double scans on the dock handhelds, and the new SOP goes out Monday."}
+{"text": "Keisha asked if we can cut the replen forecast horizon from 13 to 8 weeks for the seasonal items. I ran the numbers and the error goes up a little, but the warehouse plan gets more stable."}
+{"text": "Do we still have the old freshness SLA doc? The one Dana wrote in the spring has the thresholds we agreed on, and I need them for the alert config on the snapshot."}
+{"text": "Shrink for October landed at 1.6 percent, down from 1.8, and most of the improvement came from the Tampa back room. I will add a footnote that the receiving fix is the likely cause."}
+{"text": "Thanks everyone for the feedback on the Basket Lens layout. I moved the attach rate tile to the top left and collapsed the weeks of supply detail, so the Monday view is simpler."}
+{"text": "The bundle recommender is much better after the family mapping fix. The top three suggestions are now complementary items, like boots with socks, instead of color variants of the same jacket."}
+{"text": "I'm going to be offline Wednesday afternoon for the kid's school thing, but my laptop will be on the whole morning if the replen job needs a manual restart."}
+{"text": "OTB for holiday came in 6 points over plan in footwear, which Jules is fine with if the sell-through holds. I will send her the weekly curve on Friday so she can decide."}
+{"text": "Heads up, the warehouse size for the analytics pool went down over the weekend, so the big joins are slower this morning. Give it an hour or run the vendor-level version after lunch."}
+{"text": "Can you confirm that the store clusters in the PriceRadar model are the new coastal and inland split? Tomasz rebuilt them and I want to make sure the elasticity estimates use the right grouping."}
+{"text": "I think the early-season event in the calendar was entered with the wrong fiscal week. Once Priya confirms, I will fix the promo lift view and rerun the holdout for the last two weeks."}
+{"text": "The holdout for the 25 percent step is finished. Lift came out at 1.14 across the four stores, which is closer to the plan, and Jules wants to roll it to the next wave in January."}
+{"text": "Any chance you can review my readme for the cohort split? I wrote it fast and I want someone who knows the loyalty pipeline to check the enrollment date logic before I share it."}
+{"text": "Thanks again for the help this month. I am going to archive the Glidepath v1 notebooks on Friday, so if you still need anything from them, pull it before the end of the day."}

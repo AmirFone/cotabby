@@ -1,0 +1,60 @@
+{"text": "Mireille said the Seahorse cartridge is still in the fridge, so we can't run the MFN2 plate until Thursday. Can you check if the sensor plate was hydrated overnight?"}
+{"text": "MFN2 KO clone C7 is at about 60 percent of WT basal OCR. Oligomycin step looks off, probably a bad well in column 4. Also re-plating ORG-7 passage 12 into fresh Matrigel domes this afternoon."}
+{"text": "Lunch today? Tomasz is getting the good sandwiches from the place on Broad, I can grab you one if you want. Otherwise I'm just eating at my desk, the gel is running."}
+{"text": "Ruth, quick update on the ORG-7 budding phenotype. Dana counted about 40 organoids per well in the Wnt-withdrawal arm, down from 70 last week. I'll send the full count sheet once the imaging is done."}
+{"text": "Ran the Bioanalyzer on the TRIM28 ChIP libraries. Fragment peak sits around 300 bp for most samples, but the IgG control looks mostly like primer dimer. Gabe thinks the bead cleanup was too aggressive."}
+{"text": "Sorry, I missed the lab meeting, my train got delayed out of Penn Station. Can someone send me the slides on the new Cas9 knock-in strategy?"}
+{"text": "Mireille, we are almost out of the 0.5 mL Matrigel aliquots. I put in an order for two more boxes but it may not ship before the 20th, so can you check the freezer inventory?"}
+{"text": "MFN2 KO clone C7 failed the PCR screen for the biallelic deletion, we only got one band. Going to go back to the limiting dilution plate and pick three more clones from row E."}
+{"text": "Tomasz showed me how to set the gain for the confocal on the organoid stacks. Use 2 percent laser power and keep the pinhole at 1 AU or the Z resolution gets too blurry."}
+{"text": "Brain dump before I forget. Seahorse run needs fresh assay medium with 10 mM glucose, pyruvate, glutamine, pH 7.4. Pre-warm it at 37 C for an hour, do not use the old stock from last month."}
+{"text": "Ren, did you end up going to the seminar on Friday? The speaker was really good, I wish I hadn't skipped it, send me your notes if you took any."}
+{"text": "Happy birthday to Gabe, the cake in the kitchen is from the place near the station, go get a slice before it's gone."}
+{"text": "Thanks for covering my pipetting shift yesterday. I owe you a coffee, or I can do your bench cleanup next week if you want."}
+{"text": "Ran qPCR for the TRIM28 target at the promoter and the gene desert control. Ct values for input are around 24 to 25, IP is 27 to 29, and the IgG is nearly flat, so enrichment looks real."}
+{"text": "Dana, could you check the lentiviral titer for the shRNA batch? We got flow numbers from the BFP+ cells but the MOI looks way too high at 1:10. Probably the wrong dilution on the supernatant."}
+{"text": "Organoid passage took about three hours today. Split the ORG-7 cultures 1 to 4 and plated them into the 24 well format, then added fresh Wnt3a conditioned media. Budding should be obvious by Monday."}
+{"text": "The sequencing for clone C7 came back. It's a 14 base pair deletion in exon 2 on one allele and a frameshift on the other, so this is a real knockout. Writing it up in the notebook now."}
+{"text": "Mireille said the minus eighty in room 214 is making a noise again. Gabe is calling facilities but can someone move the Matrigel and the antibodies to the backup freezer just in case?"}
+{"text": "Quick question, is the anti-phospho S6 antibody the 1 to 1000 dilution in 5 percent BSA or in milk? The datasheet is unclear and I don't want to waste another blot."}
+{"text": "Got my reviewer comments back from the lab meeting. Biggest concern is the missing rescue experiment for MFN2, so I'll need the reexpression construct before the revision goes in."}
+{"text": "Tomasz, the sonication on the Covaris went fine for the chromatin, shearing to about 250 bp. I'd still do one more round of crosslink reversal and check the input on a gel before we commit beads."}
+{"text": "Lucia asked if she can shadow me for a couple of days next week, she wants to see how the lab runs before she picks a rotation. I said yes, Tuesday works best for me."}
+{"text": "Protein A beads were clumpy again, so I switched to the magnetic protein G beads from the other vendor. Pulldown was cleaner by eye but I need the qPCR numbers before saying anything."}
+{"text": "Seahorse OCR for the rescue line is back. Basal rate is close to WT now, but the FCCP response is still about 30 percent lower in clone C7, so the reexpression only partly rescues."}
+{"text": "Going to be out Thursday afternoon for a dentist appointment, back Friday morning. Dana has the keys to the tissue culture room and knows where the Trizol is."}
+{"text": "Did the ChIP for TRIM28 with two antibody lots today. Lot B gives a stronger promoter signal, lot A is cleaner in the knockdown. Repeating both in triplicate next week."}
+{"text": "Ren, the parking permit for the garage needs a signature from Mireille, can you grab it from her desk when you walk by?"}
+{"text": "The MFN2 rescue plasmid came back from the sequencing company with a point mutation in the linker region. Ordering a new clone, but it will add about two weeks to the timeline."}
+{"text": "Coffee in the break room is terrible this week, someone clearly forgot to order the good beans. If you're heading down, could you pick up a bag from the Italian market on Lexington?"}
+{"text": "Dana finished the ddPCR for the copy number on the knock-in pool. Droplet counts look fine, but the reference gene is showing too many positive droplets, so the calls might be off."}
+{"text": "Re-running the Western for phospho-S6 with fresh TBS-T. Last blot had bad background on the membrane, I think the blocking buffer was too old. Stripping and reprobing for total S6 after."}
+{"text": "Lucia's first ChIP went smoothly, though she overfilled the tubes and lost some beads on the magnet. Show her the right way to pellet the beads before the next run, please."}
+{"text": "Tomasz, I updated the protocol doc with the new crosslinking time, 10 minutes at room temp with 1 percent formaldehyde. Please let me know if anything in the sonication section looks wrong."}
+{"text": "Got the new Matrigel lot and the first plate of organoids looks noticeably denser. We will need to adjust the dome volume, maybe 40 microliters instead of 50, to keep the budding comparable."}
+{"text": "Are we still on for lunch tomorrow around noon? Want to try the new noodle place by the parking garage, supposedly it's better than the one on Main. Bring an umbrella, it's supposed to rain."}
+{"text": "Gene desert IgG control is still too high in the knockdown arm, roughly 1.5 percent of input versus 0.3 in the WT. I'm worried the antibody is cross-reacting with the chromatin prep."}
+{"text": "Mireille reordered the 1 mL pipette tips and the 15 mL conicals. The sterile hood also needs its HEPA filter changed, facilities should come by Tuesday, so plan around that."}
+{"text": "Ran the Seahorse for WT and C7 again with fresh cartridges. Same trend, OCR is down but ECAR is actually up, so the cells look like they are shifting to glycolysis."}
+{"text": "Thanks for lending me the centrifuge rotor. I'll bring it back clean tomorrow, and I'll make sure the ethanol cleanup is done before I leave."}
+{"text": "Ruth says the committee meeting got moved to the 14th, so we have more time than we thought. Lunch on me if we finish the slides early."}
+{"text": "Frozen down ORG-7 at passage 18 in 10 percent DMSO, 4 cryovials per line. Labeling them with the freezer box and position. Early passages are in box 3 if we need to go back."}
+{"text": "Ran the ChIP-seq libraries on the MiSeq for the QC. Quick check, 150 bp paired end, looks like most of the reads map to promoters now, so the enrichment is consistent with the qPCR."}
+{"text": "Tomasz is at a conference in Boston until next Wednesday. Let me know if you need anything from the fridge while he's out."}
+{"text": "The MFN2 reexpression clone came back with the right sequence on both strands. Going to freeze two vials and move on to the Seahorse rescue run next week."}
+{"text": "Did you check the reference gene on the ddPCR? Droplets in the HEX channel are clumping, I think the template is too concentrated. Try the 1 to 10 dilution before you rerun the full plate."}
+{"text": "Gabe got the spinning disk booked for the organoid Z stacks. We have it Thursday morning from 9 to noon, so the plates need to be fixed and stained by Wednesday evening."}
+{"text": "Thanks Dana, the Matrigel domes look great in the photos. Your budding counts agree with mine within about five percent, so we can include both sets in the supplement."}
+{"text": "The peak calling for the TRIM28 ChIP-seq is using the default MACS2 settings, which is too permissive for a histone-free target. Rerunning with a stricter q-value cutoff and a matched input."}
+{"text": "Ren asked if we can borrow the Qubit from the neighboring lab, ours is out for calibration until the 30th. I told him we'd return it by Friday and clean up the tubes after."}
+{"text": "Lucia's second ChIP looks much better, cleaner IgG and a stronger promoter peak. I'm going to let her run the qPCR plate on her own tomorrow, so she should check the no-template wells first."}
+{"text": "The Bioanalyzer trace for the new library has a shoulder around 500 bp, probably adapter carryover from the bead cleanup. Redoing the size selection with a 0.6x ratio before we sequence."}
+{"text": "Mireille said the -80 in room 214 is fine now, facilities replaced the compressor. Everyone can move their stocks back, but label anything you took out so we can track it."}
+{"text": "Is the coffee machine on the third floor broken again? I went down there twice this morning and the light was off."}
+{"text": "Quick update on the copy number. Knock-in clones show one copy of the tag, the wild type shows two, and the reference gene is stable across all wells. Writing this up for Ruth tonight."}
+{"text": "Tomasz, can you check the TBS-T recipe in the shared drive? My last wash buffer foamed up badly and I suspect the Tween stock is old. Want to make a fresh batch before the next blot."}
+{"text": "Sorry for the late reply, I was stuck on a call with the insurance people about my car. Can we talk after lunch?"}
+{"text": "Organoid passage 20 is still budding but the lumens look smaller than last month. I'd like to test the new Wnt3a lot before we commit to the full screen next quarter."}
+{"text": "Thanks for keeping the shared -20 freezer tidy this week. Found three boxes with no owner label, I moved them to the bin by the door so whoever owns them can claim them."}
+{"text": "Gabe wants us to rerun the imaging calibration on the spinning disk with the bead slide before the Thursday session. Can you bring your 100x objective to the core on Wednesday?"}
+{"text": "Heading out early today to pick up my nephew from school. Text me if anything blows up in the freezer, I'll check my phone at 5."}

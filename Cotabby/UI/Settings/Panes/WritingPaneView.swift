@@ -109,8 +109,9 @@ struct WritingPaneView: View {
                 Toggle(isOn: $learnsPhrases) {
                     SettingsRowLabel(
                         title: "Learn From My Sentences",
-                        description: "Remembers word sequences from sentences you finish so your own phrasing is " +
-                            "predicted first. Stored only on this Mac. Sentences with unknown words are skipped.",
+                        description: "Remembers the words and word sequences of sentences you finish, so your own " +
+                            "vocabulary and phrasing are predicted first, and lets the word model read your last few " +
+                            "sentences. Stored only on this Mac. A spelling it does not know is never learned.",
                         systemImage: "brain"
                     )
                 }

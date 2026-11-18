@@ -35,9 +35,19 @@ final class WordLanguageModelService {
     /// the moment it lands.
     private var awaited: LanguageModelContext.Key?
 
+    /// What the writer finished lately, read by the model before the field's own text; nil reads
+    /// the field alone.
+    private let recentWriting: RecentWriting?
+
     /// - Parameter wordListURLs: see `WordLanguageModelCore.init`. Empty means no model.
-    init(modelURL: URL?, wordListURLs: [URL]) {
+    init(modelURL: URL?, wordListURLs: [URL], recentWriting: RecentWriting? = nil) {
         worker = Worker(modelURL: modelURL, wordListURLs: wordListURLs)
+        self.recentWriting = recentWriting
+    }
+
+    /// The text the model is asked about for a field holding `text` before the caret.
+    func textRead(forTextBefore text: String) -> String {
+        (recentWriting?.preamble(for: text) ?? "") + text
     }
 
     /// The word lists in the app bundle, in the order the model reads them.
@@ -100,7 +110,8 @@ final class WordLanguageModelService {
     /// The model's answer for the text before the caret, when it is the one already worked out.
     /// Otherwise nil, and the answer is requested: `onReady` fires when it is there. With letters
     /// typed, the exact numbers for the words those letters single out are requested too, once.
-    func scores(forTextBefore text: String) -> LanguageModelScores? {
+    func scores(forTextBefore fieldText: String) -> LanguageModelScores? {
+        let text = textRead(forTextBefore: fieldText)
         guard let context = LanguageModelContext.make(textBefore: text) else { return nil }
         guard let latest, latest.key == context.key else {
             awaited = context.key
@@ -153,7 +164,7 @@ final class WordLanguageModelService {
     /// True when an answer for this text has been asked for and is on its way: the strip holds its
     /// redraw for a moment instead of showing an order it is about to replace.
     func isAnswerPending(forTextBefore text: String) -> Bool {
-        guard isAnswering, let context = LanguageModelContext.make(textBefore: text) else { return false }
+        guard isAnswering, let context = LanguageModelContext.make(textBefore: textRead(forTextBefore: text)) else { return false }
         return latest?.key != context.key
     }
 

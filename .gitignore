@@ -43,3 +43,6 @@ posts.txt
 
 .agents
 .internal
+
+# Python caches left by the scripts under Tools/
+__pycache__/

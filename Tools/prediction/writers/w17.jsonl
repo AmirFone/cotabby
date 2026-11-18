@@ -1,0 +1,60 @@
+{"text": "Hi Mrs. Okafor, thanks for reaching out about the double charge on your card. I can see both lines in Ledger and the second one is a proration from the seat bump on the 3rd. I'll open a refund exception so it drops back in three to five business days."}
+{"text": "Ines, can you take a look at the zombie account on the Pelican tenant? It's still showing two active seats after the Ledger sync and the customer swears they removed them in August."}
+{"text": "Lunch at 12:30 or should we push to 1? Renata wants the dunning queue numbers before standup so I might eat at my desk."}
+{"text": "Internal note: customer asked for a pause instead of cancel, offered two months at 50 percent before the save offer expires on Friday. Logged as churn reason code 14 pending their answer. Will update Harbor tonight."}
+{"text": "Thanks Joss, the macro for failed card retries worked perfectly on that one. Can you add the grace period line to the Quill version too so nobody has to paste it from the old doc?"}
+{"text": "Got it. Passport SSO is throwing the redirect loop again for anyone on the legacy SAML bridge. I filed it with platform under PASS-412 and tagged Kemal since he owns the token refresh."}
+{"text": "Morning. Four escalations in T2 from the weekend, two are orphan invoices from the migration and one is a chargeback that was already won. I'm starting with the orphans since they block renewals."}
+{"text": "Can someone cover my 3pm? Dentist finally. I'll clear my pending sweeps before I leave and leave notes on the two holds."}
+{"text": "Dear Mr. Lindqvist, I'm sorry the export didn't come through on Monday. I re-ran it from Ledger and it's attached to this ticket now, so it should land in your inbox within the hour."}
+{"text": "Wendell says the proration engine is rounding the trim to the wrong cent when a plan changes mid cycle. He's got a repro with three accounts, I'll send him the ids after this queue."}
+{"text": "Reactivation window on this one closes Thursday, so the winback email has to go out before then. Tamsin already approved the copy, just need the segment exported from Harbor first."}
+{"text": "Hey Renata, quick question. Do we treat a ghost seat as a billing error or a sync error when the admin removed the user but the license stayed? Want to get the refund reason right."}
+{"text": "Customer called back, card on file expired and the dunning emails went to a shared inbox nobody reads. Updated the contact to her personal address and set a retry for tomorrow morning."}
+{"text": "Passport login loop is fixed for the Pelican tenant. Kemal pushed the token refresh patch around noon. Still need to confirm the other two tenants before I close PASS-412."}
+{"text": "Note to self, check whether the BIN lookup flagged that Amex as prepaid before we decline the refund. Two prior tickets had the same thing and both reversed."}
+{"text": "Hi Dominic, your plan moved from Team to Growth on the 9th, so the seat cap went up to 40. The extra seats are already active, no action needed on your side. Let me know if anything looks off."}
+{"text": "Heads up team, Ledger maintenance window is tonight from 11 to 1. Don't run bulk refunds during that, the queue will just sit and you'll get duplicates when it comes back."}
+{"text": "Joss pinged me about orphan invoices again. I think the migration script skipped anything with a null tax region. Can you pull a list from Ledger and tag them ORPHAN-NULLTAX so I can count them?"}
+{"text": "Okay that's a no on the pause, she wants the full cancel with the data export. Do the soft cancel, not the hard one, so the seats stay parked for thirty days in case she changes her mind."}
+{"text": "Happy Friday. Thanks everyone for covering the holds this week, I owe Tamsin a coffee for the T2 cleanup. Enjoy the long weekend and don't open Harbor unless it's on fire."}
+{"text": "Dunning v2 went live Monday, so the retry schedule is now three attempts over nine days instead of the old five day window. Expect more soft declines in Harbor for the first week while the bank data warms up."}
+{"text": "Customer says the retry email looks like a scam, which fair, it came from a noreply address with no logo. Sent her the direct billing link from the account page instead and told her to ignore the other one."}
+{"text": "Marcus wants the dunning dashboard split by card network. I told him Visa and Mastercard are fine but the Discover numbers are too small to mean anything yet, so it's noise for now."}
+{"text": "Can you check if Lena already got the chargeback for Pelican's March invoice? Dispute portal shows open but Ledger shows won, one of them is stale and I don't want to double refund."}
+{"text": "Good morning. Sorry I missed the huddle, my phone died on the train. Anything I need to know about the Passport cutover or did Renata move the freeze to Wednesday?"}
+{"text": "Hi Priyanka, I can see the duplicate charge from the upgrade on the 14th. The second one is a proration reversal that didn't net out, so I'm issuing the refund now and it will show as pending for a few days."}
+{"text": "Quick reminder for everyone, save offers now have to be approved by a lead if the discount is over 30 percent. Renata set it in Quill, so you'll see the approval button on the offer screen."}
+{"text": "Ghost seats count is down to 212 from 340 after Kemal's sweep. The rest are mostly on legacy SAML bridge tenants that can't be deprovisioned from our side until the Passport work lands."}
+{"text": "Lunch today? Tamsin is buying if we finish the winback segment before two, which is unlikely given the export is still timing out. Maybe tomorrow instead, I'll ping you."}
+{"text": "Internal, Pelican Logistics wants a credit for the outage on the 2nd, but the SLA says credits only apply above ninety nine point nine uptime. Their month was ninety nine point eight so we're in the grey."}
+{"text": "Hi Jabari, the cancellation is processed and your data export link is in the email I just sent. The link expires in seven days, so save the file somewhere safe before then please."}
+{"text": "Escalating to T3 because the proration bug is hitting enterprise invoices too. Wendell has the repro, I just need Ines to confirm the cent rounding on the Growth tier before the fix goes out."}
+{"text": "Note for the handoff, Dominic's account has a hold on it from the fraud review, so no refunds or plan changes until Trust clears it. I told him it's a routine check. Don't promise a date."}
+{"text": "Renata asked for the save rate by queue. Pulled it from Harbor, the Growth queue is at 22 percent and Team is at 14, which is lower than last month. I'll post the breakdown in the channel."}
+{"text": "Thanks for the heads up on the maintenance. The bulk refund ran after the window closed and only double sent eleven of them, I already reversed those and checked the Ledger totals."}
+{"text": "Hey, do you know if the old reactivation email template still pulls the discount from the legacy price table? A customer got twenty percent off instead of fifteen and I want to know if it's us."}
+{"text": "Can we please stop using the shared inbox for dunning replies? Three customers have sent payment confirmations there in the last two days and nobody picked them up, I moved them to Harbor."}
+{"text": "Pelican's seat sync broke again after the admin changed their domain. Sent Joss the tenant id and asked him to re-run the sync job from the admin panel, then I'll confirm the seat count matches."}
+{"text": "Customer is furious about the price increase notice. I explained it was in the June terms and offered the annual lock at the old rate, which she accepted. Tagging billing so the lock sticks."}
+{"text": "End of week two. Dunning recovery is at 61 percent of failed invoices, up from 48, which is good but I still don't trust the numbers until the bank data settles. Will review on Monday."}
+{"text": "Morning. Migration cleanup is officially closed, Renata sent the sign off email at 9. All remaining orphan invoices are either refunded or moved to the legacy archive, so stop tagging ORPHAN-NULLTAX."}
+{"text": "Welcome to the team Rafa, you're on T1 with me for the first week. Start with the macro library in Quill, then shadow a few save offers in Harbor. Don't approve any refund over fifty without asking."}
+{"text": "Hi Mrs. Abernathy, I'm sorry you were charged after cancelling. The cancel went through on the 28th but the soft cancel only parks the seats, so the last cycle billed. I've refunded it in full."}
+{"text": "Winback campaign goes out Tuesday to the Growth segment, about 1,800 accounts that churned in the last sixty days. Tamsin wrote the subject lines and I'm checking the offer codes against Ledger."}
+{"text": "Ghost seat sweep is done, Kemal says the remaining 60 are on tenants where the admin never confirmed the removal. I'm drafting one message to those admins instead of sixty separate tickets."}
+{"text": "Can you take the Pelican escalation? I've got a call with Ines at two about the cent rounding fix and I'm not going to finish the queue before then. Notes are in the ticket, sorry for the mess."}
+{"text": "Passport PASS-412 is closed. Kemal confirmed all three tenants pass the login check. Customers were locked out for about four hours Tuesday, so the apology credit went out this morning to the affected accounts."}
+{"text": "Internal, the hold on Dominic's account was cleared by Trust yesterday. Refunds and plan changes are open again. I gave him a call to say sorry for the delay and he was actually pretty relaxed about it."}
+{"text": "Anyone have the template for the winback sms? Rafa asked and I can't find the approved copy in Quill. I think it got archived when we rebuilt the library last month."}
+{"text": "Hey, did you finish the chargeback reconciliation for October? Finance wants it by Friday and the dispute portal numbers still don't match Ledger on four of them. Happy to split the list with you."}
+{"text": "Thanks Rafa, you handled that renewal question really well. Next time you can send the save offer yourself without asking me first, just keep it under the thirty percent threshold so it doesn't need approval."}
+{"text": "Customer wants to know why her proration says negative 4.17 on the invoice. Explained that the seat count dropped mid cycle and the credit rolls onto next month. She was fine once I showed her the math."}
+{"text": "Lunch is on me Friday if we hit the winback number of 200 saves. Right now we're at 96 after the first send, so I'd say it's a stretch but the reactivation window is still open for the rest."}
+{"text": "Team note, Quill is moving the macro library to a new folder structure on Monday. Old links will redirect for two weeks but please update your bookmarks before the change or search won't find them."}
+{"text": "Hi Ferdinand, I see the invoice went to your old billing address from before the move. I've updated it to the Hoboken office and resent the PDF. Let me know if the new address needs a suite number."}
+{"text": "Escalation from Wendell, the cent rounding fix is in staging but he wants Ines to sign off on the Growth tier numbers before it ships. He's not going to push it without her green light."}
+{"text": "Shared inbox is officially retired. Anything still landing there gets forwarded to Harbor by the autoresponder, so you'll see a ticket instead of an email. Don't reply from the old inbox anymore, it breaks threading."}
+{"text": "Quick one, can you check if the winback offer code WB15 is valid for annual plans? A customer says Ledger rejected it at checkout and I want to know if it's our bug or her card before I refund anything."}
+{"text": "Renata asked me to write up the dunning v2 learnings for the retro. I'm going to focus on the soft decline problem and the shared inbox mess. Would be great if you added the Discover numbers when you get a chance."}
+{"text": "Last one of the day. Going to clear the T2 queue, then close out the saves log and head out at five. Thanks everyone for the patience this month, see you Monday, I'll bring the good coffee."}

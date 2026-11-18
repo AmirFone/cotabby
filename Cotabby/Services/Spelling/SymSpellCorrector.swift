@@ -127,6 +127,12 @@ nonisolated final class SymSpellCorrector: @unchecked Sendable {
         )
     }
 
+    /// How often the dictionary counts `word` in general text; 0 for a word it lacks or while the
+    /// index loads.
+    func count(of word: String, language: SpellingDictionaryLanguage = .english) -> Int {
+        Int(cachedIndexOrRequestLoad(for: language)?.count(of: word.lowercased()) ?? 0)
+    }
+
     func isDictionaryWord(_ word: String, language: SpellingDictionaryLanguage = .english) -> Bool {
         cachedIndexOrRequestLoad(for: language)?.contains(word.lowercased()) ?? false
     }

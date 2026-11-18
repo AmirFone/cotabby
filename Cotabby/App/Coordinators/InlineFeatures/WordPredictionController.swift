@@ -653,6 +653,7 @@ extension WordPredictionController {
         model: NextWordModel?,
         symSpellCorrector: SymSpellCorrector,
         phrases: PersonalPhraseModel,
+        vocabulary: PersonalVocabulary? = nil,
         languageModel: WordLanguageModelService? = nil,
         americanSpellings: AmericanSpellings? = nil
     ) -> (String) -> NextWordPrediction? {
@@ -674,7 +675,12 @@ extension WordPredictionController {
             isKnownWord: { supplement.contains($0) },
             americanSpellings: americanSpellings
         )
-        sources.usualCapitals = { capitals[$0] }
+        // The writer's own terms are counted in lowercase (`PersonalPhraseModel.Vouching`); their
+        // vocabulary remembers how they write them (`Kubernetes`).
+        sources.usualCapitals = { capitals[$0] ?? vocabulary?.preferredCasing(of: $0) }
+        sources.personalTotal = { phrases.totalWords }
+        sources.personalSpread = { phrases.spread(of: $0) }
+        sources.generalCount = { symSpellCorrector.count(of: $0) }
         return { NextWordPredictor.predict(textBefore: $0, sources: sources) }
     }
 }
