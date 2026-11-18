@@ -111,7 +111,7 @@ Three things keep that cost down and the start short (all give results identical
 - **The index is built on all cores.** The delete-variants of every word and the sound keys of the common ones are worked out in parallel and filed in word order on one thread: about 0.4 s instead of 1.5 s, at user-initiated priority instead of utility. Until it is built there is no spelling help.
 - **The word-pair table is read as bytes** (0.3 s to under 0.1 s).
 
-Together the spelling engine is ready about 0.5 s after launch instead of 1.9 s.
+Together the spelling engine is ready about 0.5 s after launch instead of 1.9 s. None of this shows in the live numbers below, which are dominated by the wait for the app being typed into; it is main-thread time given back to that app.
 
 ### Speed, measured live
 
@@ -121,6 +121,8 @@ Together the spelling engine is ready about 0.5 s after launch instead of 1.9 s.
 |---|---|---|---|
 | automatic fix typed | 16-17 ms | 33 ms | ~100 ms |
 | spelling bar shown | 27-28 ms | 41 ms | ~100 ms |
+
+Measured again on 0.3.1 (three runs): automatic fix typed, median 15-16 ms, 90% within 36 ms; spelling bar shown, median 30 ms, 90% within 41-48 ms. In the full live suite the strip's model answered in a median of 15 ms, and for 64 of 229 words the list for the next word was already worked out when the space was pressed.
 
 Almost all of the median is waiting for the host app to show the key through Accessibility (about 12-15 ms in a native text view); Cotabby's own part is about 1 ms, because:
 
