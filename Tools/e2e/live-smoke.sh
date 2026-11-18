@@ -19,6 +19,7 @@
 #   E2E_ONLY=flow           typing on past a sentence the model fixes (E2E_PACE=<ms per key>)
 #   E2E_ONLY=shot           screenshot of the word strip with the highlight moved (E2E_SHOT=<file.png>)
 #   E2E_ONLY=speed          only time fixes: misspelled words typed at E2E_PACE ms per key (default 45)
+#   E2E_ONLY=tornread       Backspace through long lines and count torn reads of the field (E2E_ROUNDS, default 4)
 set -uo pipefail
 DOMAIN=com.jacobfu.tabby.dev
 # Synthesized keys go nowhere on a locked screen; every check would fail as empty text. Checked at
@@ -594,6 +595,23 @@ fi
 
 if [ "${E2E_ONLY:-}" = model ]; then
   model_cases
+  echo "$pass passed, $fail failed  (log: $LOG)"; [ $fail -eq 0 ]; exit
+fi
+
+# E2E_ONLY=tornread: a Backspace can land between the app's read of the field's selection and its
+# read of the text, and the selection then seems to lie past the end. The app reads such a field
+# once more (`FocusSnapshotResolver.resolveSnapshot`); believed as it stood, it ended the focus
+# session and with it the watch on a fix just made. This deletes a few hundred characters key by
+# key and reports how often a read came back torn and whether any was still torn the second time.
+if [ "${E2E_ONLY:-}" = tornread ]; then
+  for _ in $(seq 1 "${E2E_ROUNDS:-4}"); do
+    clear_doc; type_text "one two three four five six seven eight nine ten eleven twelve thirteen "
+    for _ in $(seq 1 70); do press 51; done
+  done
+  sleep 0.5
+  torn=$(grep -c "Torn read" "$LOG"); believed=$(grep -c "detail=Selection range exceeds" "$LOG")
+  echo "INFO  reads that came back torn and were read again: $torn"
+  check "torn read: none is taken for a field that went away" "0" "$believed"
   echo "$pass passed, $fail failed  (log: $LOG)"; [ $fail -eq 0 ]; exit
 fi
 
