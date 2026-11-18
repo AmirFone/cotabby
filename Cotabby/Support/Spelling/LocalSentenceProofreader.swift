@@ -89,7 +89,12 @@ nonisolated enum LocalSentenceProofreader {
         let text = mechanicalFixes(sentence)
         var replacements: [(Range<String.Index>, String)] = []
         for token in reviewableTokens(in: text) {
-            if token.text == "i" || token.text.hasPrefix("i'") {
+            let after = text[token.range.upperBound...]
+            // `i.e.` starts with the letter, not the pronoun: a full stop with a letter right
+            // behind it is an abbreviation.
+            let startsAbbreviation = after.first == "." && after.dropFirst().first?.isLetter == true
+            let isPronoun = token.text == "i" || token.text.hasPrefix("i'") || token.text.hasPrefix("i’")
+            if isPronoun, !startsAbbreviation {
                 replacements.append((token.range, "I" + token.text.dropFirst()))
             } else if checks.isTypo(token.text),
                       !isLikelyName(token.text, textBefore: String(text[..<token.range.lowerBound])),

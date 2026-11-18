@@ -15,7 +15,7 @@ Everything here is in Settings; nothing needs a terminal. Measurements and how t
 | Writing → Offer Corrections on Typo, Hide Suggestions on Typo | On (defaults) | Unsure words get the three-slot bar instead of a guess |
 | Writing → macOS Autocorrect Is Also On | Press the button to turn macOS's own autocorrect off | Two autocorrects fight over the same word |
 | Writing → Training Data → Save Training Examples | On if you want to train on your own writing or see where Cotabby was wrong; off by default | Saves each sentence with what was shown, decided and done. It stays on your Mac until you press Export |
-| Software-engineering terms | On by default: about 870 terms (`backend`, `kubectl`, `jsonb`, `Kubernetes`, `JSON`) are known to the strip and the spelling engine | `defaults write com.jacobfu.tabby.dev cotabbyTechnicalVocabularyEnabled -bool false` turns it off |
+| Software-engineering terms | On by default: about 900 terms (`backend`, `kubectl`, `jsonb`, `Kubernetes`, `JSON`) are known to the strip and the spelling engine | `defaults write com.jacobfu.tabby.dev cotabbyTechnicalVocabularyEnabled -bool false` turns it off |
 | Spelling style | Nothing to set on a US Mac: fixes and suggestions come in American spelling | `defaults write com.jacobfu.tabby.dev cotabbySpellingStyle british` (or `american`) overrides it |
 | Shortcuts → Toggle Cotabby | Control+Option+C (default) | Turns everything off and on from any app |
 

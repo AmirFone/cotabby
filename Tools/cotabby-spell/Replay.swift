@@ -80,7 +80,7 @@ struct ExportReplay {
                 continue
             }
             sentences += 1
-            let replayed = replay(typed)
+            let replayed = replay(typed, after: row["context"] as? String)
             let isSame = replayed.text.lowercased() == final.lowercased()
             if typed == final {
                 clean += 1
@@ -156,9 +156,14 @@ struct ExportReplay {
 
     /// The sentence typed again from its first word, with every fix the engine makes by itself, and
     /// what it offered for the words it only asked about (by word position).
-    private func replay(_ typed: String) -> Replayed {
+    ///
+    /// - Parameter context: the text that stood before the sentence, when the export has it (0.4.0
+    ///   and later). The sentence is then typed after it, so a first word is capitalized only where
+    ///   it really started a sentence; without it every sentence is typed into an empty field.
+    private func replay(_ typed: String, after context: String? = nil) -> Replayed {
         var result = Replayed()
-        var text = ""
+        let lead = context.map { $0.hasSuffix(" ") || $0.hasSuffix("\n") ? $0 : $0 + " " } ?? ""
+        var text = lead
         for (index, word) in typed.split(separator: " ").enumerated() {
             text += word + " "
             let decision = harness.decide(CaretText(text)).decision
@@ -172,7 +177,7 @@ struct ExportReplay {
                 if !offered.isEmpty { result.offers[index] = offered }
             }
         }
-        result.afterTyping = text.trimmingCharacters(in: .whitespaces)
+        result.afterTyping = String(text.dropFirst(lead.count)).trimmingCharacters(in: .whitespaces)
         // The sentence pass: the local rules first, then the model, as in the app.
         let local = harness.proofread(result.afterTyping)
         note(local.flags, in: local.autoCorrected, into: &result.offers)

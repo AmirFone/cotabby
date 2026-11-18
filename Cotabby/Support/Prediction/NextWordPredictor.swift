@@ -268,7 +268,7 @@ nonisolated enum NextWordPredictor {
     ) -> Bool {
         // Only finished words count: the word being typed is usually just unfinished, not foreign.
         let finished = text.last?.isWhitespace == true ? Substring(text) : text.dropLast(text.reversed().prefix { !$0.isWhitespace }.count)
-        let recent = finished.split(whereSeparator: { $0.isWhitespace }).suffix(4)
+        let recent = lastWords(of: finished, count: 4)
         let foreign = recent.filter { raw in
             let word = raw.trimmingCharacters(in: .punctuationCharacters.union(.symbols))
             guard let first = word.first, word.contains(where: \.isLetter) else { return false }
@@ -406,8 +406,29 @@ nonisolated enum NextWordPredictor {
     /// of this one is too.
     private static func isShouting(_ textBefore: String, typedPrefix: String) -> Bool {
         let body = textBefore.dropLast(typedPrefix.count)
-        guard let last = body.split(whereSeparator: { !$0.isLetter && $0 != "'" }).last else { return false }
-        return isAllCaps(String(last)) && typedPrefix == typedPrefix.uppercased()
+        let isWordCharacter: (Character) -> Bool = { $0.isLetter || $0 == "'" }
+        // The word before the one being typed, found from the end: this runs on every key, and
+        // splitting the whole text for its last piece cost more the longer the document got.
+        let trimmed = body.reversed().drop { !isWordCharacter($0) }
+        let last = String(trimmed.prefix(while: isWordCharacter).reversed())
+        guard !last.isEmpty else { return false }
+        return isAllCaps(last) && typedPrefix == typedPrefix.uppercased()
+    }
+
+    /// The last `count` whitespace-separated words of `text`, in order, read from the end so the
+    /// cost does not depend on how long the text is.
+    static func lastWords(of text: Substring, count: Int) -> [Substring] {
+        var words: [Substring] = []
+        var end = text.endIndex
+        while words.count < count {
+            while end > text.startIndex, text[text.index(before: end)].isWhitespace { end = text.index(before: end) }
+            guard end > text.startIndex else { break }
+            var start = end
+            while start > text.startIndex, !text[text.index(before: start)].isWhitespace { start = text.index(before: start) }
+            words.append(text[start..<end])
+            end = start
+        }
+        return words.reversed()
     }
 
     private static func recase(_ word: String, typedPrefix: String, atSentenceStart: Bool, shouting: Bool) -> String {

@@ -52,7 +52,7 @@ On a Mac with less than 16 GB of memory, install tabby-2-mini (or tabby-2-nano u
   - also fixed automatically: `could of` → could have (not `of course`);
   - reviewed in one pass: likely wrong words judged from both sides (`went their yesterday` → there, `to tired` → too, `I want to by a car` → buy) and uncertain typos. The card steps through them: Tab takes the fix and moves on, ←/→ pick another option, Esc keeps your word (and it is not flagged there again). Typing closes it with no change. Wrong words are never changed without asking.
 - **Learns you:** a fix you pick or retype ranks higher next time. Once you have made the same fix for the same slip twice, that word leads the bar whatever the dictionary thinks is likelier, and from the third time it is made for you (`wich` → which, for someone who always means *which*, even though *with* is the commoner word). A slip you correct to two different words about as often has no habit and stays a choice. Undoing a fix marks the word as meant; correcting it yourself later takes that back. A fix only counts as undone once it has been seen in the field and is gone again, so a fix that never landed is not read as you rejecting it.
-- **Knows software terms:** about 870 engineering words are built in, so `backend`, `kubectl` and `jsonb` are not flagged, slips go to the term (`frontned` → frontend), and the strip offers `Kubernetes`, `JSON` or `repo` where the text calls for them (see "Software-engineering vocabulary").
+- **Knows software terms:** about 900 engineering words are built in, so `backend`, `kubectl` and `jsonb` are not flagged, slips go to the term (`frontned` → frontend), and the strip offers `Kubernetes`, `JSON` or `repo` where the text calls for them (see "Software-engineering vocabulary").
 - **Learns your words:** a name or term the dictionary lacks, once you have written it twice, becomes a correction target in your capitals (`lindqvsit` → Lindqvist instead of Lundqvist). Stored locally; "Clear Learned Phrases" clears it.
 
 ## Training data (opt-in)
@@ -243,7 +243,7 @@ The dictionary is general English: it has `server` and `database` but not `backe
 someone who writes about software the strip then never offered the word being typed, and the
 spelling engine flagged it or changed it into an ordinary word (`kuberntes` was offered `currents`).
 
-`Tools/prediction/build_technical_words.py` holds about 870 terms (languages, tools, protocols, data
+`Tools/prediction/build_technical_words.py` holds about 900 terms (languages, tools, protocols, data
 formats, cloud services, and the everyday jargon of code review and operations) and writes two lists:
 
 - **`technical_words_en.txt`, for the word strip:** every term with a count and its usual capitals.
@@ -251,7 +251,7 @@ formats, cloud services, and the everyday jargon of code review and operations) 
   `kubectl` or `repo` first where the text calls for it, shown the way it is written. A term that is
   also an ordinary word (`swift`, `spring`, `react`, `rust`) gets no capitals, so a sentence about
   the weather is not offered a programming language.
-- **`technical_spelling_en.txt`, for the spelling dictionary:** the 356 terms the dictionary lacks
+- **`technical_spelling_en.txt`, for the spelling dictionary:** the 382 terms the dictionary lacks
   that are five letters or longer, plus `json`, `yaml`, `html`, `http`, `repo`, `enum` and `sudo`.
   These are no longer flagged (the system checker calls most of them misspelled), slips are fixed
   toward them (`frontned` → frontend, `josn` → json, `kuberntes` → kubernetes), and the sentence
@@ -490,6 +490,14 @@ MLX on this machine (about 4 s a step, then out of memory), which is why the fin
 - Low Power Mode pauses only the on-device ghost-text model; spelling keeps working.
 
 ## Testing
+
+**One command for everything that needs no screen:** `Tools/check.sh` runs lint, the unit suite (with
+the real-model tests when a strip model is installed), the regression suites on the command-line
+tool, and a check that the generated word lists match their scripts, all side by side, and ends with
+one row per stage and `ALL PASS` or `FAILED`. It takes about as long as the unit suite alone.
+`FAST=1` leaves out the tests that load a language model; `REPLAY=<export.jsonl>` also types that
+training export again through the engine. Run it before every commit. Only the on-screen suite
+(further down) is left out. The pieces it runs, should you want one by itself:
 
 ```sh
 # Decision engine, same code as the app

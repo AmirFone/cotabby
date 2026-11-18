@@ -53,6 +53,16 @@ final class SentenceProofreadingTests: XCTestCase {
 
     // MARK: - LocalSentenceProofreader
 
+    func test_pronounIsCapitalized_withEitherApostrophe_butNotTheLetterOfAnAbbreviation() {
+        // #given the pronoun with a curly apostrophe, and `i.e.`, which starts with the same letter
+        let pronoun = proofread("And then i’m sure it works.")
+        let abbreviation = proofread("Use the first one, i.e. this one.")
+
+        // #then the pronoun gets its capital and the abbreviation is left as written
+        XCTAssertEqual(pronoun.autoCorrected, "And then I’m sure it works.")
+        XCTAssertEqual(abbreviation.autoCorrected, "Use the first one, i.e. this one.")
+    }
+
     private func proofread(
         _ sentence: String,
         typos: [String: (String, Bool)] = [:],

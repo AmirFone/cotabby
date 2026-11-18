@@ -35,6 +35,20 @@ final class NextWordPredictorTests: XCTestCase {
         )
     }
 
+    // MARK: - Reading the end of a long text
+
+    func test_lastWords_areTheSameAsSplittingTheWholeText() {
+        // #given texts with every kind of spacing at the end, one of them long
+        let long = String(repeating: "word ", count: 5_000) + "and the last four"
+        for text in ["", " ", "one", "one two", "one  two\nthree ", "a b c d e f", long, long + "  \n"] {
+            let expected = text.split(whereSeparator: { $0.isWhitespace }).suffix(4).map(String.init)
+
+            let words = NextWordPredictor.lastWords(of: Substring(text), count: 4).map(String.init)
+
+            XCTAssertEqual(words, expected, String(text.suffix(30)))
+        }
+    }
+
     // MARK: - Words with usual capitals
 
     func test_wordWithUsualCapitals_isShownTheWayItIsWritten() {

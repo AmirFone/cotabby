@@ -31,13 +31,9 @@ if screen_locked; then echo "SKIP  screen is locked; unlock it and run again"; e
 # the test window, which reads as this build typing something it must not. E2E_PAUSE_OTHER=1 quits
 # it for the run and starts it again afterwards; without that the run goes on with a warning.
 OTHER_COTABBY=0
-if pgrep -x Cotabby >/dev/null; then
-  if [ "${E2E_PAUSE_OTHER:-0}" = 1 ]; then
-    OTHER_COTABBY=1; pkill -x Cotabby; sleep 1
-  else
-    echo "WARN  the released Cotabby app is also running and may type into the test window (E2E_PAUSE_OTHER=1 pauses it for the run)"
-  fi
-fi
+# The repository the suite belongs to. Set by a runner that executes a copy of this script from
+# somewhere else (Tools/e2e/run-when-idle.sh), so the tool still finds the app's resources.
+REPO_ROOT="${COTABBY_REPO:-$(cd "$(dirname "$0")/../.." && pwd)}"
 HOST_APP=$("$(dirname "$0")/build-host.sh")
 HOST=CotabbyE2EHost
 HOST_FILES="$HOME/Library/Caches/CotabbyE2E"
@@ -76,6 +72,18 @@ restore_history() {
   open "/Applications/Cotabby Dev.app"
   if [ "$OTHER_COTABBY" = 1 ] && ! pgrep -x Cotabby >/dev/null; then open -g -j /Applications/Cotabby.app; fi
 }
+# Armed before anything of the writer's is changed: a run stopped during the launch below used to
+# leave the app in test mode, the training switch on and the released Cotabby quit, because the
+# clean-up was only set up after the launch.
+STREAM=""
+trap '[ -n "$STREAM" ] && kill "$STREAM" 2>/dev/null; pkill -x "$HOST" 2>/dev/null; restore_history' EXIT
+if pgrep -x Cotabby >/dev/null; then
+  if [ "${E2E_PAUSE_OTHER:-0}" = 1 ]; then
+    OTHER_COTABBY=1; pkill -x Cotabby; sleep 1
+  else
+    echo "WARN  the released Cotabby app is also running and may type into the test window (E2E_PAUSE_OTHER=1 pauses it for the run)"
+  fi
+fi
 pkill -f "Cotabby Dev.app/Contents/MacOS"; sleep 1
 # The training record is opt-in; the test switches it on for its own run only (the writer's switch
 # and file are restored afterwards) and starts from an empty file so it checks only what it typed.
@@ -84,6 +92,10 @@ if [ "${E2E_ONLY:-}" = training ]; then
   [ -f "$TRAINING" ] && mv "$TRAINING" "$HOME/.Trash/training-log-e2e-$(date +%s).jsonl"
 fi
 if [ "${E2E_FORCE_GENERATION:-0}" = 1 ]; then defaults write "$DOMAIN" cotabbyLowPowerModeAutoDisableEnabled -bool false; fi
+LOG=$(mktemp -t cotabby-e2e)
+log stream --level debug --predicate 'process == "Cotabby Dev" && subsystem BEGINSWITH "com.cotabby"' --style compact > "$LOG" 2>&1 &
+STREAM=$!
+sleep 0.6
 if [ "${E2E_ONLY:-}" = speed ] || [ -n "${E2E_NO_OVERLAY:-}" ]; then
   # Timing run (E2E_NO_OVERLAY=1 gives any other mode the same launch): the debug flag also draws a developer overlay on every keystroke, which costs more
   # main-thread time than the whole spelling pipeline. Trace logging alone gives the timeline.
@@ -93,11 +105,16 @@ else
 fi
 pkill -x "$HOST" 2>/dev/null
 open -n "$HOST_APP"
-sleep 14
-LOG=$(mktemp -t cotabby-e2e)
-log stream --level debug --predicate 'process == "Cotabby Dev" && subsystem BEGINSWITH "com.cotabby"' --style compact > "$LOG" 2>&1 &
-STREAM=$!
-trap 'kill $STREAM 2>/dev/null; pkill -x "$HOST"; restore_history' EXIT
+# Ready when the app says its services are up and both language models have loaded, or after 14 s
+# (what this used to wait every time; a Mac without those models never logs the lines). With the
+# models already in the file cache this is three or four seconds.
+ready_waited=0
+while [ $ready_waited -lt 140 ]; do
+  if grep -q "All services started" "$LOG" && grep -q "Sentence model: loaded" "$LOG" \
+    && grep -Eq "Word language model: loaded|Word language model: no model" "$LOG"; then break; fi
+  sleep 0.1; ready_waited=$((ready_waited + 1))
+done
+sleep 1.0
 
 pass=0; fail=0
 host_command() { echo "$1" >> "$HOST_FILES/host-commands.txt"; sleep 0.1; }
@@ -157,8 +174,17 @@ MARK=0
 mark() { MARK=$(wc -l < "$LOG"); }
 since_mark() { tail -n +"$((MARK + 1))" "$LOG"; }
 
-case_type() { # name, text to type, expected document text after 1.5s
-  clear_doc; mark "$1"; type_text "$2"; sleep 1.5
+# Waits until the document reads as expected, for at most the given tenths of a second. A fix lands
+# within tens of milliseconds, so a fixed pause was mostly waiting; a slow Mac gets longer than the
+# old pause, a fast one moves on at once.
+wait_doc() { # expected text, tenths of a second to wait at most
+  local tenths=0
+  while [ "$(doc)" != "$1" ] && [ $tenths -lt "${2:-30}" ]; do sleep 0.1; tenths=$((tenths + 1)); done
+}
+case_type() { # name, text to type, expected document text
+  clear_doc; mark "$1"; type_text "$2"
+  # "Nothing may change" can only be shown by giving a change time to happen.
+  if [ "$2" = "$3" ]; then sleep 1.5; else wait_doc "$3" 30; sleep 0.3; fi
   check "$1" "$3" "$(doc)"
 }
 
@@ -167,7 +193,7 @@ case_type() { # name, text to type, expected document text after 1.5s
 # Return always reaches the app as a new line.
 # The strip's words for a text, from the same engine and resources the app uses (the CLI), so the
 # checks below test the keys, not one particular build of the word table.
-SPELL_CLI="${COTABBY_SPELL:-$(dirname "$0")/../../build/DerivedData/Build/Products/Release/cotabby-spell}"
+SPELL_CLI="${COTABBY_SPELL:-$REPO_ROOT/build/DerivedData/Build/Products/Release/cotabby-spell}"
 # The language model the app orders the strip with: the same choice as
 # `WordLanguageModelService.defaultModelURL` (best installed ghost-text model that fits in memory,
 # otherwise the sentence model's file), so the CLI below predicts what the app shows.
@@ -186,7 +212,7 @@ elif [ -f "/Applications/Cotabby Dev.app/Contents/Resources/$SENTENCE_MODEL_FILE
   STRIP_LM="/Applications/Cotabby Dev.app/Contents/Resources/$SENTENCE_MODEL_FILE"
 fi
 strip_word() { # text, slot (1-based)
-  (cd "$(dirname "$0")/../.." && "$SPELL_CLI" --predict "$1|" ${STRIP_LM:+--lm "$STRIP_LM"}) 2>/dev/null | head -n 1 \
+  (cd "$REPO_ROOT" && "$SPELL_CLI" --predict "$1|" ${STRIP_LM:+--lm "$STRIP_LM"}) 2>/dev/null | head -n 1 \
     | sed -E 's/.*→ +//; s/ +\[.*//' | awk -F ' · ' -v slot="$2" '{ print $slot }'
 }
 

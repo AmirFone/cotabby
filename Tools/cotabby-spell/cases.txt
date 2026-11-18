@@ -111,6 +111,9 @@ proceed	room 4b |
 proceed	#hastag |
 proceed	@mentoin |
 proceed	~/Desktop/fiel |
+proceed	set isEnabeld |
+proceed	call getUserNmae |
+auto:King	the kKing |
 
 ## Words joined by a dot or a slash, and a word finished by a slash or a hyphen: offered, never
 ## changed without asking while joined; the mark followed by a space is ordinary punctuation

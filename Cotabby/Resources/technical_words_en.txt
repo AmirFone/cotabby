@@ -571,6 +571,7 @@ xss 800000 XSS
 abac 200000 ABAC
 accessibility 200000
 aes 200000 AES
+alembic 200000
 amqp 200000 AMQP
 annotation 200000
 annotations 200000
@@ -595,10 +596,12 @@ brownfield 200000
 buck 200000
 canonical 200000
 carousel 200000
+carthage 200000
 celery 200000
 checkbox 200000
 checkboxes 200000
 checkpoint 200000
+checkpointed 200000
 checkpointing 200000
 checkpoints 200000
 chocolatey 200000
@@ -608,9 +611,11 @@ clickhouse 200000 ClickHouse
 clojure 200000 Clojure
 cmake 200000 CMake
 cockroachdb 200000 CockroachDB
+cocoapods 200000 CocoaPods
 colocation 200000
 combine 200000
 compaction 200000
+conda 200000
 configmap 200000
 consensus 200000
 constructor 200000
@@ -640,15 +645,18 @@ destructor 200000
 destructors 200000
 disassembler 200000
 dogfooding 200000
+drizzle 200000
 dropdown 200000
 dropdowns 200000
 ecdsa 200000 ECDSA
+electron 200000
 elixir 200000
 endianness 200000
 enumerate 200000
 enumeration 200000
 envoy 200000
 erlang 200000 Erlang
+esbuild 200000
 etcd 200000
 fanin 200000
 fanout 200000
@@ -661,10 +669,13 @@ flexbox 200000
 flutter 200000
 flux 200000
 focusable 200000
+formatter 200000
+formatters 200000
 ftp 200000
 functor 200000
 functors 200000
 gatsby 200000
+gguf 200000 GGUF
 gossip 200000
 greenfield 200000
 gridlines 200000
@@ -709,16 +720,20 @@ linearizable 200000
 linker 200000
 linkerd 200000 Linkerd
 linkers 200000
+linters 200000
 llama 200000
+llamacpp 200000
 locale 200000
 locales 200000
 localization 200000
+lora 200000
 lua 200000 Lua
 marshaling 200000
 memcached 200000 Memcached
 memoization 200000
 memoize 200000
 memoized 200000
+memoizing 200000
 metaclass 200000
 milestone 200000
 milestones 200000
@@ -765,13 +780,22 @@ parsers 200000
 perl 200000 Perl
 pinecone 200000 Pinecone
 pki 200000 PKI
+pnpm 200000
 podman 200000 Podman
+poetry 200000
 powershell 200000 PowerShell
 prefetch 200000
+prefetching 200000
+preflight 200000
+preload 200000
+prisma 200000 Prisma
 protobuf 200000 Protobuf
 protobufs 200000
 pulsar 200000
 pulumi 200000 Pulumi
+pydantic 200000 Pydantic
+quantization 200000
+quantized 200000
 quorum 200000
 rancher 200000
 rbac 200000 RBAC
@@ -789,6 +813,8 @@ remix 200000
 repro 200000
 reproducibility 200000
 reproducible 200000
+rerender 200000
+rerenders 200000
 resharding 200000
 responsive 200000
 retro 200000
@@ -796,8 +822,10 @@ retros 200000
 roadmap 200000
 roadmaps 200000
 robots 200000
+rollup 200000 Rollup
 rsa 200000 RSA
 rxjs 200000 RxJS
+safetensors 200000
 scala 200000
 scim 200000 SCIM
 screenshot 200000
@@ -817,19 +845,25 @@ sidekiq 200000 Sidekiq
 sitemap 200000
 smtp 200000 SMTP
 snapshotting 200000
+solidjs 200000 SolidJS
 sprint 200000
 sprints 200000
+sqlalchemy 200000 SQLAlchemy
 stacktraces 200000
 stakeholder 200000
 stakeholders 200000
 standup 200000
 standups 200000
 statefulset 200000
+storybook 200000
 subclass 200000
 subclasses 200000
 supabase 200000 Supabase
 superclass 200000
+swiftlint 200000 SwiftLint
+swiftpm 200000 SwiftPM
 swiftui 200000 SwiftUI
+tauri 200000 Tauri
 teamcity 200000 TeamCity
 textbox 200000
 thrift 200000
@@ -848,6 +882,9 @@ trampoline 200000
 transactional 200000
 triage 200000
 triaged 200000
+trpc 200000 tRPC
+tsconfig 200000
+turborepo 200000 Turborepo
 uikit 200000 UIKit
 unmarshal 200000
 vagrant 200000
@@ -856,6 +893,7 @@ vault 200000
 vectorization 200000
 vectorized 200000
 viewport 200000
+virtualenv 200000
 virtualization 200000
 virtualized 200000
 vtable 200000
@@ -865,5 +903,8 @@ watermarks 200000
 webassembly 200000 WebAssembly
 websocket 200000 WebSocket
 websockets 200000 WebSockets
+xcodebuild 200000
+xcodegen 200000
 zipkin 200000 Zipkin
+zod 200000 Zod
 zustand 200000 Zustand

@@ -109,8 +109,11 @@ final class PersonalPhraseModel {
                 }
             }
         }
-        while counts.count > Self.maximumContexts, let oldest = insertionOrder.first {
-            insertionOrder.removeFirst()
+        // The empty context is the first key ever learned, so it would be the first to go, and it
+        // is the one that holds every word the writer uses: without it the strip stops completing
+        // their words until the next sentence. Longer contexts are what there are too many of.
+        while counts.count > Self.maximumContexts, let index = insertionOrder.firstIndex(where: { !$0.isEmpty }) {
+            let oldest = insertionOrder.remove(at: index)
             counts.removeValue(forKey: oldest)
             totals.removeValue(forKey: oldest)
         }

@@ -185,6 +185,14 @@ enum CurrentWordExtractor {
             if codeLikeCharacters.contains(character) { return false }
         }
 
+        // A capital in the middle of a word after lowercase letters is an identifier
+        // (`getUserName`, `isEnabled`), not prose. The first two letters are left out of the test:
+        // `kKing` and `iPhone` are a Shift slip and a name, which have their own handling.
+        let characters = Array(word)
+        if characters.count > 2, (2..<characters.count).contains(where: { characters[$0].isUppercase && characters[$0 - 1].isLowercase }) {
+            return false
+        }
+
         // All-uppercase tokens are almost always acronyms (USA, HTTP, JSON). NSSpellChecker flags
         // many of them as typos, but correcting them is not useful here.
         let letters = word.filter { $0.isLetter }

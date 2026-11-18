@@ -116,6 +116,23 @@ final class SentenceCheckControllerTests: XCTestCase {
         XCTAssertEqual(choices, ["went | their → their", "with | adres → address"])
     }
 
+    func test_review_leftHalfway_teachesNothing() {
+        // #given a review with two words to decide
+        let harness = makeHarness(sentence: "I went their with adres book. ", proofread: Self.twoFlags)
+        var choices: [String] = []
+        harness.controller.onReviewChoice = { typed, _, chosen in choices.append("\(typed) → \(chosen)") }
+        harness.controller.noteTypedText(harness.focus.snapshot.context!.precedingText, caretRect: .zero, focusChangeSequence: 1)
+
+        // #when the writer decides the first and then types on, which closes the card unchanged
+        _ = harness.controller.observe(Self.key(53))
+        _ = harness.controller.observe(CapturedInputEvent(kind: .textMutation, keyCode: 0, characters: "a", flags: []))
+        flushMainQueue()
+
+        // #then the sentence was not changed, and the half-made review is not remembered either
+        XCTAssertEqual(harness.inserter.replacements.count, 0)
+        XCTAssertEqual(choices, [])
+    }
+
     func test_review_arrowsPickAnotherOption() {
         let harness = makeHarness(sentence: "I went their with adres book. ", proofread: Self.twoFlags)
         harness.controller.noteTypedText(harness.focus.snapshot.context!.precedingText, caretRect: .zero, focusChangeSequence: 1)

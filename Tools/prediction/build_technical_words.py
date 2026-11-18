@@ -109,6 +109,11 @@ TERMS = {
         SwiftUI UIKit AppKit Combine CoreData Jetpack
         Nuxt Remix Gatsby Astro Redux MobX Zustand RxJS
         LangChain OpenAI HuggingFace Ollama llama
+        xcodebuild xcodegen SwiftLint SwiftPM CocoaPods Carthage pnpm esbuild tsconfig Rollup Turborepo
+        GGUF llamacpp LoRA quantized quantization tokenizers safetensors checkpointed
+        Pydantic SQLAlchemy Alembic Poetry virtualenv conda linters formatter formatters
+        Tauri Electron SolidJS Storybook Zod tRPC Prisma Drizzle
+        preflight preload prefetching rerender rerenders memoizing
         memoize memoization memoized debounce debounced throttle hydrate hydration rehydrate
         idempotently atomically transactional isolation serializable linearizable quorum
         consensus leaderless gossip sharded resharding rebalancing rebalance compaction

@@ -30,6 +30,9 @@ nonisolated struct AutoFixOutcomeTracker {
         let fix: String
         /// Everything before the fixed word, as it was when the fix landed.
         let textBefore: String
+        /// The field the fix was made in (its focus sequence), so text in another field that
+        /// happens to begin the same way is never read as a verdict on this fix.
+        var field: UInt64 = 0
         /// True once the field has been seen holding the fix. Until then the typo still standing
         /// is the text from before the fix, not the writer putting it back.
         var wasSeen = false
@@ -46,23 +49,23 @@ nonisolated struct AutoFixOutcomeTracker {
     /// the space that triggered it.
     /// Capitalization fixes (`it` → `It`) are not tracked: the words match without case, so the fix
     /// would read as undone the moment it landed.
-    mutating func noteAutoFix(typo: String, fix: String, precedingText: String) {
+    mutating func noteAutoFix(typo: String, fix: String, precedingText: String, field: UInt64 = 0) {
         guard typo.lowercased() != fix.lowercased() else { return }
         let trimmed = precedingText.reversed().drop { $0.isWhitespace }
         let word = String(trimmed.prefix(typo.count).reversed())
         guard word.caseInsensitiveCompare(typo) == .orderedSame else { return }
         let textBefore = String(trimmed.dropFirst(typo.count).reversed())
-        pending.append(Pending(typo: typo.lowercased(), fix: fix.lowercased(), textBefore: textBefore))
+        pending.append(Pending(typo: typo.lowercased(), fix: fix.lowercased(), textBefore: textBefore, field: field))
         if pending.count > Self.maximumPending { pending.removeFirst() }
     }
 
     /// Reads the latest text before the caret and returns the fixes it settles. A fix whose earlier
     /// text was edited, or whose field changed, is dropped without a verdict.
-    mutating func observe(_ precedingText: String) -> [AutoFixOutcome] {
+    mutating func observe(_ precedingText: String, field: UInt64 = 0) -> [AutoFixOutcome] {
         var outcomes: [AutoFixOutcome] = []
         pending = pending.compactMap { item in
             var item = item
-            guard precedingText.hasPrefix(item.textBefore) else { return nil }
+            guard item.field == field, precedingText.hasPrefix(item.textBefore) else { return nil }
             let rest = precedingText.dropFirst(item.textBefore.count)
             let word = rest.prefix { $0.isLetter || $0 == "'" || $0 == "’" }.lowercased()
             let wordIsFinished = rest.count > word.count

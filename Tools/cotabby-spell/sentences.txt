@@ -23,3 +23,6 @@ We need to buy milk and eggs.	=	We need to buy milk and eggs.
 I think the problem is here.	=	I think teh the problem is here.
 =	=	She lets the dog out.
 Hello, world is here.	=	Hello ,world is here.
+# `i.e.` starts with the letter, not the pronoun; `i’m` with a curly apostrophe is the pronoun
+=	=	Use the first one, i.e. this one.
+And then I’m sure it works.	=	And then i’m sure it works.

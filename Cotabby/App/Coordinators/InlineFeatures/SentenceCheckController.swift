@@ -40,6 +40,13 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
     }
 
     /// Stepping through a sentence's unsure words one at a time. `choices[i]` is what flag `i` becomes.
+    /// One decided flag of a review: the word, the word before it, and what the writer chose.
+    private struct Decision {
+        let typed: String
+        let previous: String?
+        let chosen: String
+    }
+
     private struct Review {
         let finished: FinishedSentence
         let flags: [SentenceFlag]
@@ -47,6 +54,11 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
         let caretRect: CGRect
         var current = 0
         var choices: [String] = []
+        /// What was decided for each flag so far, told to `onReviewChoice` only once the last flag
+        /// is decided. A review the writer types away from halfway changes nothing in the text, so
+        /// it must not teach anything either: before, the words kept or picked up to that point
+        /// were remembered although the sentence stayed as it was.
+        var decisions: [Decision] = []
         var selected = 1
 
         var presentation: SentenceReviewPresentation {
@@ -440,7 +452,7 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
         review.choices.append(chosen)
         let previous = WordToken.tokens(in: review.finished.sentence)
             .last { $0.range.upperBound <= flag.range.lowerBound }?.text
-        onReviewChoice?(flag.typed, previous, chosen)
+        review.decisions.append(Decision(typed: flag.typed, previous: previous, chosen: chosen))
         review.current += 1
         review.selected = 1
         guard review.current == review.flags.count else {
@@ -448,6 +460,7 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
             panel.showSentenceReview(review.presentation, caretRect: review.caretRect, acceptKeyLabel: acceptKeyLabel())
             return
         }
+        review.decisions.forEach { onReviewChoice?($0.typed, $0.previous, $0.chosen) }
         hideCard()
         let finished = review.finished
         let corrected = review.flags.applying(choices: review.choices, to: finished.sentence)

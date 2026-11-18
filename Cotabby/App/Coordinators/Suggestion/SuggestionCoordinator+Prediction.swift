@@ -767,7 +767,7 @@ extension SuggestionCoordinator {
     /// typed past is recorded as accepted, one they undid marks the typed word as intended so it is
     /// never auto-fixed again.
     private func settleAutoFixOutcomes(precedingText: String) {
-        for outcome in autoFixOutcomes.observe(precedingText) {
+        for outcome in autoFixOutcomes.observe(precedingText, field: focusModel.snapshot.context?.focusChangeSequence ?? 0) {
             switch outcome.kind {
             case .confirmed:
                 personalCorrectionMemory?.recordAccepted(typo: outcome.typo, replacement: outcome.fix)
@@ -988,7 +988,10 @@ extension SuggestionCoordinator {
         clearSuggestion(clearDiagnostics: false)
         hideOverlay(reason: "Overlay hidden because Cotabby automatically fixed a typo.")
         state = .idle
-        autoFixOutcomes.noteAutoFix(typo: typoWord, fix: correctedWord, precedingText: livePrecedingText)
+        autoFixOutcomes.noteAutoFix(
+            typo: typoWord, fix: correctedWord, precedingText: livePrecedingText,
+            field: focusModel.snapshot.context?.focusChangeSequence ?? 0
+        )
         qualityMetricsStore.recordCorrectionAutoApplied()
         candidateOfferPresenter?.flashAutoCorrection(
             typo: typoWord,

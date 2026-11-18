@@ -101,6 +101,56 @@ final class CurrentWordExtractorTests: XCTestCase {
         XCTAssertEqual(replacement, TypoCorrectionReplacement(deletingUTF16Count: 4, replacementText: "name"))
     }
 
+    func test_identifiersWithACapitalInside_areNotWords() {
+        // #given names from code, one of them misspelled
+        for text in ["call getUserName", "set isEnabeld", "the myVarNmae", "use parseHTTPResponse"] {
+            XCTAssertNil(CurrentWordExtractor.extract(from: text), text)
+        }
+        // #then a Shift slip and a name that starts lowercase are still words to look at
+        XCTAssertEqual(CurrentWordExtractor.extract(from: "the kKing")?.word, "kKing")
+        XCTAssertEqual(CurrentWordExtractor.extract(from: "my iPhone")?.word, "iPhone")
+        XCTAssertEqual(CurrentWordExtractor.extract(from: "ask Priyanka")?.word, "Priyanka")
+    }
+
+    func test_typoReplacement_alwaysProducesExactlyTheTextItClaims() {
+        // #given many fields built from parts: something before, a slip, what follows it
+        let befores = ["", "I saw ", "Well, ", "table is users.", "it is read/", "a well-known ", "naïve café and ", "line one\nand "]
+        let slips = [("teh", "the"), ("recieve", "receive"), ("Wich", "Which"), ("dont", "don't"), ("nextdoor", "next door")]
+        let tails = ["", " ", ",", ", ", ".", "! ", "?\"", "/", "-", ") "]
+        var checked = 0
+
+        for before in befores {
+            for (slip, fix) in slips {
+                for tail in tails {
+                    let field = before + slip + tail
+                    // #when a replacement is planned for the slip at the caret
+                    guard let plan = TypoCorrectionReplacementPlanner.plan(
+                        precedingText: field, expectedTypo: slip, correctedWord: fix, requiresTrailingSpace: false
+                    ) else { continue }
+                    let units = Array(field.utf16)
+                    XCTAssertLessThanOrEqual(plan.deletingUTF16Count, units.count, field)
+                    let kept = String(decoding: units.dropLast(plan.deletingUTF16Count), as: UTF16.self)
+
+                    // #then deleting and retyping gives the same field with only the slip changed
+                    XCTAssertEqual(kept + plan.replacementText, before + fix + tail, field)
+                    // #and nothing before the slip is ever deleted
+                    XCTAssertEqual(kept, before, field)
+                    checked += 1
+                }
+            }
+        }
+        XCTAssertGreaterThan(checked, 200)
+    }
+
+    func test_typoReplacement_isRefusedWhenTheFieldNoLongerEndsInTheSlip() {
+        for field in ["I saw the ", "I saw teh cat", "I saw teh  ", "I saw tehx ", ""] {
+            XCTAssertNil(
+                TypoCorrectionReplacementPlanner.plan(precedingText: field, expectedTypo: "teh", correctedWord: "the", requiresTrailingSpace: false),
+                field
+            )
+        }
+    }
+
     func test_acceptsMixedCaseNaturalWord() {
         XCTAssertEqual(CurrentWordExtractor.extract(from: "fix teh")?.word, "teh")
         // Leading-capital natural words are fine; only ALL-caps tokens are rejected.

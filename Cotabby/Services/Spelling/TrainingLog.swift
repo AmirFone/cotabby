@@ -251,8 +251,10 @@ final class TrainingLog {
 
     private func trimToNewerHalf() {
         guard let fileURL, let data = try? Data(contentsOf: fileURL) else { return }
-        let lines = data.split(separator: UInt8(ascii: "\n"))
-        let kept = lines.suffix(lines.count / 2).map { Data($0) + Data("\n".utf8) }.reduce(Data(), +)
-        try? kept.write(to: fileURL, options: .atomic)
+        // The newer half starts at the first line break past the middle: one search and one copy,
+        // where joining the kept lines one at a time copied everything again for each line.
+        let middle = data.startIndex + data.count / 2
+        guard let lineBreak = data[middle...].firstIndex(of: UInt8(ascii: "\n")) else { return }
+        try? data[data.index(after: lineBreak)...].write(to: fileURL, options: .atomic)
     }
 }

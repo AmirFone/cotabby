@@ -27,6 +27,19 @@ final class AutoFixOutcomeTrackerTests: XCTestCase {
         XCTAssertEqual(outcomes, [.init(kind: .reverted, typo: "kubernets", fix: "kubernetes")])
     }
 
+    func test_textInAnotherField_isNotAVerdictOnTheFix() {
+        // #given a fix of the first word in one field (nothing stands before it)
+        var tracker = AutoFixOutcomeTracker()
+        tracker.noteAutoFix(typo: "teh", fix: "the", precedingText: "teh ", field: 7)
+
+        // #when another field happens to begin with the fixed word and goes on
+        let elsewhere = tracker.observe("the meeting is at noon ", field: 8)
+
+        // #then that says nothing about the fix, and it is no longer waited for
+        XCTAssertEqual(elsewhere, [])
+        XCTAssertEqual(tracker.pendingCount, 0)
+    }
+
     func test_typoStillStandingBeforeTheFixWasEverSeen_isNotAnUndo() {
         // #given a fix whose keys have not reached the field yet, or never did
         var tracker = AutoFixOutcomeTracker()
