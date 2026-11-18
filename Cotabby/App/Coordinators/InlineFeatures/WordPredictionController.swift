@@ -543,9 +543,15 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
         // `I wanted  to go`).
         let addsSpace = caretEndsItsLine
         let typed = addsSpace ? word + " " : word
+        // Backspace keys, counted on the letters as the field holds them (`BackspaceKeyCount`): for
+        // letters with a decomposed accent the number depends on the host, and then nothing is typed.
+        guard let keys = BackspaceKeyCount.deleting(precedingText.suffix(prefix.count)) else {
+            hide(because: "the letters typed cannot be deleted with a known number of keys")
+            return
+        }
         let inserted = prefix.isEmpty
             ? inserter.insert(typed)
-            : inserter.replace(deletingUTF16Count: prefix.utf16.count, with: typed)
+            : inserter.replace(deletingUTF16Count: keys, with: typed)
         guard inserted else {
             hide(because: "the pick could not be typed")
             return
