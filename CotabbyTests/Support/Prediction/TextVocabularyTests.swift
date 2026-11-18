@@ -59,6 +59,22 @@ final class TextVocabularyTests: XCTestCase {
         XCTAssertEqual(words.map(\.display), ["Priyanka"])
     }
 
+    func test_stemOfANegativeContraction_isNotAWordOfTheWriters() {
+        // #given `didn't` twice: read as `didn` plus an ending, that is a word the dictionary lacks, used twice
+        let words = read("Then the team didn't run. The team didn’t run again.")
+
+        // #then nothing is offered
+        XCTAssertEqual(words, [])
+    }
+
+    func test_stemOfANegativeContractionInCapitals_isNotOfferedAsAnAcronym() {
+        // #given the contraction in capitals inside a sentence, where one use is enough for a name
+        let words = read("Then the team DIDN'T run.")
+
+        // #then it is still no word
+        XCTAssertEqual(words, [])
+    }
+
     func test_dictionaryWordCapitalizedInsideSentencesTwice_isRespelledNotNew() {
         // #given `lantern`, a dictionary word, used as a project name
         let words = read("Then the team moved Lantern. Then the team told Dana that Lantern was late.")

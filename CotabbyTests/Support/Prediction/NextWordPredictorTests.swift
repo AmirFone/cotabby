@@ -341,6 +341,169 @@ final class NextWordPredictorTests: XCTestCase {
         XCTAssertEqual(prediction?.words.first, "BE")
     }
 
+    // MARK: - Capitals: one acronym is not shouting
+
+    func test_oneAcronym_doesNotPutTheStripInCapitals() {
+        // #given an ordinary sentence that ends in an acronym
+        let prediction = NextWordPredictor.predict(textBefore: "We want to use NASA ", sources: sources())
+
+        // #then the next word is offered in lowercase
+        XCTAssertEqual(prediction?.words.first, "the")
+    }
+
+    func test_twoAcronymsAfterALowercaseWord_doNotPutTheStripInCapitals() {
+        // #given two all-caps words in a row inside a lowercase sentence
+        let prediction = NextWordPredictor.predict(textBefore: "We want the REST API ", sources: sources())
+
+        // #then the sentence is still not shouted
+        XCTAssertEqual(prediction?.words.first, "the")
+    }
+
+    func test_textOfNothingButKnownAcronyms_doesNotPutTheStripInCapitals() {
+        // #given a text that is two words always written in capitals
+        var sources = sources()
+        sources.usualCapitals = { ["json": "JSON", "api": "API"][$0] }
+
+        // #when predicting after them
+        let prediction = NextWordPredictor.predict(textBefore: "JSON API ", sources: sources)
+
+        // #then they say nothing about caps lock
+        XCTAssertEqual(prediction?.words.first, "the")
+    }
+
+    func test_wordsInCapitals_putTheStripInCapitals() {
+        // #given a writer in caps lock, three words in
+        let prediction = NextWordPredictor.predict(textBefore: "THIS IS GREAT ", sources: sources())
+
+        // #then the strip follows
+        XCTAssertEqual(prediction?.words.first, "THE")
+    }
+
+    func test_aOneLetterWordInACapsLockSentence_keepsTheStripInCapitals() {
+        // #given capitals that end in `A`, which is a capital in any sentence
+        let prediction = NextWordPredictor.predict(textBefore: "THIS IS A ", sources: sources())
+
+        // #then the words before it still decide
+        XCTAssertEqual(prediction?.words.first, "THE")
+    }
+
+    func test_capitalLetterTypedInACapsLockSentence_isCompletedInCapitals() {
+        let prediction = NextWordPredictor.predict(textBefore: "THIS IS G", sources: sources())
+
+        XCTAssertEqual(prediction?.words.first, "GOOD")
+    }
+
+    func test_capitalLetterTypedAfterOneAcronym_isCompletedAsACapitalizedWord() {
+        // #given one capital typed after an acronym: the start of a name, not caps lock
+        let prediction = NextWordPredictor.predict(textBefore: "We want NASA G", sources: sources())
+
+        // #then only the first letter is a capital
+        XCTAssertEqual(prediction?.words.first, "Good")
+    }
+
+    func test_threeCapitalsTyped_areCompletedInCapitals_whateverCameBefore() {
+        // #given a word begun in capitals with nothing in capitals before it
+        let prediction = NextWordPredictor.predict(
+            textBefore: "I think BEC", sources: sources(completions: ["because", "became"])
+        )
+
+        // #then a pick keeps the writer's capitals
+        XCTAssertEqual(prediction?.words, ["BECAUSE", "BECAME"])
+    }
+
+    func test_twoCapitalsTyped_areAShiftHeldTooLong_notCapsLock() {
+        let prediction = NextWordPredictor.predict(textBefore: "GR", sources: sources())
+
+        XCTAssertEqual(prediction?.words, ["Great"])
+    }
+
+    // MARK: - Abbreviations do not end a sentence
+
+    func test_dotOfAnAbbreviation_doesNotStartASentence() {
+        // #given texts whose last dot belongs to `e.g.`, `i.e.` or `vs.`, one of them in a bracket
+        for text in ["We want e.g. ", "We want (i.e. ", "We want it vs. "] {
+            let prediction = NextWordPredictor.predict(textBefore: text, sources: sources())
+
+            // #then the next word continues the sentence in lowercase
+            XCTAssertEqual(prediction?.words.first, "the", text)
+        }
+    }
+
+    func test_noWithADot_isTheWordNo_andEndsTheSentence() {
+        // #given `No.`, which the abbreviation list has for `no. 5` but which before a word is an answer
+        let prediction = NextWordPredictor.predict(textBefore: "We want it? No. ", sources: sources())
+
+        // #then a new sentence starts
+        XCTAssertEqual(Set(prediction?.words.prefix(2) ?? []), ["I", "The"])
+    }
+
+    // MARK: - A word begun after an opening single quote
+
+    func test_wordBegunAfterASingleQuote_isCompletedLikeAfterADoubleQuote() {
+        // #given the same word begun against each kind of opening quote
+        let afterSingle = NextWordPredictor.predict(textBefore: "I want 't", sources: sources())
+        let afterDouble = NextWordPredictor.predict(textBefore: "I want \"t", sources: sources())
+
+        // #then both are completed, and the quote is not part of the letters a pick replaces
+        XCTAssertEqual(afterSingle, afterDouble)
+        XCTAssertEqual(afterSingle, NextWordPrediction(prefix: "t", words: ["to", "the"]))
+    }
+
+    func test_apostropheInsideAWord_stillBelongsToTheWord() {
+        let prediction = NextWordPredictor.predict(textBefore: "We don't k", sources: sources())
+
+        XCTAssertEqual(prediction?.words.first, "know")
+    }
+
+    func test_singleQuoteWithNoLetterYet_getsNoSuggestions_likeADoubleQuote() {
+        XCTAssertNil(NextWordPredictor.predict(textBefore: "I want '", sources: sources()))
+    }
+
+    // MARK: - Pieces of words are not words
+
+    func test_piecesOfNumbers_areNeverOffered_withOrWithoutTheLanguageModel() {
+        // #given a table that counted `5th`, `1990s`, `1st`, `5h` and `49ers` as a number and then a "word"
+        let table = NextWordModelFixture.make([
+            "<num>": (100, [("years", 40), ("th", 30), ("s", 10), ("st", 8), ("h", 5), ("a", 4), ("ers", 3)])
+        ])
+        let text = "It took 5 "
+        let model = LanguageModelFixture.scores(textBefore: text, ["th": 0.5, "years": 0.2, "s": 0.1])
+        func predict(_ languageModel: LanguageModelScores?) -> [String]? {
+            NextWordPredictor.predict(textBefore: text, sources: NextWordPredictor.Sources(
+                model: table,
+                completions: { _, _ in [] },
+                personal: { _ in nil },
+                languageModel: { _ in languageModel }
+            ))?.words
+        }
+
+        // #then only the words are left
+        XCTAssertEqual(predict(nil), ["years", "a"])
+        XCTAssertEqual(predict(model), ["years", "a"])
+    }
+
+    // MARK: - Ordinals and joined words are English
+
+    func test_numbersWithLettersOnThem_doNotReadAsAnotherLanguage() {
+        // #given two ordinals among the last four words
+        let text = "we go 1st to 2nd "
+
+        // #then the strip keeps predicting
+        XCTAssertFalse(NextWordPredictor.isOtherLanguage(text, model: model))
+    }
+
+    func test_hyphenatedEnglishWords_doNotReadAsAnotherLanguage() {
+        // #given two hyphenated words whose parts are English words
+        let known: Set<String> = ["well", "known", "long", "term"]
+
+        // #then neither counts as foreign
+        XCTAssertFalse(NextWordPredictor.isOtherLanguage("a well-known, long-term ", model: model, isKnownWord: known.contains))
+    }
+
+    func test_hyphenatedWordsWithNoEnglishPart_stillReadAsAnotherLanguage() {
+        XCTAssertTrue(NextWordPredictor.isOtherLanguage("the zorb-quexel blar-fnop ", model: model))
+    }
+
     func test_aSlipInThePrefixStillOffersTheWord() {
         // #given "gonig" is typed where "going" was meant
         var sources = sources()

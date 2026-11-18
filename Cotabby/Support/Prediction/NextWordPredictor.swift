@@ -146,7 +146,7 @@ nonisolated enum NextWordPredictor {
             )
             let ranked = wordsRanked(withWritersHabits(candidates, prefix: prefix, context: inputs.context, sources: sources))
             let words = inPreferredSpelling(ranked, prefix: prefix, sources: sources)
-            return prediction(words, parsed: parsed, textBefore: textBefore) {
+            return prediction(words, parsed: parsed, textBefore: textBefore, usualCapitals: sources.usualCapitals) {
                 languageModel.display(of: $0) ?? sources.usualCapitals($0)
             }
         }
@@ -179,7 +179,7 @@ nonisolated enum NextWordPredictor {
         }
         return prediction(
             inPreferredSpelling(words, prefix: prefix, sources: sources), parsed: parsed, textBefore: textBefore,
-            display: sources.usualCapitals
+            usualCapitals: sources.usualCapitals, display: sources.usualCapitals
         )
     }
 
@@ -238,14 +238,19 @@ nonisolated enum NextWordPredictor {
 
     /// The list as it is shown: recased for where the word will land. Nil for an empty list.
     ///
-    /// - Parameter display: the writer's own spelling of a word found in the text (`Priyanka`,
-    ///   `ETL`), which wins over the lowercase the lists hold.
+    /// - Parameters:
+    ///   - usualCapitals: `Sources.usualCapitals`, by which `isShouting` tells words always written
+    ///     in capitals from caps lock. Not `display`: that also knows what this text wrote in
+    ///     capitals, which in a shouted text is every word.
+    ///   - display: the writer's own spelling of a word found in the text (`Priyanka`, `ETL`),
+    ///     which wins over the lowercase the lists hold.
     private static func prediction(
-        _ words: [String], parsed: Parsed, textBefore: String, display: (String) -> String? = { _ in nil }
+        _ words: [String], parsed: Parsed, textBefore: String, usualCapitals: (String) -> String?,
+        display: (String) -> String? = { _ in nil }
     ) -> NextWordPrediction? {
         guard !words.isEmpty else { return nil }
         let atSentenceStart = parsed.context.last == NextWordModel.sentenceStart
-        let shouting = isShouting(textBefore, typedPrefix: parsed.prefix)
+        let shouting = isShouting(textBefore, typedPrefix: parsed.prefix, usualCapitals: usualCapitals)
         return NextWordPrediction(
             prefix: parsed.prefix,
             words: words.map {
@@ -416,6 +421,11 @@ nonisolated enum NextWordPredictor {
     /// True when the writer is typing in another language, where English predictions are noise: at
     /// least two of the last four words are neither in the English table nor capitalized names, or
     /// are written in another script. One foreign name (`Cancún`) in an English sentence does not count.
+    ///
+    /// Two kinds of token are English although no list has them whole, and two of either used to
+    /// silence the strip for the next four words (`on the 1st and 2nd `, `a well-known, long-term `):
+    /// a number with letters on it (`1st`, `5pm`, `v2`), and words joined by a hyphen, a slash or a
+    /// dot (`follow-up`, `and/or`, `e.g`), which are judged by their parts.
     static func isOtherLanguage(
         _ text: String, model: NextWordModel, isKnownWord: (String) -> Bool = { _ in false }
     ) -> Bool {
@@ -431,9 +441,16 @@ nonisolated enum NextWordPredictor {
             if word.unicodeScalars.contains(where: { $0.properties.isAlphabetic && !$0.isASCII }) {
                 return !first.isUppercase
             }
+            // After the script checks, so `5-го` is still Russian.
+            guard !first.isUppercase, !word.contains(where: \.isNumber) else { return false }
             let lowered = word.lowercased().replacingOccurrences(of: "’", with: "'")
-            return !first.isUppercase && !model.contains(lowered) && !isKnownWord(lowered)
-                && KnownMisspellings.fix(for: lowered) == nil
+            // Foreign only when no part is English: `e-mail` and `co-founder` have a part no list
+            // has, and a writer in another language rarely joins an English word to their own twice
+            // in four words. A word with no joining mark is its own single part, as before.
+            return !lowered.split(whereSeparator: CurrentWordExtractor.joiningMarks.contains).contains { part in
+                let part = String(part)
+                return model.contains(part) || isKnownWord(part) || KnownMisspellings.fix(for: part) != nil
+            }
         }
         return foreign.count >= 2
     }
@@ -479,11 +496,20 @@ nonisolated enum NextWordPredictor {
                 guard character.isLetter || character == "'" || character == "’" else { break }
                 start = previous
             }
+            // An apostrophe belongs to a word only after one of its letters (`don't`). Before the
+            // first letter it is an opening quote (`He said 'th`): kept in the prefix, no word
+            // started with it, so the strip stayed empty for the whole quoted word, and a pick
+            // would have replaced the quote along with the letters.
+            while start < body.endIndex, body[start] == "'" || body[start] == "’" { start = body.index(after: start) }
             prefix = String(body[start...])
             body = body[..<start]
+            // Nothing but the quote yet: as after `"`, there is no word to complete.
+            guard !prefix.isEmpty else { return nil }
             // Directly after a symbol or digit (`@jo`, `3rd`) the "word" is not prose. After a dot
             // or a slash it is, when the token is plain words joined by it (`users.na`, `read/wr`).
-            if let before = body.last, !before.isWhitespace, !"\"(“‘-".contains(before) {
+            // After an opening quote or bracket it is too; `'` can only be one here, since one
+            // that followed a letter was taken into the word above.
+            if let before = body.last, !before.isWhitespace, !"\"'(“‘-".contains(before) {
                 guard CurrentWordExtractor.endsInJoinedWords(text) else { return nil }
                 joinsAfterDot = before == "."
             }
@@ -498,9 +524,45 @@ nonisolated enum NextWordPredictor {
             // the context, and the next word does not start with a capital.
             body = body[..<dot] + " "
         }
-        let sentenceStart = body.lastIndex { ".!?\n".contains($0) }.map { body.index(after: $0) } ?? body.startIndex
-        let context = contextTokens(of: body[sentenceStart...])
+        let context = contextTokens(of: body[sentenceStart(of: body)...])
         return Parsed(context: Array(context.suffix(maximumContext)), prefix: prefix)
+    }
+
+    /// Where the sentence the caret is in begins: after the last `.`, `!`, `?` or line break that
+    /// ends one, or at the start of `body`.
+    ///
+    /// The dot of an abbreviation ends nothing. After `See e.g. ` the sentence goes on, but read as
+    /// an end it made the strip offer sentence openers with a capital (`The`, `What`), and a pick
+    /// typed a capital into the middle of the sentence. Such a dot is passed over together with
+    /// its whole token, so the dot inside `e.g.` is not then taken for an end either.
+    private static func sentenceStart(of body: Substring) -> Substring.Index {
+        var end = body.endIndex
+        while let mark = body[..<end].lastIndex(where: { ".!?\n".contains($0) }) {
+            guard body[mark] == ".", let abbreviation = abbreviationStart(in: body, endingAtDot: mark) else {
+                return body.index(after: mark)
+            }
+            end = abbreviation
+        }
+        return body.startIndex
+    }
+
+    /// Where the abbreviation that the dot at `dot` ends begins, or nil when that dot ends an
+    /// ordinary word.
+    ///
+    /// Which tokens are abbreviations is `SentenceCapitalization`'s knowledge (the capitalizer asks
+    /// the same question as each word is finished), so the strip and the capitalizer agree and
+    /// there is one list to extend. Only the token the dot ends is read, never the text before it:
+    /// this runs on every key.
+    private static func abbreviationStart(in body: Substring, endingAtDot dot: Substring.Index) -> Substring.Index? {
+        let tokenStart = body[..<dot].lastIndex(where: \.isWhitespace).map { body.index(after: $0) } ?? body.startIndex
+        // `(e.g.` and `"i.e.` are the abbreviation behind an opening mark. A digit is not one:
+        // `1st.` is not the `st.` of a street.
+        let token = body[tokenStart...dot].drop { !$0.isLetter && !$0.isNumber }
+        let abbreviation = token.lowercased()
+        // `no.` is in that list for `no. 5`, where a number follows. Before a word, which is all the
+        // strip suggests, `No.` is an answer and the next word does start a sentence.
+        guard abbreviation != "no.", SentenceCapitalization.abbreviations.contains(abbreviation) else { return nil }
+        return token.startIndex
     }
 
     /// One sentence as the model sees it: `<s>`, then lowercased words with names and numbers as
@@ -555,17 +617,54 @@ nonisolated enum NextWordPredictor {
         raw.filter(\.isLetter).count >= 2 && raw == raw.uppercased()
     }
 
-    /// The writer is typing in capitals: the last finished word is all caps and what they have typed
-    /// of this one is too.
-    private static func isShouting(_ textBefore: String, typedPrefix: String) -> Bool {
+    /// Capitals typed in the current word that are caps lock on their own. Two are not: that is
+    /// Shift held one letter too long (`THe`, see `CaseSlip`).
+    private static let capitalsTypedThatShout = 3
+    /// How many finished words in capitals `isShouting` asks for, and the most it reads to find
+    /// them (one-letter capitals are read and passed over).
+    private static let wordsInCapitalsThatShout = 2...3
+    private static let wordsReadForShouting = 6
+
+    /// True when the writer is typing in capitals (caps lock, a heading), so that a suggestion
+    /// should be in capitals too.
+    ///
+    /// A pick types the suggestion into the text, so a wrong answer either way becomes wrong text:
+    /// `AND` after `We work with NASA `, or `Because` in place of the `BECAU` the writer typed.
+    /// The rule this replaces asked only for one all-caps word before the caret, which every
+    /// acronym is. The evidence now, nearest the caret first:
+    ///
+    /// - A lowercase letter typed in this word: not shouting.
+    /// - Three capitals typed in this word (`BEC`): shouting, whatever came before.
+    /// - Otherwise the finished words before the caret decide. The last three (two, when the text
+    ///   has no more) must all be in capitals: one acronym is not shouting, and neither are two
+    ///   after a lowercase word (`the REST API `). A capital standing alone (`I`, `A`, the letters
+    ///   of `U.S.`) is a capital in any sentence, so it is passed over. And words that are always
+    ///   written in capitals (`JSON API `) say nothing about caps lock when they are all there is.
+    private static func isShouting(_ textBefore: String, typedPrefix: String, usualCapitals: (String) -> String?) -> Bool {
+        let typed = typedPrefix.filter(\.isLetter)
+        guard typed == typed.uppercased() else { return false }
+        if typed.count >= capitalsTypedThatShout { return true }
         let body = textBefore.dropLast(typedPrefix.count)
         let isWordCharacter: (Character) -> Bool = { $0.isLetter || $0 == "'" }
-        // The word before the one being typed, found from the end: this runs on every key, and
-        // splitting the whole text for its last piece cost more the longer the document got.
-        let trimmed = body.reversed().drop { !isWordCharacter($0) }
-        let last = String(trimmed.prefix(while: isWordCharacter).reversed())
-        guard !last.isEmpty else { return false }
-        return isAllCaps(last) && typedPrefix == typedPrefix.uppercased()
+        // Read from the end, a word at a time: this runs on every key, and splitting the whole
+        // text for its last pieces cost more the longer the document got.
+        var inCapitals: [String] = []
+        var end = body.endIndex
+        var wordsRead = 0
+        while inCapitals.count < wordsInCapitalsThatShout.upperBound, wordsRead < wordsReadForShouting {
+            while end > body.startIndex, !isWordCharacter(body[body.index(before: end)]) { end = body.index(before: end) }
+            var start = end
+            while start > body.startIndex, isWordCharacter(body[body.index(before: start)]) { start = body.index(before: start) }
+            guard start < end else { break }
+            let word = String(body[start..<end])
+            end = start
+            wordsRead += 1
+            if word.count == 1, word == word.uppercased() { continue }
+            guard isAllCaps(word) else { return false }
+            inCapitals.append(word)
+        }
+        return inCapitals.count >= wordsInCapitalsThatShout.lowerBound
+            && !inCapitals.allSatisfy { usualCapitals($0.lowercased()) == $0 }
     }
 
     /// The last `count` whitespace-separated words of `text`, in order, read from the end so the

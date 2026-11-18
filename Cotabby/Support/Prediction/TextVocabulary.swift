@@ -68,11 +68,20 @@ nonisolated enum TextVocabulary {
             while end < text.endIndex, text[end].isLetter { end = text.index(after: end) }
             let raw = String(text[index..<end])
             // `Priyanka's` counts as a use of `Priyanka`; the ending is skipped, not read as a word.
+            var ending = Substring()
             if end < text.endIndex, text[end] == "'" || text[end] == "’" {
-                end = text.index(after: end)
+                let endingStart = text.index(after: end)
+                end = endingStart
                 while end < text.endIndex, text[end].isLetter { end = text.index(after: end) }
+                ending = text[endingStart..<end]
             }
-            if raw.count >= minimumLength {
+            // `didn't` is not `didn` with an ending: the `n` belongs to `n't`, and what is left
+            // before the apostrophe (`didn`, `wouldn`, `isn`) is in no dictionary. Read as a word
+            // it looked like a term of the writer's after two uses, or after one in capitals, and
+            // the strip offered it. Every other ending (`'s`, `'ll`, `'re`, `'ve`, `'d`) follows a
+            // whole word, so only this one is left out.
+            let isNegativeContraction = ending.lowercased() == "t" && raw.last?.lowercased() == "n"
+            if raw.count >= minimumLength, !isNegativeContraction {
                 let lowercased = raw.lowercased()
                 uses[lowercased, default: Uses()].note(raw, startsSentence: startsSentence)
                 lastUse[lowercased] = position
