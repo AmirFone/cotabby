@@ -235,11 +235,13 @@ nonisolated enum SpellingCandidateRanker {
         let rest = ranked.filter { $0.candidate.term.lowercased() != habit.term }
         let own = ranked.first { $0.candidate.term.lowercased() == habit.term }
         let isMadeForThem = habit.count >= habitAutoCount
-        let score = max(
-            own?.candidate.score ?? 0,
-            (rest.first?.candidate.score ?? 0) + (isMadeForThem ? knownFixLead : habitLead),
-            isMadeForThem ? 1.5 : 1.0
-        )
+        let runnerUp = rest.first?.candidate.score ?? 0
+        // Until the fix is made for them it leads by `habitLead` and no more. Its own score is left
+        // out on purpose: that score already holds the history nudge, which with a favourable
+        // sentence put a twice-made fix far enough ahead to be applied without asking.
+        let score = isMadeForThem
+            ? max(own?.candidate.score ?? 0, runnerUp + knownFixLead, 1.5)
+            : max(runnerUp + habitLead, 1.0)
         let leading = RankedSpellingCandidate(
             candidate: SpellingCandidate(
                 term: own?.candidate.term ?? TypoCaseTransfer.applying(caseOf: word, to: habit.term), score: score

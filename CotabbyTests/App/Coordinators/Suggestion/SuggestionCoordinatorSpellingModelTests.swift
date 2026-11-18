@@ -10,6 +10,8 @@ import XCTest
 @MainActor
 final class SuggestionCoordinatorSpellingModelTests: XCTestCase {
     private var rigs: [CoordinatorRig] = []
+    /// UserDefaults suites made for a test's own correction memory, removed in `tearDown`.
+    private var defaultsSuites: [String] = []
     private static var resources: [String: String] = [:]
     /// Building the 82k-word index takes a few seconds, so every test shares one.
     private static var sharedCorrector: SymSpellCorrector?
@@ -33,6 +35,8 @@ final class SuggestionCoordinatorSpellingModelTests: XCTestCase {
     override func tearDown() {
         rigs.forEach { $0.coordinator.cancelPredictionWork() }
         rigs.removeAll()
+        defaultsSuites.forEach { UserDefaults.standard.removePersistentDomain(forName: $0) }
+        defaultsSuites.removeAll()
         super.tearDown()
     }
 
@@ -453,6 +457,228 @@ final class SuggestionCoordinatorSpellingModelTests: XCTestCase {
 
         guard case let .applyCorrection(_, fix) = decision else { return XCTFail("Expected a fix, got \(decision)") }
         XCTAssertEqual(fix, "was")
+    }
+
+    // MARK: - Capitals the writer typed on purpose
+
+    /// The engine's decision for `text` on the engineering rig, optionally knowing how some words
+    /// are usually written (the lookup the app builds from the technical list's capitals and the
+    /// writer's own words).
+    private func engineeringDecision(for text: String, usualCasing: [String: String]? = nil) throws -> TypoGateDecision {
+        let rig = try makeEngineeringRig(text: text)
+        return gateDecision(for: text, in: rig, usualCasing: usualCasing)
+    }
+
+    private func gateDecision(for text: String, in rig: CoordinatorRig, usualCasing: [String: String]? = nil) -> TypoGateDecision {
+        var dependencies = rig.coordinator.spellingEngineDependencies
+        if let usualCasing { dependencies.usualCasing = { usualCasing[$0] } }
+        var settings = TypoGate.Settings(suppressCompletionsOnTypo: true, offerTypoCorrections: true, automaticallyFixTypos: true)
+        settings.autoApplyMinimumConfidence = rig.coordinator.autoFixModel?.threshold
+        return TypoGateInputs(dependencies: dependencies, precedingText: text, textAfter: "").decide(settings: settings)
+    }
+
+    /// The word typed for the writer, or nil when nothing is changed without asking.
+    private func appliedFix(_ decision: TypoGateDecision) -> String? {
+        if case let .applyCorrection(_, fix) = decision { return fix }
+        return nil
+    }
+
+    /// The fix at the head of the bar, or nil when the decision is not an offer.
+    private func firstOfferedFix(_ decision: TypoGateDecision) -> String? {
+        switch decision {
+        case let .offerCorrection(_, fix): return fix
+        case let .offerRankedCorrection(_, candidates), let .offerChoices(_, candidates): return candidates.first?.term
+        default: return nil
+        }
+    }
+
+    func test_termTypedInItsOwnCapitals_isNotRecasedAsAShiftSlip() throws {
+        // #given a software term whose capitals look like Shift held one letter too long
+
+        // #when it is finished with a space, a comma or a period
+        let decisions = try ["use the OAuth ", "use OAuth,", "we use JUnit "].map { try engineeringDecision(for: $0) }
+
+        // #then nothing is done to it
+        XCTAssertEqual(decisions, [.proceed, .proceed, .proceed])
+    }
+
+    func test_wordsWrittenWithTwoLeadingCapitals_areNeverRewrittenForTheWriter() throws {
+        // #given a unit and a plural acronym: the dictionary holds `ghz` and `oses`, and nobody
+        // writes `Ghz` or `Oses`
+
+        // #when they are finished with a space
+        let applied = try ["we use GHz ", "we use OSes "].map { appliedFix(try engineeringDecision(for: $0)) }
+
+        // #then neither is changed without asking
+        XCTAssertEqual(applied, [nil, nil])
+    }
+
+    func test_shiftSlipInABrandName_isNotFixedToACasingNobodyUses() throws {
+        // #given Shift held one letter too long on a name the system checker writes as iPhone
+
+        // #when it is finished with a space
+        let applied = appliedFix(try engineeringDecision(for: "my IPhone "))
+
+        // #then the plain capital, which is not how the name is written, is not typed in
+        XCTAssertNotEqual(applied, "Iphone")
+    }
+
+    func test_shiftSlipInATermWithKnownCapitals_isFixedToThem() throws {
+        // #given the usual capitals of a term, as the app knows them from its technical list
+
+        // #when Shift was held one letter too long on it
+        let applied = appliedFix(try engineeringDecision(for: "parse the JSon ", usualCasing: ["json": "JSON"]))
+
+        // #then the fix is the term as it is written, not `Json`
+        XCTAssertEqual(applied, "JSON")
+    }
+
+    func test_lowercaseTermOrCodeLikeToken_atSentenceStart_isLeftAsTyped() throws {
+        // #given commands and terms whose real name is lowercase, first on a line or after a sentence
+        let texts = ["kubectl ", "json ", "Done. mongodb ", "Run this:\nkubectl ", "It was fine. node-gyp ", "It was fine. k-means "]
+
+        // #when each is finished with a space
+        let decisions = try texts.map { try engineeringDecision(for: $0) }
+
+        // #then none is given a capital
+        XCTAssertEqual(decisions, Array(repeating: .proceed, count: texts.count))
+    }
+
+    func test_wordTheWriterKept_atSentenceStart_isLeftAsTyped() throws {
+        // #given a command the writer chose to keep as typed
+        let text = "git "
+        let rig = try makeEngineeringRig(text: text)
+        let memory = makeMemory()
+        memory.recordKept("git")
+        rig.coordinator.personalCorrectionMemory = memory
+
+        // #when it starts a line
+        let decision = gateDecision(for: text, in: rig)
+
+        // #then it is not capitalized
+        XCTAssertEqual(decision, .proceed)
+    }
+
+    func test_wordWithAKnownWayOfWritingIt_atSentenceStart_isLeftAsTyped() throws {
+        // #given words the app knows how to write: two terms with capitals of their own and a
+        // command the writer uses, which is lowercase
+        let usualCasing = ["javascript": "JavaScript", "api": "API", "pwd": "pwd"]
+
+        // #when each is typed in lowercase at the start of a sentence
+        let decisions = try ["Done. javascript ", "api ", "pwd "].map { try engineeringDecision(for: $0, usualCasing: usualCasing) }
+
+        // #then none is turned into a form nobody writes (`Javascript`, `Api`, `Pwd`)
+        XCTAssertEqual(decisions, [.proceed, .proceed, .proceed])
+    }
+
+    func test_wordWhoseKnownFormIsItsCapital_atSentenceStart_isCapitalized() throws {
+        // #given a name written with a plain first capital
+
+        // #when it is typed in lowercase at the start of a sentence
+        let applied = appliedFix(try engineeringDecision(for: "python ", usualCasing: ["python": "Python"]))
+
+        // #then the capital is added, because that is the known form
+        XCTAssertEqual(applied, "Python")
+    }
+
+    func test_ordinaryWordsAndThePronoun_areStillCapitalized() throws {
+        // #given an ordinary word at the start of a sentence, a two-word fix there, and the pronoun
+        // inside a sentence
+
+        // #when each is finished with a space
+        let applied = try ["hello ", "alot ", "so i "].map { appliedFix(try engineeringDecision(for: $0)) }
+
+        // #then each gets its capital
+        XCTAssertEqual(applied, ["Hello", "A lot", "I"])
+    }
+
+    func test_wordAfterAnAbbreviationWithoutInnerDots_isNotCapitalized() throws {
+        // #given `eg.` and `ie.` typed without their inner dots, inside a sentence
+
+        // #when a correct lowercase word follows
+        let decisions = try ["Use fruit eg. apples ", "Bring items, ie. the "].map { try engineeringDecision(for: $0) }
+
+        // #then it is left alone
+        XCTAssertEqual(decisions, [.proceed, .proceed])
+    }
+
+    // MARK: - Fixes the writer keeps making
+
+    /// A correction memory of its own, so nothing learned here reaches another test or the app.
+    private func makeMemory() -> PersonalCorrectionMemory {
+        let suite = "SuggestionCoordinatorSpellingModelTests.\(UUID().uuidString)"
+        defaultsSuites.append(suite)
+        return PersonalCorrectionMemory(userDefaults: UserDefaults(suiteName: suite) ?? .standard)
+    }
+
+    /// The decision for `text` from a writer who has already made `fix` for `typo` `times` times.
+    private func gateDecision(for text: String, afterFixing typo: String, to fix: String, times: Int) throws -> TypoGateDecision {
+        let rig = try makeEngineeringRig(text: text)
+        let memory = makeMemory()
+        for _ in 0..<times { memory.recordAccepted(typo: typo, replacement: fix) }
+        rig.coordinator.personalCorrectionMemory = memory
+        return gateDecision(for: text, in: rig)
+    }
+
+    func test_fixMadeExactlyTwice_leadsTheBar() throws {
+        // #given a slip the engine reads as `which` here, and a writer who fixed it to `with` twice
+        // (`SpellingCandidateRanker.habitLeadCount`)
+
+        // #when the slip is typed again
+        let decision = try gateDecision(for: "Tell me wich ", afterFixing: "wich", to: "with", times: 2)
+
+        // #then their fix is the first one offered
+        XCTAssertEqual(firstOfferedFix(decision), "with")
+    }
+
+    func test_fixMadeExactlyTwice_isNotTypedForTheWriter() throws {
+        // #given the same writer and slip
+
+        // #when the slip is typed again
+        let decision = try gateDecision(for: "Tell me wich ", afterFixing: "wich", to: "with", times: 2)
+
+        // #then nothing is changed without asking: that starts at the third time
+        XCTAssertNil(appliedFix(decision))
+    }
+
+    func test_fixMadeThreeTimes_isTypedForTheWriter() throws {
+        // #given the writer has made the fix three times (`SpellingCandidateRanker.habitAutoCount`)
+
+        // #when the slip is typed again
+        let decision = try gateDecision(for: "Tell me wich ", afterFixing: "wich", to: "with", times: 3)
+
+        // #then it is made for them
+        XCTAssertEqual(appliedFix(decision), "with")
+    }
+
+    func test_fixTheEngineIsSureOfAnyway_isStillTypedAfterItWasMadeTwice() throws {
+        // #given a slip the engine fixes without asking, which is how it came to be fixed twice
+
+        // #when it is typed a third time
+        let decision = try gateDecision(for: "We met at the restarant ", afterFixing: "restarant", to: "restaurant", times: 2)
+
+        // #then it is fixed as it was the first two times, not held back for the bar
+        XCTAssertEqual(appliedFix(decision), "restaurant")
+    }
+
+    func test_habit_doesNotRewriteACapitalizedNameInsideASentence() throws {
+        // #given a writer who has fixed the lowercase slip `wil` to `will` three times
+
+        // #when they type the name `Wil` inside a sentence
+        let decision = try gateDecision(for: "my friend Wil ", afterFixing: "wil", to: "will", times: 3)
+
+        // #then the name is not changed without asking
+        XCTAssertNil(appliedFix(decision))
+    }
+
+    func test_habit_isStillAppliedToTheSameSlipAtTheStartOfASentence() throws {
+        // #given the same writer
+
+        // #when the slip opens a sentence, where a capital says nothing about names
+        let decision = try gateDecision(for: "Wil ", afterFixing: "wil", to: "will", times: 3)
+
+        // #then the habitual fix is made, with the sentence's capital
+        XCTAssertEqual(appliedFix(decision), "Will")
     }
 
     func test_americanWriter_slipNearTheBritishSpelling_isFixedToTheAmericanWord() async throws {

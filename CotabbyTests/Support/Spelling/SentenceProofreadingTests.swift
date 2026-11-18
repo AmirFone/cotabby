@@ -51,6 +51,74 @@ final class SentenceProofreadingTests: XCTestCase {
         XCTAssertNil(SentenceCapitalization.capitalized("iPhone", textBefore: ""))
     }
 
+    func test_capitalization_abbreviationWrittenWithoutInnerDots_doesNotStartASentence() {
+        // #given abbreviations the way they are often typed, with only the final period
+        let abbreviations = ["eg.", "ie.", "cf.", "ex.", "min.", "max.", "et al."]
+
+        // #when a lowercase word follows one of them inside a sentence
+        let capitalized = abbreviations.map { SentenceCapitalization.capitalized("there", textBefore: "Use a tool, \($0) ") }
+
+        // #then it stays lowercase
+        XCTAssertEqual(capitalized, Array(repeating: nil, count: abbreviations.count))
+    }
+
+    func test_capitalization_agreesWithTheSentenceBoundaryClassifier_onItsAbbreviations() {
+        // #given every abbreviation `SentenceBoundaryClassifier` lists (its set is private, so the
+        // list is repeated here and checked against it below)
+        let abbreviations = ["mr", "mrs", "ms", "dr", "st", "vs", "eg", "ie", "etc", "no", "fig", "approx", "inc", "ltd"]
+
+        // #when each ends a piece of text, as the classifier sees it, and comes before a word, as
+        // capitalization sees it
+        let disagreeing = abbreviations.filter { abbreviation in
+            let text = "see \(abbreviation)."
+            return SentenceBoundaryClassifier.endsSentence(text) || SentenceCapitalization.isSentenceStart(text + " ")
+        }
+
+        // #then neither rule takes the period for the end of a sentence
+        XCTAssertEqual(disagreeing, [])
+    }
+
+    func test_capitalization_joinedOrCodeLikeToken_atSentenceStart_isLeftAsTyped() {
+        // #given tokens joined by a hyphen, dot, slash or underscore, or holding a digit
+        let tokens = ["node-gyp", "k-means", "self-hosted", "config.yaml", "src/main", "snake_case", "utf8"]
+
+        // #when each is the first word after a finished sentence
+        let capitalized = tokens.map { SentenceCapitalization.capitalized($0, textBefore: "It was fine. ") }
+
+        // #then none gets a capital
+        XCTAssertEqual(capitalized, Array(repeating: nil, count: tokens.count))
+    }
+
+    func test_capitalization_wordTheCallerLeavesAsTyped_isNotCapitalizedAtSentenceStart() {
+        // #given a caller that knows `kubectl` is written in lowercase
+
+        // #when it starts a sentence
+        let capitalized = SentenceCapitalization.capitalized("kubectl", textBefore: "It was fine. ") { $0 == "kubectl" }
+
+        // #then it stays as typed
+        XCTAssertNil(capitalized)
+    }
+
+    func test_capitalization_ordinaryWord_isStillCapitalized_whenTheCallerLeavesOtherWordsAsTyped() {
+        // #given the same caller
+
+        // #when an ordinary word starts a sentence
+        let capitalized = SentenceCapitalization.capitalized("hello", textBefore: "It was fine. ") { $0 == "kubectl" }
+
+        // #then it gets its capital
+        XCTAssertEqual(capitalized, "Hello")
+    }
+
+    func test_capitalization_pronounI_isCapitalized_evenWhenTheCallerLeavesEveryWordAsTyped() {
+        // #given a caller that would leave any word alone
+
+        // #when the pronoun is typed in lowercase inside a sentence
+        let capitalized = SentenceCapitalization.capitalized("i", textBefore: "so ") { _ in true }
+
+        // #then it is still capitalized
+        XCTAssertEqual(capitalized, "I")
+    }
+
     // MARK: - LocalSentenceProofreader
 
     func test_pronounIsCapitalized_withEitherApostrophe_butNotTheLetterOfAnAbbreviation() {

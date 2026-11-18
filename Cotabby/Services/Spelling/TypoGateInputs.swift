@@ -35,6 +35,15 @@ struct SpellingEngineDependencies {
     /// The bundled software terms in the spelling dictionary, lowercase (see `TechnicalVocabulary`).
     /// The system checker calls most of them misspelled (`kubectl`, `upsert`); they are not.
     var technicalTerms: Set<String> = []
+    /// How a word with a known way of writing it is written, by lowercase word: the technical list's
+    /// usual capitals (`oauth` → OAuth, `api` → API; see `TechnicalVocabulary.capitals`), else the
+    /// casing the writer uses for one of their own words (`PersonalVocabulary.preferredCasing`, which
+    /// is lowercase for a command such as `pwd`). Nil for an ordinary word. The word strip is given
+    /// the same lookup (`NextWordPredictor.Sources.usualCapitals`), so both write a term one way.
+    ///
+    /// The capitalization rules use it to leave a correctly cased term alone and to recase toward
+    /// the known form. Nil leaves them with `technicalTerms` and the kept words only.
+    var usualCasing: ((_ lowercasedWord: String) -> String?)?
 }
 
 @MainActor
@@ -114,19 +123,46 @@ final class TypoGateInputs {
 
     /// A finished word with a Shift-key slip (`THe`, `kKing`): fixed by shape before the spell
     /// checker is asked, since it either accepts these or guesses at other words (see `CaseSlip`).
+    /// A word that only has the shape of a slip is left to the ordinary gate below.
     private func caseSlipDecision(settings: TypoGate.Settings) -> TypoGateDecision? {
         guard settings.suppressCompletionsOnTypo, settings.automaticallyFixTypos || settings.offerTypoCorrections,
               let current = CurrentWordExtractor.extractTrailingWord(from: precedingText),
               current.trailingSpaceCount == 1 || !current.trailingPunctuation.isEmpty else { return nil }
         let word = current.result.word
         guard memory?.isKept(word) != true,
-              let fix = CaseSlip.fix(for: word, isWord: { self.dependencies.symSpellCorrector.isDictionaryWord($0) }) else {
+              let fix = CaseSlip.fix(
+                  for: word,
+                  isWord: { self.dependencies.symSpellCorrector.isDictionaryWord($0) },
+                  acceptedSpelling: acceptedSpelling(ofRecased:)
+              ) else {
             return nil
         }
         if settings.automaticallyFixTypos, current.trailingSpaceCount == 1 {
             return .applyCorrection(word: word, correctedWord: fix)
         }
         return settings.offerTypoCorrections ? .offerCorrection(word: word, correctedWord: fix) : nil
+    }
+
+    /// How the word `CaseSlip` made by undoing a Shift slip is written, or nil when it is not a word
+    /// that way. Two capitals and then lowercase is also how some words are written (`OAuth`, `GHz`,
+    /// `OSes`), so the recased word has to earn its place:
+    /// - a word with a known way of writing it takes that form (`JSon` → JSON), and when that is
+    ///   what was typed, `CaseSlip` has nothing to fix (`OAuth`);
+    /// - a software term with no known capitals stays as typed. The dictionary holds terms in
+    ///   lowercase and `isTypo` accepts them in any casing, so nothing here could tell `Oauth` from
+    ///   a real word;
+    /// - otherwise it must pass the same spelling check as a typed word (`The` does; `Ghz` and
+    ///   `Oses` do not). When it fails, the system checker may still know these letters as a name
+    ///   with capitals of its own (`Iphone` → iPhone), the same lookup that turns `iphone` into
+    ///   iPhone. That costs a round of system guesses, which is fine here: it is only reached for a
+    ///   slip-shaped word whose plain recasing was rejected.
+    private func acceptedSpelling(ofRecased recased: String) -> String? {
+        let lowered = recased.lowercased()
+        if let usual = dependencies.usualCasing?(lowered) { return usual }
+        if dependencies.technicalTerms.contains(lowered) { return nil }
+        if !isTypo(recased) { return recased }
+        let guesses = dependencies.spellChecker.nativeCorrections(for: lowered, language: language(for: lowered)?.rawValue)
+        return SpellingCandidateRanker.properNounCasing(of: lowered, native: guesses)
     }
 
     /// Folds sentence-start and `I` capitalization into the decision for a just-finished word, so a
@@ -138,15 +174,33 @@ final class TypoGateInputs {
         }
         let word = current.result.word
         let before = CurrentWordExtractor.textBeforeTrailingWord(in: precedingText) ?? ""
+        // The same rule for the word as typed and for a fix: a slip of a lowercase term at the start
+        // of a sentence becomes the term (`josn` → json), not a capitalized form of it.
+        let capitalized = { (text: String) in
+            SentenceCapitalization.capitalized(text, textBefore: before, isLeftAsTyped: self.isWrittenInLowercase)
+        }
         switch decision {
         case let .applyCorrection(typo, fix):
-            return .applyCorrection(word: typo, correctedWord: SentenceCapitalization.capitalized(fix, textBefore: before) ?? fix)
+            return .applyCorrection(word: typo, correctedWord: capitalized(fix) ?? fix)
         case .proceed:
-            guard let capitalized = SentenceCapitalization.capitalized(word, textBefore: before) else { return decision }
+            guard let capitalized = capitalized(word) else { return decision }
             return .applyCorrection(word: word, correctedWord: capitalized)
         default:
             return decision
         }
+    }
+
+    /// Whether a lowercase word is right as it stands even at the start of a sentence: a software
+    /// term (`kubectl`, `json`), a word the writer chose to keep, or a word with a known way of
+    /// writing it (`api` is API, the writer's own `pwd` is pwd). The writer typed such a word in
+    /// lowercase on purpose, and a first-letter capital would give it a form nobody uses (`Json`,
+    /// `Javascript`). The exception is a word whose known form is exactly that capital (the
+    /// writer's own `lindqvist` → Lindqvist): there the capital is the known form.
+    private func isWrittenInLowercase(_ word: String) -> Bool {
+        let lowered = word.lowercased()
+        if dependencies.technicalTerms.contains(lowered) || memory?.isKept(word) == true { return true }
+        guard let usual = dependencies.usualCasing?(lowered) else { return false }
+        return usual != word.prefix(1).uppercased() + word.dropFirst()
     }
 
     func isTypo(_ word: String) -> Bool {
@@ -162,7 +216,7 @@ final class TypoGateInputs {
     }
 
     func candidates(_ word: String, isMidWord: Bool) -> [SpellingCandidate] {
-        let personal = memory?.acceptedReplacements(for: word) ?? [:]
+        let personal = acceptedFixes(for: word)
         if let verdict = refiner?.verdict(for: jevKey(for: word)) {
             let mapped = WordIntentVerdictMapper.candidates(from: verdict, typedWord: word, personal: personal)
             if !mapped.candidates.isEmpty {
@@ -171,21 +225,25 @@ final class TypoGateInputs {
             }
         }
         let rank = { (native: [String]) -> [SpellingCandidate] in
-            let ranked = SpellingCandidateRanker.rankDetailed(
-                word: word,
-                isMidWord: isMidWord,
-                sources: self.sources(for: word, isMidWord: isMidWord),
-                native: native,
-                personal: personal,
-                contextCount: self.contextCount(for: word),
-                personalContextCount: self.personalContextCount(),
-                sentenceContextScore: self.sentenceContextScore(),
-                limit: isMidWord ? SpellingCandidateRanker.maxCandidates : Self.rerankPoolSize
-            )
-            guard !isMidWord else {
-                return self.inPreferredSpelling(ranked.map(self.inPersonalCasing)).map(\.candidate)
+            let ranked = { (history: [String: Int]) in
+                SpellingCandidateRanker.rankDetailed(
+                    word: word,
+                    isMidWord: isMidWord,
+                    sources: self.sources(for: word, isMidWord: isMidWord),
+                    native: native,
+                    personal: history,
+                    contextCount: self.contextCount(for: word),
+                    personalContextCount: self.personalContextCount(),
+                    sentenceContextScore: self.sentenceContextScore(),
+                    limit: isMidWord ? SpellingCandidateRanker.maxCandidates : Self.rerankPoolSize
+                )
             }
-            let ordered = self.inPreferredSpelling(self.orderedByModel(ranked, word: word).map(self.inPersonalCasing))
+            guard !isMidWord else {
+                return self.inPreferredSpelling(ranked(personal).map(self.inPersonalCasing)).map(\.candidate)
+            }
+            let judged = self.judgedWithoutLeadingHabit(word: word, personal: personal, ranked: ranked)
+                ?? self.orderedByModel(ranked(personal), word: word)
+            let ordered = self.inPreferredSpelling(judged.map(self.inPersonalCasing))
             self.rankedByFinishedWord[word] = ordered
             return ordered.prefix(SpellingCandidateRanker.maxCandidates).map(\.candidate)
         }
@@ -197,6 +255,37 @@ final class TypoGateInputs {
             return rank([])
         }
         return rank(dependencies.spellChecker.nativeCorrections(for: word, language: language(for: word)?.rawValue))
+    }
+
+    /// How often the writer made each fix for this slip, as far as it may count here.
+    ///
+    /// A capitalized word inside a sentence is a name. The history is stored under the lowercase
+    /// slip, so the habit of fixing `wil` to `will` would otherwise rewrite the name `Wil`. For such
+    /// a word every count stops one short of `habitAutoCount`: the habitual fix may still lead the
+    /// bar, and it is never typed for the writer on the strength of the habit.
+    private func acceptedFixes(for word: String) -> [String: Int] {
+        let accepted = memory?.acceptedReplacements(for: word) ?? [:]
+        guard isCapitalizedMidSentence(word) else { return accepted }
+        return accepted.mapValues { min($0, SpellingCandidateRanker.habitAutoCount - 1) }
+    }
+
+    /// The ranking for a slip whose habitual fix leads the bar but is not yet made for the writer
+    /// (made `habitLeadCount` times, fewer than `habitAutoCount`), when that fix would have come
+    /// first with no history at all. Nil otherwise, which leaves the habit-led ranking in charge.
+    ///
+    /// A fix made twice is promised a place at the head of the bar and nothing more. The ranker gives
+    /// it that place with a lead too small to be applied (`habitLead`), and `orderedByModel` leaves
+    /// that order alone. But most twice-made fixes are ones Cotabby made itself, twice, because it
+    /// was already sure (`teh` → the); the bar must not come back for those on the third time. So
+    /// the slip is ranked once more as if nothing had been learned: when the same fix comes first
+    /// there too, that ranking and its confidence decide, exactly as they did the first two times.
+    private func judgedWithoutLeadingHabit(
+        word: String, personal: [String: Int], ranked: ([String: Int]) -> [RankedSpellingCandidate]
+    ) -> [RankedSpellingCandidate]? {
+        guard let habit = SpellingCandidateRanker.habitualFix(in: personal),
+              habit.count < SpellingCandidateRanker.habitAutoCount else { return nil }
+        let unassisted = orderedByModel(ranked([:]), word: word)
+        return unassisted.first?.candidate.term.lowercased() == habit.term ? unassisted : nil
     }
 
     /// The model's probability that the best fix for a just-ranked finished word is the intended
@@ -212,7 +301,8 @@ final class TypoGateInputs {
     /// Three cases keep the ranker's own order and the score rule, because the model's training rows
     /// had none of them: a fix from the certain-misspellings table, a word that is a name the system
     /// knows (`hungary` stays a choice between Hungary and hungry), and a fix this writer has
-    /// already made twice, where their habit leads and the model has no say.
+    /// already made twice, where their habit leads and the model has no say (unless the fix would
+    /// lead without the habit as well; see `judgedWithoutLeadingHabit`).
     private func orderedByModel(_ ranked: [RankedSpellingCandidate], word: String) -> [RankedSpellingCandidate] {
         confidenceByFinishedWord[word] = nil
         guard let model = dependencies.autoFixModel, let top = ranked.first, !top.signals.isKnownFix,

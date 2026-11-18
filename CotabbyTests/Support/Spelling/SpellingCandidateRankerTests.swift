@@ -240,6 +240,25 @@ final class SpellingCandidateRankerTests: XCTestCase {
         XCTAssertLessThan(lead, TypoGate.Settings(suppressCompletionsOnTypo: true, offerTypoCorrections: true, automaticallyFixTypos: true).autoApplyMinimumMargin)
     }
 
+    func test_fixMadeTwice_isNotMadeForTheWriter_evenWhereTheSentenceFavoursIt() {
+        // #given a twice-made fix that is also the commoner word and the one that most often
+        // follows the previous word, so its own score with the history nudge is far ahead
+        let settings = TypoGate.Settings(suppressCompletionsOnTypo: true, offerTypoCorrections: true, automaticallyFixTypos: true)
+
+        // #when the slip is ranked
+        let ranked = SpellingCandidateRanker.rank(
+            word: "wich",
+            isMidWord: false,
+            sources: slipNearACommonerWord,
+            native: [],
+            personal: ["with": 2],
+            contextCount: { $0 == "with" ? 5_000_000_000 : 1_000_000 }
+        )
+
+        // #then it leads, by too little to be applied without asking
+        XCTAssertFalse(TypoGate.isCertain(top: ranked[0], margin: ranked[0].score - ranked[1].score, confidence: nil, settings: settings))
+    }
+
     func test_fixMadeThreeTimes_leadsByTheAutoFixMargin() {
         let ranked = rank("wich", sources: slipNearACommonerWord, personal: ["which": 3])
         let settings = TypoGate.Settings(suppressCompletionsOnTypo: true, offerTypoCorrections: true, automaticallyFixTypos: true)
