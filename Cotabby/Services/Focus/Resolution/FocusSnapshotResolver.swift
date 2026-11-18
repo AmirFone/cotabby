@@ -72,6 +72,36 @@ struct FocusSnapshotResolver {
         application: NSRunningApplication,
         focusChangeSequence: UInt64 = 0
     ) -> FocusSnapshot {
+        let snapshot = readSnapshot(
+            focusedElement: focusedElement, application: application, focusChangeSequence: focusChangeSequence
+        )
+        guard case let .unsupported(reason) = snapshot.capability, reason == Self.tornReadReason else {
+            return snapshot
+        }
+        // The value and the selection are two separate questions to the other app, and a key can
+        // land between them. Backspace is the usual one: the selection was read before the delete
+        // and the text after it, so the caret seems to sit past the end. That is a torn read of a
+        // field that is fine, and reporting it as "no text field" makes `FocusTracker` start a new
+        // focus session, which drops everything tied to the old one. Measured on screen: a writer
+        // backspacing through an automatic fix to undo it lost the record of that fix on the
+        // fourth Backspace, so the undo taught nothing and the word was fixed again. Asking once
+        // more gets both answers from after the key; a field that really is inconsistent gives the
+        // same answer twice and is reported as before.
+        CotabbyLogger.focus.trace("Torn read in \(snapshot.applicationName): selection past the end of the text; reading again")
+        return readSnapshot(
+            focusedElement: focusedElement, application: application, focusChangeSequence: focusChangeSequence
+        )
+    }
+
+    /// What `readSnapshot` answers when the selection it read lies past the end of the text it read.
+    static let tornReadReason = "Selection range exceeds the current field value."
+
+    /// One read of the focused field: the work behind `resolveSnapshot`.
+    private func readSnapshot(
+        focusedElement: AXUIElement,
+        application: NSRunningApplication,
+        focusChangeSequence: UInt64
+    ) -> FocusSnapshot {
         let applicationName = application.localizedName ?? "Unknown"
         let bundleIdentifier = application.bundleIdentifier ?? "unknown.bundle"
         let focusedRole =
@@ -142,7 +172,7 @@ struct FocusSnapshotResolver {
             return FocusSnapshot(
                 applicationName: applicationName,
                 bundleIdentifier: bundleIdentifier,
-                capability: .unsupported("Selection range exceeds the current field value."),
+                capability: .unsupported(Self.tornReadReason),
                 context: nil
             )
         }

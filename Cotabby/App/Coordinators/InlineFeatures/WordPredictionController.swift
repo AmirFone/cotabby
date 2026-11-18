@@ -761,6 +761,10 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
         }
         showing = next
         redraw()
+        // For the on-screen suite, whose key checks need the words that are on the strip: since the
+        // strip learns the writer, a tool without that history no longer predicts them. Trace
+        // level, so the line is only built under `-cotabby-debug`.
+        CotabbyLogger.suggestion.trace("Word strip words: \(next.prediction.words.joined(separator: " · "))")
         if let keyTime = lastKeyUptimeNanoseconds {
             lastKeyUptimeNanoseconds = nil
             let elapsed = Double(DispatchTime.now().uptimeNanoseconds - keyTime) / 1_000_000

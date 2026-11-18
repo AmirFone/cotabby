@@ -191,8 +191,9 @@ case_type() { # name, text to type, expected document text
 
 # Next-word strip: Tab types word 1 (and predicts the next), Option+digit types that slot, and
 # Return always reaches the app as a new line.
-# The strip's words for a text, from the same engine and resources the app uses (the CLI), so the
-# checks below test the keys, not one particular build of the word table.
+# The strip's words for a text, from the same engine and resources the app uses (the CLI). Used
+# where the word does not depend on the writer (a word begun after a slash, and whether the tool is
+# there at all); the key checks read the words off the strip itself (`strip_shown`).
 SPELL_CLI="${COTABBY_SPELL:-$REPO_ROOT/build/DerivedData/Build/Products/Release/cotabby-spell}"
 # The language model the app orders the strip with: the same choice as
 # `WordLanguageModelService.defaultModelURL` (best installed ghost-text model that fits in memory,
@@ -244,33 +245,46 @@ strip_word() { # text, slot (1-based)
   strip_line "$1" | awk -F ' · ' -v slot="$2" '{ print $slot }'
 }
 
+# The words on the strip now, from the app's own trace of the last strip it drew since `mark`.
+# The key checks below use these and not the tool's prediction: the strip learns the writer (their
+# counted phrases, and the sentences this run typed a moment ago), and the tool knows neither, so
+# its words stopped being the app's the day the strip started learning.
+strip_shown() { # slot (1-based)
+  since_mark | grep -F "Word strip words: " | tail -n 1 | sed -E 's/.*Word strip words: //' \
+    | awk -F ' · ' -v slot="$1" '{ print $slot }'
+}
+
 predict_cases() {
-  if [ -z "$(strip_word "I would like " 1)" ]; then
-    echo "INFO  word strip checks skipped: build the cotabby-spell CLI first (see FORK.md)"; return
-  fi
   local first second third after_first
-  first=$(strip_word "I would like " 1); second=$(strip_word "I would like " 2); third=$(strip_word "I would like " 3)
-  after_first=$(strip_word "I would like $first " 1)
-  clear_doc; type_text "I would like "; sleep 1.2
-  press 48; sleep 1.0
+  clear_doc; mark; type_text "I would like "; sleep 1.2
+  first=$(strip_shown 1)
+  if [ -z "$first" ]; then
+    echo "FAIL  strip: no words were shown after [I would like ]"; fail=$((fail+1)); return
+  fi
+  mark; press 48; sleep 1.0
   check "strip: Tab types the top word" "I would like $first " "$(doc)"
+  after_first=$(strip_shown 1)
   press 48; sleep 1.0
   check "strip: Tab again builds the sentence" "I would like $first $after_first " "$(doc)"
-  clear_doc; type_text "I would like "; sleep 1.2
+  clear_doc; mark; type_text "I would like "; sleep 1.2
+  third=$(strip_shown 3)
   press_option 20; sleep 1.0
   check "strip: Option-3 types the third word" "I would like $third " "$(doc)"
   clear_doc; type_text "Can you send me the rep"; sleep 1.2
   press 48; sleep 1.0
   check "strip: Tab completes a partial word" "Can you send me the report " "$(doc)"
-  clear_doc; type_text "I would like "; sleep 1.2
+  clear_doc; mark; type_text "I would like "; sleep 1.2
+  second=$(strip_shown 2)
   press_option 19; sleep 1.0
   check "strip: Option-2 picks the second word" "I would like $second " "$(doc)"
   # Arrow keys: Right steps along the strip (the caret is at the end of the line, so it has nowhere
   # to go), Left steps back, and Return or Tab types the highlighted word.
-  clear_doc; type_text "I would like "; sleep 1.2
+  clear_doc; mark; type_text "I would like "; sleep 1.2
+  second=$(strip_shown 2)
   press 124; sleep 0.3; press 36; sleep 1.0
   check "strip: Right then Return types the second word" "I would like $second " "$(doc)"
-  clear_doc; type_text "I would like "; sleep 1.2
+  clear_doc; mark; type_text "I would like "; sleep 1.2
+  second=$(strip_shown 2)
   press 124; sleep 0.3; press 124; sleep 0.3; press 123; sleep 0.3; press 48; sleep 1.0
   check "strip: Right, Right, Left then Tab types the second word" "I would like $second " "$(doc)"
   clear_doc; type_text "See you soon "; sleep 1.2
@@ -279,7 +293,8 @@ predict_cases() {
   clear_doc; type_text "See you "; sleep 1.2
   press 48; sleep 0.8; type_text "."; sleep 1.0
   check "strip: a period after a pick sits against the word" "$(printf 'See you %s. ' "$(doc | sed -E 's/^See you ([a-z]+).*/\1/')")" "$(doc)"
-  clear_doc; type_text "I would like "; sleep 1.2
+  clear_doc; mark; type_text "I would like "; sleep 1.2
+  first=$(strip_shown 1)
   press 48; sleep 0.6; press 49; sleep 1.0
   check "strip: Space right after a pick adds no second space" "I would like $first " "$(doc)"
   clear_doc; type_text "It is necc"; sleep 1.2
