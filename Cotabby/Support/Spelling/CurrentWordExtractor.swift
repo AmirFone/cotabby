@@ -110,21 +110,34 @@ enum CurrentWordExtractor {
     ///
     /// This is what lets an offered correction survive the user pressing space: the word is still
     /// recognized, the green fix stays acceptable, and the accept path knows to preserve the space.
-    /// Two or more trailing spaces (the user has moved on), a non-space trailing whitespace, or no
-    /// plausible word before the space all return nil. Only a single literal space is tolerated.
+    /// Two or more trailing spaces (the user has moved on), a tab or a line break, or no plausible
+    /// word before the space all return nil. Only a single space from `wordFinishingSpaces` is
+    /// tolerated.
     /// The word at or just before the caret, with what separates it from the caret.
     struct TrailingWord: Equatable, Sendable {
         let result: Result
-        let trailingSpaceCount: Int
+        /// The space after the word exactly as the field holds it, or empty when there is none. Kept
+        /// as text, not as a count, because a replacement types it back: a non-breaking space the
+        /// writer (or the host) put there must not come back as a plain one.
+        let trailingSpace: String
         let trailingPunctuation: String
+
+        var trailingSpaceCount: Int { trailingSpace.count }
     }
+
+    /// The characters a field can hold for the one space that finishes a word: the plain space and
+    /// the non-breaking ones. They are not only typography. Chromium stores the last space of a line
+    /// in an editable page as U+00A0 until the next letter is typed (measured: `teh` then Space reads
+    /// back as `teh\u{00A0}`), so a rule that knew only the plain space never checked a word in such
+    /// a field. The same three are treated as a space by `AXTextGeometryResolver`.
+    static let wordFinishingSpaces: Set<Character> = [" ", "\u{00A0}", "\u{202F}", "\u{2007}"]
 
     static func extractTrailingWord(from precedingText: String) -> TrailingWord? {
         var text = Substring(precedingText)
-        var spaces = 0
-        if text.last == " " {
+        var space = ""
+        if let last = text.last, wordFinishingSpaces.contains(last) {
             text = text.dropLast()
-            spaces = 1
+            space = String(last)
             // A second trailing whitespace means the caret is no longer adjacent to a finished word.
             if text.last?.isWhitespace == true { return nil }
         }
@@ -134,7 +147,7 @@ enum CurrentWordExtractor {
             text = text.dropLast()
         }
         guard let result = extract(from: String(text)) else { return nil }
-        return TrailingWord(result: result, trailingSpaceCount: spaces, trailingPunctuation: punctuation)
+        return TrailingWord(result: result, trailingSpace: space, trailingPunctuation: punctuation)
     }
 
     /// Everything before the trailing word (and its punctuation and space), or nil when there is none.
@@ -149,7 +162,10 @@ enum CurrentWordExtractor {
     /// punctuation, where the previous word says nothing about the next one.
     static func wordBeforeTrailingWord(in precedingText: String) -> String? {
         var text = Substring(precedingText)
-        if text.last == " " { text = text.dropLast() }
+        // The same space `extractTrailingWord` sets aside. Skipping only a plain one would leave a
+        // non-breaking space in place, and the walk below would then return the trailing word itself
+        // as its own left context.
+        if let last = text.last, wordFinishingSpaces.contains(last) { text = text.dropLast() }
         while let last = text.last, !last.isWhitespace { text = text.dropLast() }
         while let last = text.last, last.isWhitespace { text = text.dropLast() }
         guard let last = text.last, last.isLetter || last == "'" else { return nil }
@@ -210,8 +226,71 @@ enum CurrentWordExtractor {
 /// That separation matters for Accessibility-backed editors, where the field may change between the
 /// original correction offer and the eventual edit.
 struct TypoCorrectionReplacement: Equatable, Sendable {
-    let deletingUTF16Count: Int
+    /// How many Backspace keys to post before typing `replacementText`. This is a count of keys, not
+    /// of UTF-16 units and not of characters; `BackspaceKeyCount` explains why the three differ.
+    let backspaceCount: Int
     let replacementText: String
+}
+
+/// How many Backspace keys delete a run of text that is already in the field.
+///
+/// Every edit Cotabby makes to typed text is "press Backspace N times, then type", so N decides
+/// whether an edit touches only what it meant to. A host does not delete a fixed unit per key.
+/// Measured with a caret after each kind of text, in an AppKit text view (`deleteBackward`) and in
+/// Chromium (an editable page and a `<textarea>`):
+///
+/// - one Unicode scalar (`a`, `é`, `😀`): one key in both, though `😀` is two UTF-16 units.
+/// - an emoji sequence (`👍🏽`, `🇺🇸`, `👨‍👩‍👧‍👦`, `1️⃣`, `❤️`): one key in both, though it is up to
+///   fourteen UTF-16 units.
+/// - a letter with a combining mark (`e` + U+0301), decomposed Hangul: one key in AppKit, one key
+///   per scalar in Chromium.
+/// - Thai and Devanagari clusters: one key per scalar in both, though Swift counts one `Character`.
+///
+/// So neither easy count is right. UTF-16 length is too high for every emoji, and each extra key
+/// deletes a character the writer typed correctly *before* the run. `Character` count is too low
+/// wherever a host deletes mark by mark, which leaves the start of the old text behind. This type
+/// owns the one rule both planners need, so the measurement above lives in a single place. It exists
+/// apart from the planners because they plan different edits (one word, a sentence tail) but must
+/// agree exactly on this.
+nonisolated enum BackspaceKeyCount {
+    /// The number of Backspace keys that delete exactly `text`, or nil when that number depends on
+    /// the host. A caller treats nil like a field that changed under it: it makes no edit. Missing a
+    /// fix in text with decomposed accents is a small loss; a wrong count damages text.
+    ///
+    /// Pass the text as the field holds it now, not an earlier copy: Swift compares strings by
+    /// canonical equivalence, so two strings that are `==` can still differ in how many scalars
+    /// (and so how many keys) they hold.
+    static func deleting(_ text: some StringProtocol) -> Int? {
+        var keys = 0
+        for character in text {
+            let scalars = character.unicodeScalars
+            guard scalars.count == 1 || isEmojiSequence(scalars) else { return nil }
+            keys += 1
+        }
+        return keys
+    }
+
+    private static let zeroWidthJoiner: UInt32 = 0x200D
+    private static let emojiVariationSelector: UInt32 = 0xFE0F
+    private static let enclosingKeycap: UInt32 = 0x20E3
+    /// Tag characters spell the region of a subdivision flag (England, Scotland, Wales).
+    private static let tags: ClosedRange<UInt32> = 0xE0020...0xE007F
+
+    /// Whether a cluster of several scalars is an emoji with its modifiers, the one kind every
+    /// measured host deletes with a single key. Anything else of several scalars is not vouched for.
+    private static func isEmojiSequence(_ scalars: Character.UnicodeScalarView) -> Bool {
+        guard let base = scalars.first, base.properties.isEmoji else { return false }
+        let rest = scalars.dropFirst()
+        // Digits, `#` and `*` carry the emoji property only because they start a keycap (`1️⃣`). With
+        // any other tail (`1` + a combining accent) they are ordinary text.
+        if base.isASCII {
+            return rest.last?.value == enclosingKeycap && rest.dropLast().allSatisfy { $0.value == emojiVariationSelector }
+        }
+        return rest.allSatisfy { scalar in
+            scalar.properties.isEmoji || scalar.value == zeroWidthJoiner || scalar.value == emojiVariationSelector
+                || tags.contains(scalar.value)
+        }
+    }
 }
 
 /// Builds a fail-closed replacement from the latest text before the caret.
@@ -235,9 +314,12 @@ enum TypoCorrectionReplacementPlanner {
             return nil
         }
 
-        let preserved = live.trailingPunctuation + String(repeating: " ", count: live.trailingSpaceCount)
+        let preserved = live.trailingPunctuation + live.trailingSpace
+        // Counted on the word as the field holds it, not on `expectedTypo`: the two are equal as
+        // strings, which does not promise the same scalars.
+        guard let backspaceCount = BackspaceKeyCount.deleting(live.result.word + preserved) else { return nil }
         return TypoCorrectionReplacement(
-            deletingUTF16Count: (expectedTypo as NSString).length + (preserved as NSString).length,
+            backspaceCount: backspaceCount,
             replacementText: normalizedCorrection + preserved
         )
     }

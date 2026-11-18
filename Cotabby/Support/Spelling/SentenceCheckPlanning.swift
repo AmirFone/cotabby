@@ -81,10 +81,11 @@ nonisolated enum FinishedSentenceExtractor {
 nonisolated enum SentenceRewritePlanner {
     /// Synthetic backspace bursts much longer than this get dropped by some Electron and Chromium
     /// editors, so larger rewrites are not offered.
-    static let maximumDeletedUTF16 = 120
+    static let maximumBackspaces = 120
 
     /// The smallest trailing edit that turns the live field into the corrected sentence, or nil when
-    /// the field no longer ends with exactly the sentence that was checked.
+    /// the field no longer ends with exactly the sentence that was checked, or when the tail to
+    /// delete holds text whose Backspace count depends on the host (see `BackspaceKeyCount`).
     ///
     /// Only the text from the first changed character onward is retyped, so fixing one word near the
     /// end deletes a few characters instead of the whole sentence.
@@ -104,12 +105,16 @@ nonisolated enum SentenceRewritePlanner {
         while shared < original.count, shared < replacement.count, original[shared] == replacement[shared] {
             shared += 1
         }
-        let deletedText = String(original[shared...]) + finished.trailingWhitespace
-        let deleted = (deletedText as NSString).length
-        guard deleted <= maximumDeletedUTF16 + finished.trailingWhitespace.utf16.count else { return nil }
+        // The tail is read back from the live field and counted in Backspace keys. The prefix above
+        // is shared by character, and an emoji in the tail is one character and one key but two or
+        // more UTF-16 units: counting units sent extra keys that deleted the end of the shared
+        // prefix, which is text this plan promised not to touch.
+        let deletedCharacters = original.count - shared + finished.trailingWhitespace.count
+        guard let backspaceCount = BackspaceKeyCount.deleting(precedingText.suffix(deletedCharacters)),
+              backspaceCount <= maximumBackspaces + finished.trailingWhitespace.count else { return nil }
 
         return TypoCorrectionReplacement(
-            deletingUTF16Count: deleted,
+            backspaceCount: backspaceCount,
             replacementText: String(replacement[shared...]) + finished.trailingWhitespace
         )
     }

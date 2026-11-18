@@ -44,4 +44,25 @@ final class CaretLinePositionTests: XCTestCase {
         let endOfLine = CotabbyTestFixtures.suggestionRequest(trailingText: "\nnext paragraph")
         XCTAssertTrue(endOfLine.context.isCaretAtEndOfLine)
     }
+
+    // MARK: - Nothing follows on the line (may a picked word bring its own space?)
+
+    func test_nothingFollows_atTheEndOfTheFieldOrOfALine() {
+        // #given a caret at the end of the field, and one at the end of a line with more below
+        let trailing = ["", "\nnext paragraph"]
+
+        // #then a picked word may type its space
+        XCTAssertEqual(trailing.map { CaretLinePosition.nothingFollowsOnLine(trailingText: $0) }, [true, true])
+    }
+
+    func test_somethingFollows_whenAMarkAWordOrASpaceIsAlreadyThere() {
+        // #given text right after the caret: a period, a word, a closing bracket, a space, spaces only
+        let trailing = [". Then", "and more", ")", " and more", "  "]
+
+        // #then a space typed there would be a stray one, even where `isAtEndOfLine` says end of line
+        XCTAssertEqual(
+            trailing.map { CaretLinePosition.nothingFollowsOnLine(trailingText: $0) },
+            [Bool](repeating: false, count: trailing.count)
+        )
+    }
 }

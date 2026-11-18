@@ -238,6 +238,104 @@ final class CandidateListControllerTests: XCTestCase {
         XCTAssertTrue(harness.memory.isKept("kubernets"))
     }
 
+    // MARK: - The space a pick types
+
+    func test_pickBeforeExistingPunctuation_typesNoSpace() {
+        // #given the caret right after a slip, with a period and more text already after it
+        let harness = makeHarness(precedingText: "Call my dady", trailingText: ". Then")
+        harness.controller.presentChoices(harness.barOffer(typo: "dady", fixes: ["dad", "day"]))
+
+        // #when the best fix is picked
+        _ = harness.controller.observe(Self.key(48))
+        flushMainQueue()
+
+        // #then only the word is typed: `Call my dad. Then`, not `Call my dad . Then`
+        XCTAssertEqual(harness.inserter.replacements.map(\.text), ["dad"])
+    }
+
+    func test_pickBeforeAnExistingSpace_doesNotTypeASecondOne() {
+        // #given the caret between a slip and the space before the next word
+        let harness = makeHarness(precedingText: "my dady", trailingText: " and more")
+        harness.controller.presentChoices(harness.barOffer(typo: "dady", fixes: ["dad", "day"]))
+
+        // #when the best fix is picked
+        _ = harness.controller.observe(Self.key(48))
+        flushMainQueue()
+
+        // #then the field reads `my dad and more`
+        XCTAssertEqual(harness.inserter.replacements.map(\.text), ["dad"])
+    }
+
+    func test_pickAtTheEndOfALineWithTextBelow_stillTypesTheSpace() {
+        // #given a slip at the end of its line; the next paragraph is not text after the word
+        let harness = makeHarness(precedingText: "my dady", trailingText: "\nNext paragraph")
+        harness.controller.presentChoices(harness.barOffer(typo: "dady", fixes: ["dad", "day"]))
+
+        // #when the best fix is picked
+        _ = harness.controller.observe(Self.key(48))
+        flushMainQueue()
+
+        // #then the word is finished with a space, as at the end of the field
+        XCTAssertEqual(harness.inserter.replacements.map(\.text), ["dad "])
+    }
+
+    func test_pickWithTextAfterTheCaret_doesNotAnnounceASpaceItDidNotType() {
+        // #given a listener for "the pick typed its own space" and a caret in front of a comma
+        let harness = makeHarness(precedingText: "I saw my dady", trailingText: ", and left")
+        var announced: [String] = []
+        harness.controller.onPickAddedSpace = { announced.append($0) }
+        harness.controller.presentChoices(harness.barOffer(typo: "dady", fixes: ["dad", "day"]))
+
+        // #when the best fix is picked
+        _ = harness.controller.observe(Self.key(48))
+        flushMainQueue()
+
+        // #then nothing is announced, so the word strip does not swallow the writer's next Space
+        XCTAssertEqual(announced, [])
+    }
+
+    func test_midWordPickAtTheEndOfTheField_announcesTheTextItLeaves() {
+        // #given a listener and a mid-word slip with an emoji earlier in the field
+        let harness = makeHarness(precedingText: "👍🏽 my dady")
+        var announced: [String] = []
+        harness.controller.onPickAddedSpace = { announced.append($0) }
+        harness.controller.presentChoices(harness.barOffer(typo: "dady", fixes: ["dad", "day"]))
+
+        // #when the best fix is picked
+        _ = harness.controller.observe(Self.key(48))
+        flushMainQueue()
+
+        // #then the announced text is the field as the keys leave it
+        XCTAssertEqual(announced, ["👍🏽 my dad "])
+    }
+
+    func test_keepingTheTypedWordBeforeExistingText_typesNothing() {
+        // #given a mid-word bar on a name, inside brackets the host closed for the writer
+        let harness = makeHarness(precedingText: "ask (Kubernets", trailingText: ")")
+        harness.controller.presentChoices(harness.barOffer(typo: "Kubernets", fixes: ["Kubernetes"]))
+
+        // #when the quoted slot is picked
+        _ = harness.controller.observe(Self.key(126))
+        _ = harness.controller.observe(Self.key(48))
+        flushMainQueue()
+
+        // #then no space lands between the word and the bracket
+        XCTAssertEqual(harness.inserter.insertedChunks, [])
+    }
+
+    func test_pickAfterANonBreakingSpace_keepsItAndAddsNoSecondSpace() {
+        // #given a finished slip whose space the host stored as U+00A0
+        let harness = makeHarness(precedingText: "my dady\u{00A0}")
+        harness.controller.presentChoices(harness.barOffer(typo: "dady", fixes: ["dad", "day"]))
+
+        // #when the best fix is picked
+        _ = harness.controller.observe(Self.key(48))
+        flushMainQueue()
+
+        // #then the word and the same space are typed back, nothing more
+        XCTAssertEqual(harness.inserter.replacements.map(\.text), ["dad\u{00A0}"])
+    }
+
     // MARK: - Harness
 
     @MainActor
@@ -269,12 +367,12 @@ final class CandidateListControllerTests: XCTestCase {
         }
     }
 
-    private func makeHarness(precedingText: String) -> Harness {
+    private func makeHarness(precedingText: String, trailingText: String = "") -> Harness {
         let suite = "CandidateListControllerTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
         let panel = RecordingCandidatePanel()
-        let focus = MutableFocus(precedingText: precedingText)
+        let focus = MutableFocus(precedingText: precedingText, trailingText: trailingText)
         let inserter = RigInserter()
         let memory = PersonalCorrectionMemory(userDefaults: defaults)
         let metrics = SuggestionQualityMetricsStore(userDefaults: defaults)
@@ -362,8 +460,8 @@ private final class MutableFocus: SuggestionFocusProviding {
     private let subject = PassthroughSubject<FocusSnapshot, Never>()
     var snapshotPublisher: AnyPublisher<FocusSnapshot, Never> { subject.eraseToAnyPublisher() }
 
-    init(precedingText: String) {
-        snapshot = Self.make(precedingText: precedingText, focusChangeSequence: 1)
+    init(precedingText: String, trailingText: String = "") {
+        snapshot = Self.make(precedingText: precedingText, trailingText: trailingText, focusChangeSequence: 1)
     }
 
     func refreshNow() {}
@@ -377,13 +475,14 @@ private final class MutableFocus: SuggestionFocusProviding {
         subject.send(snapshot)
     }
 
-    private static func make(precedingText: String, focusChangeSequence: UInt64) -> FocusSnapshot {
+    private static func make(precedingText: String, trailingText: String = "", focusChangeSequence: UInt64) -> FocusSnapshot {
         FocusSnapshot(
             applicationName: "TestApp",
             bundleIdentifier: "com.test.app",
             capability: .supported,
             context: CotabbyTestFixtures.focusedInputSnapshot(
                 precedingText: precedingText,
+                trailingText: trailingText,
                 focusChangeSequence: focusChangeSequence
             )
         )

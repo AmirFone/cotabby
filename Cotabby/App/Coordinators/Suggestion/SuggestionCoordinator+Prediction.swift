@@ -962,7 +962,7 @@ extension SuggestionCoordinator {
         }
 
         guard suggestionInserter.replace(
-            deletingUTF16Count: replacement.deletingUTF16Count,
+            deletingUTF16Count: replacement.backspaceCount,
             with: replacement.replacementText
         ) else {
             let message = suggestionInserter.lastErrorMessage ?? "Automatic correction insertion failed."

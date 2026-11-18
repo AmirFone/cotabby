@@ -213,9 +213,11 @@ protocol SuggestionInserting: AnyObject {
 
     func insert(_ suggestion: String) -> Bool
 
-    /// Deletes `deletingUTF16Count` already-typed units and types `text` in one suppressed synthetic
+    /// Presses Backspace `deletingUTF16Count` times and types `text` in one suppressed synthetic
     /// burst. The correction-acceptance path uses this to swap a typo'd word for the corrected word.
     /// `SuggestionInserter` already implements it (the emoji picker shares the same primitive).
+    /// Despite its name the count is key presses, which equal UTF-16 units only for ASCII; see
+    /// `BackspaceKeyCount` for text the writer typed.
     func replace(deletingUTF16Count: Int, with text: String) -> Bool
 }
 

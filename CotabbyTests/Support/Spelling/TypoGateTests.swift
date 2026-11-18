@@ -98,6 +98,21 @@ final class TypoGateTests: XCTestCase {
         XCTAssertEqual(decision, .applyCorrection(word: "nmae", correctedWord: "name"))
     }
 
+    func test_automaticFixAppliesAfterANonBreakingSpace() {
+        // #given the Space key stored as U+00A0, as Chromium does at the end of a line
+        let decision = resolve(
+            precedingText: "hi my nmae\u{00A0}",
+            suppress: true,
+            offer: false,
+            automatic: true,
+            typos: ["nmae"],
+            corrections: ["nmae": "name"]
+        )
+
+        // #then the word is finished and fixed like one followed by a plain space
+        XCTAssertEqual(decision, .applyCorrection(word: "nmae", correctedWord: "name"))
+    }
+
     func test_automaticFixDoesNotMutateUnfinishedWord() {
         let decision = resolve(
             precedingText: "hi my nmae",

@@ -40,8 +40,10 @@ final class SuggestionInserter {
     /// a failure (menu rebuilt, app quit) evicts and re-walks once.
     private var cachedPasteMenuItems: [pid_t: AXUIElement] = [:]
 
-    /// Virtual key code for Delete/Backspace. Posting these at the HID level deletes one UTF-16 unit
-    /// of already-typed text per pair, which is how the picker removes the literal `:query` run.
+    /// Virtual key code for Delete/Backspace. Each posted pair is one press of the key, and what one
+    /// press deletes is the host's choice: a whole emoji, however many UTF-16 units it is, but in
+    /// some hosts only the accent of a decomposed letter (see `BackspaceKeyCount`). For plain ASCII,
+    /// like the picker's literal `:query` run, a press, a character and a UTF-16 unit are the same.
     private static let backspaceKeyCode: CGKeyCode = 0x33
 
     /// Virtual key code for the `V` key, used to synthesize Cmd-V in the paste insertion path.
@@ -131,8 +133,13 @@ final class SuggestionInserter {
         return true
     }
 
-    /// Deletes `deletingUTF16Count` already-typed UTF-16 units, then types `text`. Used by the emoji
-    /// picker to replace the literal `:query` (or `:query:`) run with the chosen glyph.
+    /// Presses Backspace `deletingUTF16Count` times, then types `text`. Used by the emoji picker to
+    /// replace the literal `:query` (or `:query:`) run with the chosen glyph, and by every spelling
+    /// fix.
+    ///
+    /// The parameter is a number of key presses. Its name dates from callers whose runs are ASCII,
+    /// where presses and UTF-16 units agree. A caller deleting text the writer typed must not pass a
+    /// UTF-16 length: it gets the count from `BackspaceKeyCount`, as the replacement planners do.
     ///
     /// All synthetic events are built first, then registered for suppression in a single call, then
     /// posted. Building before registering means a failed event allocation never leaves a phantom

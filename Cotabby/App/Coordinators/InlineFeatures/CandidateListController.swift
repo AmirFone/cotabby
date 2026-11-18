@@ -334,12 +334,16 @@ final class CandidateListController: CandidateOfferPresenting, InlineCapturePart
                 return
             }
             // A word picked from the list is finished, so a mid-word pick also types the space the
-            // writer would otherwise have to add.
-            let addsSpace = !plan.replacementText.hasSuffix(" ")
+            // writer would otherwise have to add. Not when the plan already ends in the space the
+            // writer typed (which may be a non-breaking one), and not in front of text that is
+            // already there.
+            let addsSpace = plan.replacementText.last?.isWhitespace != true && nothingFollowsTheCaret
             let text = addsSpace ? plan.replacementText + " " : plan.replacementText
-            guard inserter.replace(deletingUTF16Count: plan.deletingUTF16Count, with: text) else { return }
+            guard inserter.replace(deletingUTF16Count: plan.backspaceCount, with: text) else { return }
             if addsSpace {
-                onPickAddedSpace?(String(precedingText.utf16.dropLast(plan.deletingUTF16Count)).map { $0 + text } ?? "")
+                // The planner only plans runs that take one Backspace per character, so dropping
+                // that many characters gives the text the keys leave behind.
+                onPickAddedSpace?(String(precedingText.dropLast(plan.backspaceCount)) + text)
             }
             correctionMemory.recordAccepted(typo: typo, replacement: choice)
             qualityMetricsStore.recordCorrectionAccepted(fromList: true)
@@ -355,15 +359,21 @@ final class CandidateListController: CandidateOfferPresenting, InlineCapturePart
     }
 
     /// The quoted slot: leave the word alone, finish it with a space if the caret is still inside
-    /// it, and stop flagging it.
+    /// it and nothing follows, and stop flagging it.
     private func keep(typo: String, offer: CandidateOffer, precedingText: String) {
         correctionMemory.recordKept(offer.keepKey ?? typo)
         journal?.record(.keptAsTyped, typed: typo, final: typo, offered: offer.candidates.first { $0 != typo })
-        if precedingText.hasSuffix(typo) {
+        if precedingText.hasSuffix(typo), nothingFollowsTheCaret {
             _ = inserter.insert(" ")
         }
         focusModel.refreshNow()
         onCommitted?()
+    }
+
+    /// Whether a pick may type a space after its word (see `CaretLinePosition.nothingFollowsOnLine`).
+    /// Read from the same snapshot the pick plans against, so the word and what follows it agree.
+    private var nothingFollowsTheCaret: Bool {
+        CaretLinePosition.nothingFollowsOnLine(trailingText: focusModel.snapshot.context?.trailingText ?? "")
     }
 
     // MARK: - Lifecycle

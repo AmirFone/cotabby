@@ -323,7 +323,7 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
                       finished: finished,
                       corrected: result.autoCorrected
                   ),
-                  self.inserter.replace(deletingUTF16Count: plan.deletingUTF16Count, with: plan.replacementText) else {
+                  self.inserter.replace(deletingUTF16Count: plan.backspaceCount, with: plan.replacementText) else {
                 return
             }
             self.qualityMetricsStore.recordSentenceFixAccepted()
@@ -472,7 +472,7 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
                 self.focusModel.refreshNow()
                 guard let precedingText = self.focusModel.snapshot.context?.precedingText,
                       let plan = SentenceRewritePlanner.plan(precedingText: precedingText, finished: finished, corrected: corrected),
-                      self.inserter.replace(deletingUTF16Count: plan.deletingUTF16Count, with: plan.replacementText) else {
+                      self.inserter.replace(deletingUTF16Count: plan.backspaceCount, with: plan.replacementText) else {
                     return
                 }
                 self.qualityMetricsStore.recordSentenceFixAccepted()
@@ -633,7 +633,7 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
                 CotabbyLogger.suggestion.debug("Sentence fix skipped: the sentence changed before it was applied")
                 return
             }
-            guard self.inserter.replace(deletingUTF16Count: plan.deletingUTF16Count, with: plan.replacementText) else { return }
+            guard self.inserter.replace(deletingUTF16Count: plan.backspaceCount, with: plan.replacementText) else { return }
             self.qualityMetricsStore.recordSentenceFixAccepted()
             self.focusModel.refreshNow()
             self.onCommitted?()

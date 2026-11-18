@@ -170,8 +170,7 @@ struct ExportReplay {
             if case let .applyCorrection(slip, fix) = decision, let edit = TypoCorrectionReplacementPlanner.plan(
                 precedingText: text, expectedTypo: slip, correctedWord: fix, requiresTrailingSpace: true
             ) {
-                let field = text as NSString
-                text = field.substring(to: field.length - edit.deletingUTF16Count) + edit.replacementText
+                text = String(text.dropLast(edit.backspaceCount)) + edit.replacementText
             } else {
                 let offered = Self.offers(of: decision)
                 if !offered.isEmpty { result.offers[index] = offered }

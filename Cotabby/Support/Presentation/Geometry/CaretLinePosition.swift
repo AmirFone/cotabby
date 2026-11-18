@@ -25,4 +25,16 @@ enum CaretLinePosition {
         // No line break and nothing but whitespace after the caret: end of the final line.
         return true
     }
+
+    /// Whether nothing at all follows the caret on its line, not even a space.
+    ///
+    /// Stricter than `isAtEndOfLine` on purpose, because it answers a different question: "may a
+    /// picked word bring its own space?" A space typed in front of text that is already there is
+    /// wrong whatever that text is: before a mark it gives `dad .`, before a word or a space it gives
+    /// two spaces. The writer who picks a word inside existing text has the separator they want
+    /// already. `WordPredictionController.caretEndsItsLine` states the same condition for its Right
+    /// arrow; a rule for typing belongs here, where it can be tested without a controller.
+    static func nothingFollowsOnLine(trailingText: String) -> Bool {
+        trailingText.first?.isNewline ?? true
+    }
 }
