@@ -177,6 +177,17 @@ final class SuggestionCoordinatorPredictionTests: XCTestCase {
 
     // MARK: - Typo gate
 
+    /// A prediction cycle as a key of the writer starts it, minus the wait for the host to show the
+    /// key. The spelling stages only look at text a key put in the field, so a bare
+    /// `schedulePrediction()` (a settings change, arriving screen text) leaves the gate out.
+    private func scheduleCycleForTypedText(in rig: CoordinatorRig) {
+        rig.coordinator.noteTypedTextPublished(
+            inField: rig.focusProvider.snapshot.context?.focusChangeSequence,
+            pollGeneration: rig.coordinator.hostPublishPollGeneration
+        )
+        rig.coordinator.schedulePrediction()
+    }
+
     func test_typoGate_suppressesGenerationForAMisspelledCurrentWord() async {
         let rig = retained(makeCoordinatorRig(
             snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "I typed qzxkvjw"),
@@ -186,7 +197,7 @@ final class SuggestionCoordinatorPredictionTests: XCTestCase {
             )
         ))
 
-        rig.coordinator.schedulePrediction()
+        scheduleCycleForTypedText(in: rig)
         await waitUntil("Typo gate never settled") { rig.coordinator.state == .idle }
 
         XCTAssertTrue(rig.engine.requests.isEmpty, "A misspelled current word must skip generation")
@@ -209,7 +220,7 @@ final class SuggestionCoordinatorPredictionTests: XCTestCase {
         rig.coordinator.candidateOfferPresenter = presenter
 
         // #when
-        rig.coordinator.schedulePrediction()
+        scheduleCycleForTypedText(in: rig)
         await waitUntil("The spelling bar was never offered") { presenter.presented.count == 1 }
 
         // #then the bar leads with the typed word and highlights the fix, and no model runs
@@ -232,7 +243,7 @@ final class SuggestionCoordinatorPredictionTests: XCTestCase {
             )
         ))
 
-        rig.coordinator.schedulePrediction()
+        scheduleCycleForTypedText(in: rig)
         await waitUntil("Automatic correction never ran") { !rig.inserter.replacements.isEmpty }
 
         XCTAssertEqual(rig.inserter.replacements.count, 1)

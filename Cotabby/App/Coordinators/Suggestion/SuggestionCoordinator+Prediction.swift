@@ -567,7 +567,9 @@ extension SuggestionCoordinator {
         settleAutoFixOutcomes(precedingText: context.precedingText)
         noticeSelfCorrections(precedingText: context.precedingText)
         let decision = prepared.inputs.decide(settings: typoGateSettings())
-        guard decision != .proceed else { return false }
+        // Asked last, because asking records this text as looked at. The normal route asks again
+        // for the same text when this lane stands down, and gets the same answer.
+        guard decision != .proceed, claimTypedText(in: context) else { return false }
         lastGatedPrecedingText = context.precedingText
         preparedTypoGate = nil
         traceTyping("decided (fast lane)")
@@ -716,12 +718,40 @@ extension SuggestionCoordinator {
         ))
     }
 
+    /// Called by the host-publish wait when the field shows what a key did: from here the spelling
+    /// stages may take one look at this field (see `TypedTextCheck`). No field at the key (`nil`)
+    /// means there is no telling where the key went, so nothing is handed over.
+    func noteTypedTextPublished(inField field: UInt64?, pollGeneration: UInt64) {
+        typedTextCheck = field.map { TypedTextCheck(field: $0, pollGeneration: pollGeneration) }
+    }
+
+    /// Whether the spelling stages may look at `context`, asked by both routes into them (the fast
+    /// lane and `runSpellingStages`). Yes in two cases, both in the field the key went to:
+    /// a key's text was published and has not been looked at yet, or the field still reads
+    /// exactly the text that was looked at after a key. Every other prediction (screen text
+    /// became ready, a setting changed, the caret was clicked somewhere else) finds text nobody
+    /// just typed and gets no.
+    ///
+    /// A yes for a first look records the text, so the question can be asked again for it.
+    private func claimTypedText(in context: FocusedInputSnapshot) -> Bool {
+        guard var check = typedTextCheck, check.field == context.focusChangeSequence else { return false }
+        if let checkedPrecedingText = check.checkedPrecedingText {
+            return checkedPrecedingText == context.precedingText
+        }
+        // A first look belongs to the wait that published the key. If that wait's work was
+        // cancelled since (the field got disabled, a panel took over, focus left the app), the
+        // caret may be anywhere by now.
+        guard check.pollGeneration == hostPublishPollGeneration else { return false }
+        check.checkedPrecedingText = context.precedingText
+        typedTextCheck = check
+        return true
+    }
+
     /// The typo gate for the word at the caret, then the sentence pass. True when the gate took
     /// the turn (it fixed or offered something), so no continuation is generated. Skipped
-    /// entirely for text that was already there when Cotabby was switched back on (see
-    /// `leavesExistingTextAlone`).
+    /// entirely unless a key of the writer put this text in this field (see `TypedTextCheck`).
     private func runSpellingStages(rawContext: FocusedInputSnapshot, workID: UInt64) -> Bool {
-        guard !leavesExistingTextAlone else { return false }
+        guard claimTypedText(in: rawContext) else { return false }
         if handleTypoGate(rawContext: rawContext, workID: workID) {
             return true
         }

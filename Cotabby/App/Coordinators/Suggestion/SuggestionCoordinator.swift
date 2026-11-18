@@ -115,11 +115,43 @@ final class SuggestionCoordinator: ObservableObject {
     var personalPhraseModel: PersonalPhraseModel?
     /// The writer's own words (names, jargon) as correction targets; set by the app environment.
     var personalVocabulary: PersonalVocabulary?
-    /// True from the moment Cotabby is switched back on until the writer's next key. What is in
-    /// the field then was written with Cotabby off, so nothing in it is fixed: rewriting it the
-    /// instant the switch flips is not what was asked for, and the edit went out while the key
-    /// taps were being put back, which lost its deletes and left the fix appended to the sentence.
-    var leavesExistingTextAlone = false
+    /// The one rule for when the spelling stages (the typo gate, then the sentence pass) may look at
+    /// a field: only at text a key has just put there.
+    ///
+    /// A prediction is also scheduled by things that are not keys: screen text arriving after a
+    /// click into a field, a settings change, Cotabby being switched back on. What sits before
+    /// the caret then was not just typed (it was loaded, pasted earlier, or written with Cotabby
+    /// off), and "fixing" it is the worst thing this app can do. Such a prediction may still offer
+    /// ghost text, but it may only run the spelling stages on text they have already looked at.
+    ///
+    /// The value is nil whenever nothing typed is known to be in the field. Its life:
+    /// - `schedulePredictionAfterHostPublishDelay` clears it. Keys are on their way to the field
+    ///   (the writer's, or the ones Cotabby types for an accepted word or a fix), so whatever was
+    ///   looked at before is about to change and the field does not show the new text yet.
+    /// - The host-publish wait sets it the moment the field shows what the key did
+    ///   (`noteTypedTextPublished`). A wait that gives up at its ceiling sets nothing: no typed
+    ///   text has appeared, so there is nothing of the writer's to check.
+    /// - `claimTypedText` is asked by the spelling stages and records the text they then look at.
+    /// - A settings change clears it, which is also what leaves text written with Cotabby off
+    ///   alone when it is switched back on.
+    struct TypedTextCheck: Equatable {
+        /// `focusChangeSequence` of the field the key's text was published in, which the wait has
+        /// checked is the field the key was pressed in. A prediction that ends up running in
+        /// another field (the writer clicked away during the debounce) does not match and leaves
+        /// that field's text alone.
+        let field: UInt64
+        /// The host-publish wait that saw the key's text arrive. `cancelPredictionWork` advances
+        /// `hostPublishPollGeneration`, so a first look that was cancelled before it ran cannot be
+        /// picked up later by a prediction no key asked for. Same idea as the work ids.
+        let pollGeneration: UInt64
+        /// Nil until the spelling stages have looked; then the text before the caret they saw.
+        /// A later prediction without a key may look again only while the field still reads
+        /// exactly this, which is how a late Jev verdict reorders the bar for the word just typed
+        /// and how a misspelled word keeps holding ghost text back when screen text arrives.
+        var checkedPrecedingText: String?
+    }
+
+    var typedTextCheck: TypedTextCheck?
     /// The bundled software terms the spelling dictionary took (lowercase); the sentence model
     /// leaves them as typed. Empty when that vocabulary is off.
     var technicalTerms: Set<String> = []

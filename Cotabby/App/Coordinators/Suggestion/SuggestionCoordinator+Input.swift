@@ -209,7 +209,6 @@ extension SuggestionCoordinator {
     }
 
     func handleInputEvent(_ event: CapturedInputEvent) -> Bool {
-        leavesExistingTextAlone = false
         prepareSpellingAtKeystroke(for: event)
         // Give the emoji picker first look at every keystroke so it can drive its trigger state
         // machine. When a capture is involved, the picker owns the interaction: the suggestion
@@ -316,6 +315,10 @@ extension SuggestionCoordinator {
     func schedulePredictionAfterHostPublishDelay(expectingSuffix: String? = nil) {
         hostPublishPollGeneration &+= 1
         let pollGeneration = hostPublishPollGeneration
+        // Keys are on their way to the field, so the text the spelling stages last looked at is
+        // about to change, and until the host shows the new text there is nothing typed to check.
+        // The wait below hands the stages their next look (see `TypedTextCheck`).
+        typedTextCheck = nil
         let baseline = focusModel.snapshot.context
         // Anchor for folding the publish wait into the debounce: `schedulePrediction` subtracts
         // the wall time already spent waiting for AX from the configured debounce, so the debounce
@@ -356,6 +359,7 @@ extension SuggestionCoordinator {
                     precedingText: baseline?.precedingText,
                     elementIdentifier: baseline?.elementIdentifier,
                     selectionLocation: baseline?.selection.location,
+                    focusChangeSequence: baseline?.focusChangeSequence,
                     keystrokeUptimeNanoseconds: keystrokeUptimeNanoseconds,
                     expectedSuffix: expectingSuffix,
                     alreadyShowsKey: alreadyShowsKey
@@ -372,6 +376,10 @@ extension SuggestionCoordinator {
         let precedingText: String?
         let elementIdentifier: String?
         let selectionLocation: Int?
+        /// With `elementIdentifier`, the field the key went to; nil when no field was focused at the
+        /// key. The spelling stages only get the published text when it is in that field (see
+        /// `fieldTheKeyWentTo`).
+        let focusChangeSequence: UInt64?
         let keystrokeUptimeNanoseconds: UInt64
         let expectedSuffix: String?
         /// The baseline text already includes the typed character, so an unchanged field is the
@@ -430,6 +438,13 @@ extension SuggestionCoordinator {
             }
             pendingSpeculativeSignature = nil
             traceTyping(isPublished ? "host published" : "host had published")
+            // The field shows what the key did: this is the one place where the spelling stages
+            // are handed text to look at. The ceiling below schedules a prediction too, but for a
+            // field that never showed the key, and that one gets ghost text only.
+            noteTypedTextPublished(
+                inField: Self.fieldTheKeyWentTo(baseline: baseline, published: currentContext),
+                pollGeneration: pollGeneration
+            )
             if handlePreparedTypoGateWithoutQueueing(context: currentContext) {
                 return
             }
@@ -460,7 +475,10 @@ extension SuggestionCoordinator {
 
         // Ceiling: stop polling and generate anyway. Without this fallback a host that genuinely
         // produces no AX change (rare but possible — e.g. dead-key composition) would never get
-        // its next prediction.
+        // its next prediction. The spelling stages sit this one out: the field never showed the
+        // key, so what is before the caret is not what the key typed. It may be old text (a
+        // forward-delete at the end of a document changes nothing), or a field that is a key
+        // behind, where a fix would be planned against text that is already out of date.
         // We already waited the short first interval before entering this method. Native fields
         // publish within a few tens of milliseconds, so the first stretch polls tightly; slower
         // Chromium hosts fall through to the steady cadence until the ceiling.
@@ -484,6 +502,22 @@ extension SuggestionCoordinator {
                 elapsedMs: nextElapsed
             )
         }
+    }
+
+    /// The published field's `focusChangeSequence` when it is the field the key was pressed in,
+    /// nil when the key (or anything else in those milliseconds) moved focus: text that shows up
+    /// in another field was not typed by this key, however much it "changed".
+    ///
+    /// Neither identity is reliable alone, so either one saying "same field" is enough. The
+    /// sequence advances when a field's frame changes, which a text box that grows as it fills
+    /// does in the middle of typing, sometimes on every key. The element identifier comes from an
+    /// AX object that some hosts recreate while the field stays where it is. A real move to another
+    /// field changes both.
+    private static func fieldTheKeyWentTo(baseline: HostPublishBaseline, published: FocusedInputSnapshot?) -> UInt64? {
+        guard let published,
+              published.focusChangeSequence == baseline.focusChangeSequence
+                || published.elementIdentifier == baseline.elementIdentifier else { return nil }
+        return published.focusChangeSequence
     }
 
     static func elapsedMilliseconds(since uptimeNanoseconds: UInt64) -> Int {

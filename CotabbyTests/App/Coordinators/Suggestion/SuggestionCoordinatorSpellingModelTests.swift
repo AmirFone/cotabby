@@ -74,6 +74,23 @@ final class SuggestionCoordinatorSpellingModelTests: XCTestCase {
         )
     }
 
+    /// What the host-publish wait does when the field shows a key of the writer: it hands the text
+    /// to the spelling stages, which look at nothing a key did not put in the field.
+    private func noteKeyPublished(in rig: CoordinatorRig) {
+        rig.coordinator.noteTypedTextPublished(
+            inField: rig.focusProvider.snapshot.context?.focusChangeSequence,
+            pollGeneration: rig.coordinator.hostPublishPollGeneration
+        )
+    }
+
+    /// A prediction cycle as a key of the writer starts it, minus the wait for the host. A bare
+    /// `schedulePrediction()` is what a settings change or arriving screen text calls, and that
+    /// leaves the text in the field alone.
+    private func scheduleCycleForTypedText(in rig: CoordinatorRig) {
+        noteKeyPublished(in: rig)
+        rig.coordinator.schedulePrediction()
+    }
+
     /// What the engine alone decides for `text`, and the model's probability for the trailing word.
     private func engineDecision(for text: String, in rig: CoordinatorRig, word: String) -> (TypoGateDecision, Double?) {
         let inputs = TypoGateInputs(dependencies: rig.coordinator.spellingEngineDependencies, precedingText: text, textAfter: "")
@@ -92,7 +109,7 @@ final class SuggestionCoordinatorSpellingModelTests: XCTestCase {
         }
         XCTAssertGreaterThanOrEqual(try XCTUnwrap(confidence), try XCTUnwrap(rig.coordinator.autoFixModel).threshold)
 
-        rig.coordinator.schedulePrediction()
+        scheduleCycleForTypedText(in: rig)
         await waitUntil("The fix never reached the field") { !rig.inserter.replacements.isEmpty }
 
         XCTAssertEqual(fix, "restaurant")
@@ -111,7 +128,7 @@ final class SuggestionCoordinatorSpellingModelTests: XCTestCase {
         let (alone, _) = engineDecision(for: "The table name is nmae ", in: rig, word: "nmae")
 
         // #when the coordinator sees it
-        rig.coordinator.schedulePrediction()
+        scheduleCycleForTypedText(in: rig)
         try await Task.sleep(nanoseconds: 300_000_000)
 
         // #then the fix is on offer and the field is untouched
@@ -150,15 +167,174 @@ final class SuggestionCoordinatorSpellingModelTests: XCTestCase {
         try await Task.sleep(nanoseconds: 300_000_000)
 
         // #then nothing is typed into what was written without it
-        XCTAssertTrue(rig.coordinator.leavesExistingTextAlone)
+        XCTAssertNil(rig.coordinator.typedTextCheck)
         XCTAssertEqual(rig.inserter.replacements.count, 0)
 
-        // #and from the writer's next key on, fixes are made as usual
+        // #and from the writer's next key on, fixes are made as usual: they write on (the first
+        // letter also dismisses the ghost text offered on switching on), slip again, and the host
+        // shows the space that finishes the word
+        _ = rig.coordinator.handleInputEvent(CapturedInputEvent(kind: .textMutation, keyCode: 0, characters: "a", flags: []))
+        setText(text + "and teh", in: rig)
         _ = rig.coordinator.handleInputEvent(CapturedInputEvent(kind: .textMutation, keyCode: 49, characters: " ", flags: []))
-        XCTAssertFalse(rig.coordinator.leavesExistingTextAlone)
-        rig.coordinator.schedulePrediction()
+        setText(text + "and teh ", in: rig)
         await waitUntil("The fix never reached the field") { !rig.inserter.replacements.isEmpty }
-        XCTAssertEqual(rig.inserter.replacements.first?.text, "restaurant ")
+        XCTAssertEqual(rig.inserter.replacements.map(\.text), ["the "], "The word just typed is fixed, the old slip stays")
+    }
+
+    // MARK: - Only text a key just typed is checked
+
+    func test_screenTextArrivingAfterAClickIntoAField_fixesNothing() async throws {
+        // #given a field the writer clicked into, ending in a slip the engine fixes without asking
+        let rig = try makeRig(text: "We met at the restarant ")
+        let identity = try XCTUnwrap(rig.focusProvider.snapshot.context).identity
+
+        // #when the screen text becomes ready and schedules a prediction, with no key pressed
+        rig.visualContext.onInjectedContextReady?(identity)
+        await waitUntil("The cycle never ran") { !rig.engine.requests.isEmpty }
+
+        // #then the text nobody just typed is left as it is
+        XCTAssertTrue(rig.inserter.replacements.isEmpty)
+    }
+
+    func test_settingChangedWhileOn_fixesNothing() async throws {
+        // #given a field ending in a slip the engine fixes without asking, and Cotabby already on
+        let rig = try makeRig(text: "We met at the restarant ")
+
+        // #when a setting changes, which schedules a prediction no key asked for
+        rig.coordinator.handleSuggestionSettingsChange(CotabbyTestFixtures.settingsSnapshot(
+            debounceMilliseconds: 2,
+            suppressCompletionsOnTypo: true,
+            offerTypoCorrections: true,
+            automaticallyFixTypos: true
+        ))
+        await waitUntil("The cycle never ran") { !rig.engine.requests.isEmpty }
+
+        // #then the text is left as it is
+        XCTAssertTrue(rig.inserter.replacements.isEmpty)
+    }
+
+    func test_keyThatTypesNothing_doesNotLetLaterScreenTextFixTheField() async throws {
+        // #given a field ending in a slip, and an arrow key pressed in it
+        let rig = try makeRig(text: "We met at the restarant ")
+        let identity = try XCTUnwrap(rig.focusProvider.snapshot.context).identity
+        _ = rig.coordinator.handleInputEvent(CapturedInputEvent(kind: .navigation, keyCode: 123, characters: "", flags: []))
+
+        // #when the screen text becomes ready afterwards
+        rig.visualContext.onInjectedContextReady?(identity)
+        await waitUntil("The cycle never ran") { !rig.engine.requests.isEmpty }
+
+        // #then the arrow key did not make the old text fair game
+        XCTAssertTrue(rig.inserter.replacements.isEmpty)
+    }
+
+    func test_keyWhoseTextNeverShowsUp_fixesNothing() async throws {
+        // #given the caret at the end of text ending in a slip, where forward-delete changes nothing
+        let rig = try makeRig(text: "We met at the restarant ")
+
+        // #when that key is pressed and the wait for the host gives up
+        _ = rig.coordinator.handleInputEvent(CapturedInputEvent(kind: .textMutation, keyCode: 117, characters: "", flags: []))
+        await waitUntil("The cycle never ran") { !rig.engine.requests.isEmpty }
+
+        // #then nothing was typed by the key, so nothing is fixed
+        XCTAssertTrue(rig.inserter.replacements.isEmpty)
+    }
+
+    func test_caretClickedElsewhereAfterTyping_fixesNothingThere() async throws {
+        // #given a word the writer typed and the spelling stages looked at
+        let rig = try makeRig(text: "We met at the restaurant ")
+        scheduleCycleForTypedText(in: rig)
+        await waitUntil("The typed word's cycle never ran") { rig.engine.requests.count == 1 }
+
+        // #when the caret is clicked to after an old slip and screen text then schedules a prediction
+        setText("We met at the restarant ", in: rig)
+        rig.visualContext.onInjectedContextReady?(try XCTUnwrap(rig.focusProvider.snapshot.context).identity)
+        await waitUntil("The second cycle never ran") { rig.engine.requests.count == 2 }
+
+        // #then having typed in this field earlier does not license a fix at the new caret
+        XCTAssertTrue(rig.inserter.replacements.isEmpty)
+    }
+
+    /// Puts another field (or the same one after its frame changed) under the caret.
+    private func setField(_ snapshot: FocusedInputSnapshot, in rig: CoordinatorRig) {
+        rig.focusProvider.snapshot = FocusSnapshot(
+            applicationName: snapshot.applicationName,
+            bundleIdentifier: snapshot.bundleIdentifier,
+            capability: .supported,
+            context: snapshot
+        )
+    }
+
+    func test_keyThatMovesFocus_fixesNothingInTheFieldItLandsIn() async throws {
+        // #given a key pressed in one field
+        let rig = try makeRig(text: "Hello")
+        _ = rig.coordinator.handleInputEvent(CapturedInputEvent(kind: .textMutation, keyCode: 49, characters: " ", flags: []))
+
+        // #when focus is in another field, one that ends in a slip, by the time the host answers
+        setField(CotabbyTestFixtures.focusedInputSnapshot(
+            elementIdentifier: "another-field",
+            precedingText: "We met at the restarant ",
+            focusChangeSequence: 2
+        ), in: rig)
+        await waitUntil("The cycle never ran") { !rig.engine.requests.isEmpty }
+
+        // #then that field's text is not what the key typed, and is left as it is
+        XCTAssertTrue(rig.inserter.replacements.isEmpty)
+    }
+
+    func test_fieldThatGrowsAsTheKeyLands_stillGetsItsFix() async throws {
+        // #given a text box that resizes as it fills, which gives it a new focus sequence
+        let rig = try makeRig(text: "I saw teh")
+        _ = rig.coordinator.handleInputEvent(CapturedInputEvent(kind: .textMutation, keyCode: 49, characters: " ", flags: []))
+
+        // #when the host shows the space in the same element under the new sequence
+        setField(CotabbyTestFixtures.focusedInputSnapshot(precedingText: "I saw teh ", focusChangeSequence: 2), in: rig)
+
+        // #then the word just typed is fixed as in any other field
+        await waitUntil("The fix never reached the field") { rig.inserter.replacements.map(\.text) == ["the "] }
+    }
+
+    func test_predictionRunningInAnotherFieldThanTheKeys_fixesNothingThere() async throws {
+        // #given a key whose text was published in one field
+        let rig = try makeRig(text: "We met at the restarant ")
+        noteKeyPublished(in: rig)
+
+        // #when the prediction it scheduled runs after the writer clicked into another field
+        setField(CotabbyTestFixtures.focusedInputSnapshot(precedingText: "We met at the restarant ", focusChangeSequence: 2), in: rig)
+        rig.coordinator.schedulePrediction()
+        await waitUntil("The cycle never ran") { !rig.engine.requests.isEmpty }
+
+        // #then the other field's text is left as it is
+        XCTAssertTrue(rig.inserter.replacements.isEmpty)
+    }
+
+    func test_firstLookCancelledBeforeItRan_isNotTakenByALaterPrediction() async throws {
+        // #given a published key whose prediction was cancelled before the spelling stages ran
+        let rig = try makeRig(text: "We met at the restarant ")
+        scheduleCycleForTypedText(in: rig)
+        rig.coordinator.cancelPredictionWork()
+
+        // #when a prediction no key asked for runs later
+        rig.coordinator.schedulePrediction()
+        await waitUntil("The cycle never ran") { !rig.engine.requests.isEmpty }
+
+        // #then it does not inherit the cancelled look
+        XCTAssertTrue(rig.inserter.replacements.isEmpty)
+    }
+
+    func test_predictionWithoutAKey_looksAgainAtTheWordJustTyped() async throws {
+        // #given a word just typed that the engine is unsure about, so the bar was offered
+        let rig = try makeRig(text: "I drive a tyoda ")
+        let presenter = SpellingOfferRecorder()
+        rig.coordinator.candidateOfferPresenter = presenter
+        scheduleCycleForTypedText(in: rig)
+        await waitUntil("The bar was never offered") { presenter.presented.count == 1 }
+
+        // #when a prediction without a key follows while the field still reads the same, as a late
+        // Jev verdict schedules one
+        rig.coordinator.schedulePrediction()
+
+        // #then the stages look at that word again
+        await waitUntil("The typed word was not looked at again") { presenter.presented.count == 2 }
     }
 
     func test_unsureModel_opensTheBarAndTypesNothing() async throws {
@@ -169,7 +345,7 @@ final class SuggestionCoordinatorSpellingModelTests: XCTestCase {
         let (_, confidence) = engineDecision(for: text, in: rig, word: "tyoda")
         XCTAssertLessThan(try XCTUnwrap(confidence), try XCTUnwrap(rig.coordinator.autoFixModel).threshold)
 
-        rig.coordinator.schedulePrediction()
+        scheduleCycleForTypedText(in: rig)
         await waitUntil("The bar was never offered") { !presenter.presented.isEmpty }
 
         XCTAssertEqual(presenter.presented.first?.candidates.first, "tyoda")
@@ -180,7 +356,7 @@ final class SuggestionCoordinatorSpellingModelTests: XCTestCase {
         for (text, expected) in [("They live nextdoor ", "next door "), ("I saw THe ", "The "), ("ask the kKing ", "King ")] {
             let rig = try makeRig(text: text)
 
-            rig.coordinator.schedulePrediction()
+            scheduleCycleForTypedText(in: rig)
             await waitUntil("No fix for \(text)") { !rig.inserter.replacements.isEmpty }
 
             XCTAssertEqual(rig.inserter.replacements.first?.text, expected, text)
@@ -285,7 +461,7 @@ final class SuggestionCoordinatorSpellingModelTests: XCTestCase {
             let rig = try makeAmericanRig(text: text)
 
             // #when the word is finished
-            rig.coordinator.schedulePrediction()
+            scheduleCycleForTypedText(in: rig)
             await waitUntil("No fix for \(text)") { !rig.inserter.replacements.isEmpty }
 
             // #then the American word is typed into the field
@@ -318,7 +494,7 @@ final class SuggestionCoordinatorSpellingModelTests: XCTestCase {
         let text = "We met at the restarant "
         let rig = try makeAmericanRig(text: text)
 
-        rig.coordinator.schedulePrediction()
+        scheduleCycleForTypedText(in: rig)
         await waitUntil("The fix never reached the field") { !rig.inserter.replacements.isEmpty }
 
         XCTAssertEqual(rig.inserter.replacements.first?.text, "restaurant ")
@@ -333,7 +509,7 @@ final class SuggestionCoordinatorSpellingModelTests: XCTestCase {
             XCTAssertNotNil(rig.coordinator.preparedTypoGate)
         }
         let started = DispatchTime.now().uptimeNanoseconds
-        rig.coordinator.schedulePrediction()
+        scheduleCycleForTypedText(in: rig)
         await waitUntil("No fix for \(text)") { !rig.inserter.replacements.isEmpty }
         XCTAssertNil(rig.coordinator.preparedTypoGate, "Prepared work is used once")
         return Double((rig.inserter.replacementUptimes.first ?? started) - started) / 1_000_000
@@ -359,7 +535,7 @@ final class SuggestionCoordinatorSpellingModelTests: XCTestCase {
         rig.coordinator.candidateOfferPresenter = presenter
 
         rig.coordinator.prepareTypoGate(precedingText: text, textAfter: "")
-        rig.coordinator.schedulePrediction()
+        scheduleCycleForTypedText(in: rig)
         await waitUntil("The bar was never offered") { !presenter.presented.isEmpty }
 
         XCTAssertNil(rig.coordinator.preparedTypoGate)
@@ -376,6 +552,7 @@ final class SuggestionCoordinatorSpellingModelTests: XCTestCase {
         XCTAssertTrue(rig.coordinator.isSpellingPendingForLastKey)
 
         // #when the host publishes the key
+        noteKeyPublished(in: rig)
         let handled = rig.coordinator.handlePreparedTypoGateWithoutQueueing(context: rig.focusProvider.snapshot.context)
 
         // #then the fix is typed there and then, with no task in between
@@ -391,6 +568,7 @@ final class SuggestionCoordinatorSpellingModelTests: XCTestCase {
         rig.coordinator.candidateOfferPresenter = presenter
         rig.coordinator.prepareTypoGate(precedingText: text, textAfter: "")
 
+        noteKeyPublished(in: rig)
         let handled = rig.coordinator.handlePreparedTypoGateWithoutQueueing(context: rig.focusProvider.snapshot.context)
 
         XCTAssertTrue(handled)
@@ -403,11 +581,13 @@ final class SuggestionCoordinatorSpellingModelTests: XCTestCase {
         let rig = try makeRig(text: "We met at the restaurant ")
         rig.coordinator.prepareTypoGate(precedingText: "We met at the restaurant ", textAfter: "")
         XCTAssertFalse(rig.coordinator.isSpellingPendingForLastKey)
+        noteKeyPublished(in: rig)
         XCTAssertFalse(rig.coordinator.handlePreparedTypoGateWithoutQueueing(context: rig.focusProvider.snapshot.context))
 
         // #when the field reads something other than the text the work was prepared for
         setText("See you tomorow ", in: rig)
         rig.coordinator.prepareTypoGate(precedingText: "See you tomorrow ", textAfter: "")
+        noteKeyPublished(in: rig)
 
         // #then the fast lane stands down
         XCTAssertFalse(rig.coordinator.handlePreparedTypoGateWithoutQueueing(context: rig.focusProvider.snapshot.context))
@@ -434,7 +614,7 @@ final class SuggestionCoordinatorSpellingModelTests: XCTestCase {
         let rig = try makeRig(text: "See you tomorow ")
 
         rig.coordinator.prepareTypoGate(precedingText: "See you tomorrow ", textAfter: "")
-        rig.coordinator.schedulePrediction()
+        scheduleCycleForTypedText(in: rig)
         await waitUntil("The fix never reached the field") { !rig.inserter.replacements.isEmpty }
 
         XCTAssertEqual(rig.inserter.replacements.first?.text, "tomorrow ")
@@ -447,13 +627,13 @@ final class SuggestionCoordinatorSpellingModelTests: XCTestCase {
         XCTAssertEqual(rig.coordinator.dismissedTypo?.word, "tomorow")
 
         setText("See you tomorow ", in: rig)
-        rig.coordinator.schedulePrediction()
+        scheduleCycleForTypedText(in: rig)
         // With the word left alone the cycle proceeds to an ordinary completion request.
         await waitUntil("The cycle never proceeded") { !rig.engine.requests.isEmpty }
         XCTAssertTrue(rig.inserter.replacements.isEmpty, "Escape means leave this word alone")
 
         setText("See you tomorow and teh ", in: rig)
-        rig.coordinator.schedulePrediction()
+        scheduleCycleForTypedText(in: rig)
         await waitUntil("The next typo was not fixed") { !rig.inserter.replacements.isEmpty }
         XCTAssertNil(rig.coordinator.dismissedTypo)
         XCTAssertEqual(rig.inserter.replacements.first?.text, "the ")
@@ -464,7 +644,7 @@ final class SuggestionCoordinatorSpellingModelTests: XCTestCase {
         let presenter = SpellingOfferRecorder()
         rig.coordinator.candidateOfferPresenter = presenter
 
-        rig.coordinator.schedulePrediction()
+        scheduleCycleForTypedText(in: rig)
         await waitUntil("The wrong word was never offered") { !presenter.presented.isEmpty }
 
         XCTAssertEqual(presenter.presented.first?.candidates.prefix(2), ["their", "there"])
@@ -476,7 +656,7 @@ final class SuggestionCoordinatorSpellingModelTests: XCTestCase {
         let presenter = SpellingOfferRecorder()
         rig.coordinator.candidateOfferPresenter = presenter
 
-        rig.coordinator.schedulePrediction()
+        scheduleCycleForTypedText(in: rig)
         await waitUntil("The cycle never proceeded") { !rig.engine.requests.isEmpty }
 
         XCTAssertTrue(presenter.presented.isEmpty)

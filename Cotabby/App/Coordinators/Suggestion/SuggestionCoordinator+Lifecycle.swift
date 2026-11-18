@@ -50,10 +50,14 @@ extension SuggestionCoordinator {
         }
 
         CotabbyLogger.suggestion.info("Settings changed, resetting suggestion state")
-        let wasOn = settingsSnapshot.isGloballyEnabled && !settingsSnapshot.isTemporarilyPaused
-        if !wasOn, snapshot.isGloballyEnabled, !snapshot.isTemporarilyPaused {
-            leavesExistingTextAlone = true
-        }
+        // The prediction scheduled at the end of this method was asked for by a setting, not by a
+        // key, so the spelling stages must not act on it. That covers Cotabby being switched back
+        // on, where the field holds text written without it: rewriting that the instant the
+        // switch flips is not what was asked for, and the edit used to go out while the key taps
+        // were being put back, which lost its deletes and left the fix appended to the sentence.
+        // It also covers a change while on (say, automatic fixes being enabled), which would
+        // otherwise make the stages decide differently about a word they had already left alone.
+        typedTextCheck = nil
         settingsSnapshot = snapshot
         cancelPredictionWork()
         resetCachedGenerationContext()
