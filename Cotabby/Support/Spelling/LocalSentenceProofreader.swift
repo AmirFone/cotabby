@@ -87,6 +87,7 @@ nonisolated enum LocalSentenceProofreader {
     ///   `waiting for for ages`, `log in in a minute`);
     /// - single letters, which are as often labels as words (`a a b c`).
     static let neverDoubledWords: Set<String> = [
+        "and", "we", "you",
         "the", "an", "of", "with", "from", "into", "this", "these", "those", "your", "our", "their",
         "its", "his", "or", "but", "if", "because", "than", "as", "they", "she", "it", "be", "been",
         "am", "would", "could", "should", "which", "who"

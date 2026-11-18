@@ -85,3 +85,7 @@ The team should have asked first before it.	=	The team should of asked first bef
 =	=	Who do I talk to to get this fixed today.
 =	=	Use a a b c layout for the grid in the page.
 It is made of wood and it works today.	=	It is made of of wood and it it works today.
+We know you tested it.	=	We know you you tested it.
+We tested it and it works.	=	We tested it and and it works.
+I don't like it 😀.	=	I dont like it 😀.
+I went to the store 👍🏽 today.	=	I went to the the store 👍🏽 today.
