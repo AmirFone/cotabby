@@ -20,9 +20,10 @@ import Logging
 /// `form`/`from`), dropped words, and agreement errors need the whole sentence, which is exactly
 /// what a fast hosted model can check in about 150 ms. The flow is deliberately quiet:
 ///
-/// 1. `noteTypedText` runs on every prediction cycle. When the text before the caret ends with a
-///    finished sentence plus the Space or Return that finished it, a check is scheduled after a short
-///    pause so it never fires mid-burst.
+/// 1. `noteTypedText` runs on every prediction cycle that a key of the writer started (the
+///    coordinator keeps it away from text nobody just typed). When the text before the caret ends
+///    with a finished sentence plus the Space or Return that finished it, a check is scheduled
+///    after a short pause so it never fires mid-burst.
 /// 2. The response is shown only if every edit is confident and the field still ends with that exact
 ///    sentence. Otherwise nothing appears.
 /// 3. While the card is up, Tab applies the fix and Escape dismisses it. Any other key dismisses it and
@@ -103,6 +104,16 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
     private let appliesLocalFixes: () -> Bool
 
     private var phase: Phase = .idle
+    /// Identity of the cloud check that is waiting or on the wire, like the suggestion pipeline's
+    /// work ids. The check's task keeps running after `phase` has moved on: Swift cancellation is
+    /// cooperative, and a request already sent comes back whenever it comes back. A check started
+    /// with an older number has been retired (`cancelWaiting`) and may neither show its result nor
+    /// write `phase`. Before this, a retired check set `phase` to idle under the review card that
+    /// had overtaken it, and the card stayed on screen with no key or click able to close it.
+    ///
+    /// Invariant: while a check's number is current, `phase` is that check's `.waiting`, because
+    /// everything that replaces a waiting phase retires the check first.
+    private var cloudCheckID: UInt64 = 0
     private var pendingDecision: PendingDecision?
     private var checkedSentences: Set<String> = []
     private var locallyCheckedSentences: Set<String> = []
@@ -246,10 +257,11 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
         if case .waiting(let sentence, _) = phase, sentence == finished.sentence { return }
 
         cancelWaiting()
+        let checkID = cloudCheckID
         let task = Task { [weak self] in
             try? await Task.sleep(nanoseconds: Self.idleDelayNanoseconds)
             guard !Task.isCancelled else { return }
-            await self?.check(finished, focusChangeSequence: focusChangeSequence)
+            await self?.check(finished, focusChangeSequence: focusChangeSequence, checkID: checkID)
         }
         phase = .waiting(sentence: finished.sentence, task: task)
     }
@@ -409,6 +421,8 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
 
     private func startReview(of finished: FinishedSentence, flags: [SentenceFlag], caretRect: CGRect, focusChangeSequence: UInt64) {
         guard !flags.isEmpty else { return }
+        // This card takes the sentence over from a cloud check that is still in its pause.
+        cancelWaiting()
         onWillShowFix?()
         let review = Review(finished: finished, flags: flags, focusChangeSequence: focusChangeSequence, caretRect: caretRect)
         phase = .reviewing(review)
@@ -417,9 +431,9 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
         onCaptureStateChanged?()
     }
 
-    /// Keys while reviewing: Tab takes the highlighted option, Left/Right move, Option-1/2/3 pick,
-    /// Escape keeps the typed word. Each decision moves to the next word; anything else closes the
-    /// card and leaves the sentence as it is.
+    /// Keys while reviewing: Tab takes the highlighted option, Left/Right (no modifier held) move,
+    /// Option-1/2/3 pick, Escape keeps the typed word. Each decision moves to the next word;
+    /// anything else closes the card and leaves the sentence as it is.
     private func observeReview(_ event: CapturedInputEvent, review: Review) -> Bool {
         let optionCount = review.flags[review.current].options.count + 1
         let modifiers = ShortcutModifierMask(eventFlags: event.flags)
@@ -429,7 +443,10 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
             choose(review.selected)
         } else if event.keyCode == Self.escapeKeyCode {
             choose(0)
-        } else if event.keyCode == KeyCode.left || event.keyCode == KeyCode.right {
+        } else if modifiers.isEmpty, event.keyCode == KeyCode.left || event.keyCode == KeyCode.right {
+            // Only a bare arrow moves the highlight. With Shift, Option, Command or Control held it
+            // is the writer selecting or jumping in their own text, so it falls through to "any
+            // other key": the card closes and the field gets the key.
             var moved = review
             moved.selected = (review.selected + (event.keyCode == KeyCode.left ? -1 : 1) + optionCount) % optionCount
             phase = .reviewing(moved)
@@ -489,6 +506,9 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
         caretRect: CGRect,
         focusChangeSequence: UInt64
     ) {
+        // Shown by the local pass or the sentence model, this card overtakes a cloud check that
+        // is still in its pause. Shown by the cloud check itself, this ends that check.
+        cancelWaiting()
         onWillShowFix?()
         phase = .showing(finished, corrected: corrected, focusChangeSequence: focusChangeSequence)
         panel.showSentenceFix(
@@ -502,9 +522,10 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
 
     // MARK: - Cloud check
 
-    private func check(_ finished: FinishedSentence, focusChangeSequence: UInt64) async {
+    private func check(_ finished: FinishedSentence, focusChangeSequence: UInt64, checkID: UInt64) async {
+        guard checkID == cloudCheckID else { return }
         guard isStillCurrent(finished, focusChangeSequence: focusChangeSequence) else {
-            phase = .idle
+            endCloudCheck(checkID)
             return
         }
         checkedSentences.insert(finished.sentence)
@@ -512,7 +533,7 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
         let result: SentenceCheckResult?
         do {
             guard try await admit() else {
-                phase = .idle
+                endCloudCheck(checkID)
                 return
             }
             result = try await client.checkSentence(
@@ -525,17 +546,20 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
             rateGovernor?.noteSuccess()
         } catch OpenAICompatibleClientError.rateLimited(let retryAfter, _) {
             rateGovernor?.noteRateLimited(retryAfterSeconds: retryAfter)
-            phase = .idle
+            endCloudCheck(checkID)
             return
         } catch {
             if !(error is CancellationError) {
                 CotabbyLogger.suggestion.debug("Sentence check failed: \(error.localizedDescription)")
             }
-            phase = .idle
+            endCloudCheck(checkID)
             return
         }
 
-        guard !Task.isCancelled,
+        // The answer is for this check only: during the `await`s above a card of another stage may
+        // have come up, or a newer check may have started waiting for the sentence after this one.
+        guard checkID == cloudCheckID,
+              !Task.isCancelled,
               !isShowingFix,
               let result,
               result.edits.allSatisfy({ $0.confidence >= Self.minimumEditConfidence }),
@@ -543,7 +567,7 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
               let context = focusModel.snapshot.context,
               SentenceRewritePlanner.plan(precedingText: context.precedingText, finished: finished, corrected: result.corrected) != nil
         else {
-            phase = .idle
+            endCloudCheck(checkID)
             return
         }
 
@@ -585,11 +609,23 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
         return context.precedingText.hasSuffix(finished.sentence + finished.trailingWhitespace)
     }
 
+    /// Retires the cloud check that is waiting or on the wire, if there is one: its task is
+    /// cancelled, and advancing the number makes whatever that task still does a no-op (see
+    /// `cloudCheckID`). Called whenever the sentence is no longer the cloud check's to judge: the
+    /// writer moved on, another stage acted on it or shows a card for it, or Cotabby stood down.
     private func cancelWaiting() {
+        cloudCheckID &+= 1
         if case .waiting(_, let task) = phase {
             task.cancel()
             phase = .idle
         }
+    }
+
+    /// A cloud check that ends without a card gives `phase` back, unless it was retired meanwhile:
+    /// then `phase` belongs to a card or to a newer check, and is left alone.
+    private func endCloudCheck(_ checkID: UInt64) {
+        guard checkID == cloudCheckID else { return }
+        phase = .idle
     }
 
     // MARK: - Keys

@@ -291,6 +291,96 @@ final class SentenceCheckControllerTests: XCTestCase {
         XCTAssertEqual(harness.panel.reviews.count, 1)
     }
 
+    // MARK: - Review card keys
+
+    func test_review_arrowWithAModifier_isLeftToTheField() {
+        for flags: CGEventFlags in [.maskShift, .maskAlternate, .maskCommand, .maskControl] {
+            // #given an open review card
+            let harness = makeHarness(sentence: "I went their with adres book. ", proofread: Self.twoFlags)
+            harness.controller.noteTypedText(harness.focus.snapshot.context!.precedingText, caretRect: .zero, focusChangeSequence: 1)
+
+            // #when the writer presses Left with a modifier, which selects or jumps in their text
+            let involved = harness.controller.observe(
+                CapturedInputEvent(kind: .navigation, keyCode: 123, characters: "", flags: flags)
+            )
+
+            // #then the card does not claim the key
+            XCTAssertFalse(involved, "Left with modifier flags \(flags.rawValue) was swallowed")
+        }
+    }
+
+    func test_review_arrowWithAModifier_closesTheCardLikeAnyOtherKey() {
+        // #given an open review card
+        let harness = makeHarness(sentence: "I went their with adres book. ", proofread: Self.twoFlags)
+        harness.controller.noteTypedText(harness.focus.snapshot.context!.precedingText, caretRect: .zero, focusChangeSequence: 1)
+
+        // #when the writer starts selecting with Shift+Right
+        _ = harness.controller.observe(CapturedInputEvent(kind: .navigation, keyCode: 124, characters: "", flags: .maskShift))
+
+        // #then the card is gone and the sentence is theirs again
+        XCTAssertFalse(harness.controller.isShowingFix)
+    }
+
+    func test_review_plainArrow_stillMovesTheHighlightWithTheFlagsARealArrowKeyCarries() {
+        // #given an open review card on its first word, where the fix is highlighted
+        let harness = makeHarness(sentence: "I went their with adres book. ", proofread: Self.twoFlags)
+        harness.controller.noteTypedText(harness.focus.snapshot.context!.precedingText, caretRect: .zero, focusChangeSequence: 1)
+
+        // #when Left arrives the way the keyboard sends it: no modifier held, but with the keypad
+        // and fn bits macOS sets on every arrow key
+        _ = harness.controller.observe(
+            CapturedInputEvent(kind: .navigation, keyCode: 123, characters: "", flags: [.maskNumericPad, .maskSecondaryFn])
+        )
+
+        // #then the highlight moved to the typed word
+        XCTAssertEqual(harness.panel.reviews.last?.selectedIndex, 0)
+    }
+
+    // MARK: - Cloud check and the cards of the other stages
+
+    func test_reviewCard_isStillTheControllersAfterTheCloudCheckItOvertookWakes() async throws {
+        // #given the cloud check on, and a sentence model that flags a word while that check is
+        // still in its pause
+        let sentence = "I want to go their now."
+        let harness = makeHarness(sentence: sentence + " ", proofread: { _ in nil }, model: { finished in
+            let their = finished.sentence.range(of: "their")!
+            return LocalProofreadResult(original: finished.sentence, autoCorrected: finished.sentence, flags: [
+                SentenceFlag(range: their, typed: "their", options: ["there"])
+            ])
+        }, cloud: CloudCheckProbe())
+        harness.controller.noteTypedText(sentence + " ", caretRect: .zero, focusChangeSequence: 1)
+        await settleModelPass()
+
+        // #when the pause is over
+        try await Task.sleep(nanoseconds: SentenceCheckController.idleDelayNanoseconds + 200_000_000)
+
+        // #then the card on screen is still owned, so Tab, Escape and a click outside reach it
+        XCTAssertTrue(harness.controller.isShowingFix)
+    }
+
+    func test_cloudCheckCancelledOnTheWire_doesNotCauseASecondCheckOfTheNextSentence() async throws {
+        // #given a cloud check held back by the rate budget (a request has just gone out) at the
+        // moment the writer finishes the next sentence, which cancels it
+        let cloud = CloudCheckProbe()
+        let governor = EndpointRateGovernor(tokensPerMinute: 100_000, now: { cloud.now() })
+        _ = governor.decide(estimatedTokens: 1, isAtWordBoundary: true)
+        let harness = makeHarness(sentence: "It was late. ", proofread: { _ in nil }, cloud: cloud, rateGovernor: governor)
+        retained.append(governor)
+        harness.controller.noteTypedText("It was late. ", caretRect: .zero, focusChangeSequence: 1)
+        try await Task.sleep(nanoseconds: SentenceCheckController.idleDelayNanoseconds + 100_000_000)
+        harness.focus.setPrecedingText("It was late. We went home. ")
+        harness.controller.noteTypedText("It was late. We went home. ", caretRect: .zero, focusChangeSequence: 1)
+        await settleModelPass()
+
+        // #when the budget frees up and the next prediction cycle reports the same text
+        cloud.isBudgetHeld = false
+        harness.controller.noteTypedText("It was late. We went home. ", caretRect: .zero, focusChangeSequence: 1)
+        try await Task.sleep(nanoseconds: SentenceCheckController.idleDelayNanoseconds + 300_000_000)
+
+        // #then the cancelled check did not clear the way for a duplicate: one request went out
+        XCTAssertEqual(cloud.requests, 1)
+    }
+
     private struct Harness {
         let controller: SentenceCheckController
         let panel: ReviewRecordingPanel
@@ -301,7 +391,9 @@ final class SentenceCheckControllerTests: XCTestCase {
     private func makeHarness(
         sentence: String,
         proofread: @escaping (FinishedSentence) -> LocalProofreadResult?,
-        model: (@MainActor (FinishedSentence) async -> LocalProofreadResult?)? = nil
+        model: (@MainActor (FinishedSentence) async -> LocalProofreadResult?)? = nil,
+        cloud: CloudCheckProbe? = nil,
+        rateGovernor: EndpointRateGovernor? = nil
     ) -> Harness {
         let suite = "SentenceCheckControllerTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
@@ -315,10 +407,14 @@ final class SentenceCheckControllerTests: XCTestCase {
             focusModel: focus,
             inserter: inserter,
             client: OpenAICompatibleAPIClient(),
-            configurationProvider: { throw CancellationError() },
+            configurationProvider: {
+                // Reached only when a check is about to go on the wire; no test lets it leave the Mac.
+                cloud?.requests += 1
+                throw CancellationError()
+            },
             apiKeyProvider: { nil },
-            rateGovernor: nil,
-            isEnabled: { false },
+            rateGovernor: rateGovernor,
+            isEnabled: { cloud != nil },
             knownTerms: { nil },
             acceptKeyLabel: { "Tab" },
             isWordAcceptKey: { $0.keyCode == 48 },
@@ -352,6 +448,21 @@ final class SentenceCheckControllerTests: XCTestCase {
 
     private static func key(_ keyCode: CGKeyCode) -> CapturedInputEvent {
         CapturedInputEvent(kind: .navigation, keyCode: keyCode, characters: "", flags: [])
+    }
+}
+
+/// Stands in for the cloud endpoint: counts the checks that got as far as building a request, and
+/// is the clock of the rate budget, which holds every request back while `isBudgetHeld` is set
+/// (time stands still right after a request went out) and lets them through once it is cleared.
+@MainActor
+private final class CloudCheckProbe {
+    var requests = 0
+    var isBudgetHeld = true
+    private var date = Date()
+
+    func now() -> Date {
+        if !isBudgetHeld { date += 1 }
+        return date
     }
 }
 
