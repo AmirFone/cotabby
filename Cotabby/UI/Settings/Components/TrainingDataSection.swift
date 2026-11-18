@@ -21,6 +21,9 @@ struct TrainingDataSection: View {
     @AppStorage(TrainingLog.contextDefaultsKey) private var savesContext = true
     @AppStorage(TrainingLog.appDefaultsKey) private var savesApp = true
     @State private var sentenceCount = 0
+    /// Whether the file holds anything, which is what the buttons go by. It is not the same as
+    /// `sentenceCount > 0`: see `TrainingLog.hasSavedData`.
+    @State private var hasSavedData = false
     @State private var exportStatus: String?
     @State private var isConfirmingDelete = false
 
@@ -66,24 +69,33 @@ struct TrainingDataSection: View {
             LabeledContent {
                 HStack {
                     Button("Export…") { export() }
-                        .disabled(sentenceCount == 0)
+                        .disabled(!hasSavedData)
                     Button("Show in Finder") {
                         if let url = trainingLog.fileURL {
                             NSWorkspace.shared.activateFileViewerSelecting([url])
                         }
                     }
-                    .disabled(sentenceCount == 0)
+                    .disabled(!hasSavedData)
                     Button("Delete All", role: .destructive) { isConfirmingDelete = true }
-                        .disabled(sentenceCount == 0)
+                        .disabled(!hasSavedData)
                 }
             } label: {
-                Text(Self.summary(sentenceCount: sentenceCount, isSaving: savesExamples))
+                Text(Self.summary(sentenceCount: sentenceCount, hasSavedData: hasSavedData, isSaving: savesExamples))
                 if let exportStatus {
                     Text(exportStatus)
                 }
             }
         }
-        .onAppear { sentenceCount = trainingLog.sentenceCount() }
+        // The file changes while this pane is open: the writer types in another app and comes back,
+        // or flips the switch. Reading it once, when the pane appeared, left the line and the
+        // buttons describing a file from minutes ago. So it is read again whenever the writer could
+        // have changed it: on appearing, on the switch, and each time Cotabby comes to the front
+        // (typing happens in other apps, so returning to Settings always passes through that).
+        .onAppear { readWhatIsSaved() }
+        .onChange(of: savesExamples) { _, _ in readWhatIsSaved() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            readWhatIsSaved()
+        }
         .confirmationDialog(
             "Delete all saved training examples?",
             isPresented: $isConfirmingDelete,
@@ -91,22 +103,35 @@ struct TrainingDataSection: View {
         ) {
             Button("Delete All", role: .destructive) {
                 trainingLog.clear()
-                sentenceCount = 0
+                // Read back, not assumed: if the file could not be removed, the pane must not say
+                // that it was.
+                readWhatIsSaved()
                 exportStatus = nil
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("The saved sentences are removed from this Mac. Files you already exported are not touched. This can't be undone.")
+            Text("Everything in the training record is removed from this Mac: the saved sentences and the words, fixes " +
+                "and text before them saved alongside. Files you already exported are not touched. This can't be undone.")
         }
     }
 
+    /// Makes the line and the buttons follow the file as it is on disk now.
+    private func readWhatIsSaved() {
+        sentenceCount = trainingLog.sentenceCount()
+        hasSavedData = trainingLog.hasSavedData()
+    }
+
     /// The line next to the buttons. It says "saving" or "not saving" in words, because the switch
-    /// above may have scrolled out of view.
-    nonisolated static func summary(sentenceCount: Int, isSaving: Bool) -> String {
+    /// above may have scrolled out of view. "Nothing saved" is said only of an empty or missing
+    /// file. A file with no counted sentence can still hold typed words and the fixes offered for
+    /// them (fragments, and text with a link or code in it, are never counted as sentences), and the
+    /// line has to say so for the writer to know there is something to delete.
+    nonisolated static func summary(sentenceCount: Int, hasSavedData: Bool, isSaving: Bool) -> String {
         let saved: String
-        switch sentenceCount {
-        case 0: saved = "Nothing saved"
-        case 1: saved = "1 sentence saved"
+        switch (hasSavedData, sentenceCount) {
+        case (false, _): saved = "Nothing saved"
+        case (true, 0): saved = "Typed words and fixes saved, no sentences counted yet"
+        case (true, 1): saved = "1 sentence saved"
         default: saved = "\(sentenceCount.formatted()) sentences saved"
         }
         return isSaving ? "\(saved). Saving is on." : "\(saved). Saving is off."

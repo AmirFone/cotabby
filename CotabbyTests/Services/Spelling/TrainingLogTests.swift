@@ -130,6 +130,55 @@ final class TrainingLogTests: XCTestCase {
         XCTAssertEqual(log.sentenceCount(), 0)
     }
 
+    func test_afterDeleteAll_theNextLineStartsAFreshRecord() throws {
+        // #given a record with a line in it, written by a launch that names its build
+        let log = makeLog()
+        log.session = { .session(version: "0.4.0", stripModel: "gemma.gguf", hasSentenceModel: true) }
+        log.noteSentence("I saw the cat today.")
+
+        // #when the writer deletes everything and then finishes another sentence
+        log.clear()
+        log.noteSentence("It ran off quickly.")
+
+        // #then the new file opens with the build line and counts from one again
+        let lines = try rawLines()
+        XCTAssertEqual(lines.map { "\($0["event"] as? String ?? "") \($0["n"] as? Int ?? 0)" }, ["session 1", "sentence 2"])
+    }
+
+    func test_afterDeleteAll_theSameDecisionIsWrittenAgain() throws {
+        // #given a decision that is already in the record
+        let log = makeLog()
+        let decision = SpellingDecisionRecord(
+            typed: "teh", action: "offered", candidates: [.init(term: "the", score: 1.2)], confidence: 0.6, before: "I saw"
+        )
+        log.noteDecision(decision)
+
+        // #when the writer deletes everything and the same decision is reached again
+        log.clear()
+        log.noteDecision(decision)
+
+        // #then it is in the new file: nothing from before the delete counts as already written
+        XCTAssertEqual(try rawLines().map { $0["event"] as? String }, ["decision"])
+    }
+
+    func test_afterDeleteAll_timeIsCountedFromTheNewFirstLine() throws {
+        // #given a record whose first line was written five seconds before the delete
+        var now: UInt64 = 5_000_000_000
+        let log = TrainingLog(
+            fileURL: fileURL, isEnabled: { true }, today: { Date(timeIntervalSince1970: 1_794_700_800) },
+            uptimeNanoseconds: { now }
+        )
+        log.noteSentence("I saw the cat today.")
+        now += 5_000_000_000
+
+        // #when the writer deletes everything and then finishes another sentence
+        log.clear()
+        log.noteSentence("It ran off quickly.")
+
+        // #then the new line is timed from itself, not from a line that no longer exists
+        XCTAssertEqual(try rawLines().map { $0["ms"] as? Int }, [0])
+    }
+
     /// Not a check: exports a training log from outside the app, for looking at what a real log
     /// turns into. Runs only with TEST_RUNNER_TRAINING_LOG_IN and TEST_RUNNER_TRAINING_LOG_OUT set.
     func test_exportOfAGivenLog() throws {
@@ -142,9 +191,60 @@ final class TrainingLogTests: XCTestCase {
     }
 
     func test_summaryLine_saysWhetherSavingIsOn() {
-        XCTAssertEqual(TrainingDataSection.summary(sentenceCount: 0, isSaving: false), "Nothing saved. Saving is off.")
-        XCTAssertEqual(TrainingDataSection.summary(sentenceCount: 1, isSaving: true), "1 sentence saved. Saving is on.")
-        XCTAssertEqual(TrainingDataSection.summary(sentenceCount: 1204, isSaving: true), "1,204 sentences saved. Saving is on.")
+        XCTAssertEqual(
+            TrainingDataSection.summary(sentenceCount: 0, hasSavedData: false, isSaving: false), "Nothing saved. Saving is off."
+        )
+        XCTAssertEqual(
+            TrainingDataSection.summary(sentenceCount: 1, hasSavedData: true, isSaving: true), "1 sentence saved. Saving is on."
+        )
+        XCTAssertEqual(
+            TrainingDataSection.summary(sentenceCount: 1204, hasSavedData: true, isSaving: true),
+            "1,204 sentences saved. Saving is on."
+        )
+    }
+
+    func test_fragmentsThatAreNotCountedAsSentences_stillLeaveSavedData() {
+        // #given a record that is on, and a writer who has only typed a two-word reply so far, which
+        // is too short to be saved or counted as a sentence
+        let log = makeLog()
+        log.noteSentence("Teh end")
+
+        // #when a fix made in that reply arrives, which is saved although the sentence is not
+        log.noteWord(.autoFixKept, typed: "teh", final: "the", offered: nil)
+
+        // #then the record reports that it holds something, which is what enables Delete All
+        XCTAssertTrue(log.hasSavedData())
+    }
+
+    func test_recordThatWasNeverWritten_hasNoSavedData() {
+        // #given a record that is switched off
+        let log = makeLog(isEnabled: { false })
+
+        // #when something is typed
+        log.noteWord(.autoFixKept, typed: "teh", final: "the", offered: nil)
+
+        // #then there is nothing to show or delete
+        XCTAssertFalse(log.hasSavedData())
+    }
+
+    func test_afterDeleteAll_thereIsNoSavedData() {
+        // #given a record with a line in it
+        let log = makeLog()
+        log.noteWord(.autoFixKept, typed: "teh", final: "the", offered: nil)
+
+        // #when the writer deletes everything
+        log.clear()
+
+        // #then the record reports nothing left
+        XCTAssertFalse(log.hasSavedData())
+    }
+
+    func test_summaryLine_namesWhatIsSaved_whenNoSentenceIsCounted() {
+        // #given a file that holds typed words but no counted sentence
+        let summary = TrainingDataSection.summary(sentenceCount: 0, hasSavedData: true, isSaving: true)
+
+        // #then the line does not claim that nothing is saved
+        XCTAssertEqual(summary, "Typed words and fixes saved, no sentences counted yet. Saving is on.")
     }
 
     // MARK: - The detailed record

@@ -189,6 +189,19 @@ final class TrainingLog {
         }
     }
 
+    /// Whether the file holds anything at all. Settings goes by this, and not by the sentence
+    /// count, to say whether there is something to look at, export or delete. The two differ:
+    /// `noteSentence` drops fragments, links and code, but the word, decision, strip and fix lines
+    /// for that same text are still written, and they hold typed words and the text before them.
+    /// A pane that went by the count said "Nothing saved" and greyed out Delete All over a file
+    /// that had the writer's words in it.
+    func hasSavedData() -> Bool {
+        guard let fileURL,
+              let size = try? FileManager.default.attributesOfItem(atPath: fileURL.path)[.size] as? NSNumber
+        else { return false }
+        return size.intValue > 0
+    }
+
     /// Writes the training examples to `destination`, one JSON object per line, and returns how
     /// many there are.
     @discardableResult
@@ -198,9 +211,18 @@ final class TrainingLog {
         return examples.count
     }
 
+    /// Deletes the record, and with it what this launch remembers about the file it was writing.
+    /// The next line then starts a file the way a launch's first line does: the build line goes in
+    /// front of it (`append` writes that only at order zero), it is numbered and timed from itself,
+    /// and a decision reached again is written again. Left as they were, the new file had no build
+    /// line until the next launch, and a decision equal to the last one before the delete was
+    /// skipped as a repeat of a line that no longer existed.
     func clear() {
         guard let fileURL else { return }
         try? FileManager.default.removeItem(at: fileURL)
+        order = 0
+        firstUptime = nil
+        lastDecision = nil
     }
 
     // MARK: - File
