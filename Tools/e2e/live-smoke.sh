@@ -20,6 +20,7 @@
 #   E2E_ONLY=shot           screenshot of the word strip with the highlight moved (E2E_SHOT=<file.png>)
 #   E2E_ONLY=speed          only time fixes: misspelled words typed at E2E_PACE ms per key (default 45)
 #   E2E_ONLY=tornread       Backspace through long lines and count torn reads of the field (E2E_ROUNDS, default 4)
+#   E2E_ONLY=steady         the strip in a slow app, after a hyphen or slash, left alone, and in a field that changes its frame
 set -uo pipefail
 DOMAIN=com.jacobfu.tabby.dev
 # Synthesized keys go nowhere on a locked screen; every check would fail as empty text. Checked at
@@ -61,7 +62,7 @@ restore_file() { # live, snapshot
 }
 restore_history() {
   pkill -f "Cotabby Dev.app/Contents/MacOS"; sleep 1.5
-  for key in cotabbyPersonalCorrections cotabbyKeptWords cotabbyLowPowerModeAutoDisableEnabled cotabbyQualityMetricsCounters cotabbyGloballyEnabled cotabbyTrainingLogEnabled; do
+  for key in cotabbyPersonalCorrections cotabbyKeptWords cotabbyWordsLeftStanding cotabbyLowPowerModeAutoDisableEnabled cotabbyQualityMetricsCounters cotabbyGloballyEnabled cotabbyTrainingLogEnabled; do
     defaults delete "$DOMAIN" "$key" 2>/dev/null
     /usr/libexec/PlistBuddy -x -c "Print :$key" "$SNAPSHOT" > "$SNAPSHOT.$key" 2>/dev/null \
       && defaults write "$DOMAIN" "$key" "$(sed -n '/<plist/,/<\/plist>/p' "$SNAPSHOT.$key")"
@@ -324,6 +325,110 @@ predict_cases() {
   host_command clear-field
 }
 
+# The words on the strip now, or nothing when the last thing the app did with the strip since
+# `mark` was to take it down. `strip_shown` cannot tell: it reads the last strip that was drawn,
+# also when that strip is gone.
+strip_now() {
+  since_mark | grep -E "Word strip (words: |hidden: )" | tail -n 1 | grep -F "Word strip words: " \
+    | sed -E 's/.*Word strip words: //'
+}
+# Milliseconds from the last key to the strip it drew, from the app's own trace; empty when no
+# strip was drawn since `mark`.
+strip_delay() {
+  since_mark | grep -F "Word strip shown " | tail -n 1 | sed -E 's/.*Word strip shown ([0-9.]+) ms.*/\1/'
+}
+quick() { # label, milliseconds (may be empty), limit
+  if [ -n "$2" ] && awk -v value="$2" -v limit="$3" 'BEGIN { exit !(value < limit) }'; then
+    echo "PASS  $1 ($2 ms)"; pass=$((pass+1))
+  else
+    echo "FAIL  $1: expected under $3 ms, got [${2:-no strip}]"; fail=$((fail+1))
+  fi
+}
+
+# Where the strip used to fall behind or go missing while typing. Most of it only shows in an app
+# that is slow to tell Accessibility about a key (Electron, Chromium: 30 to 400 ms), which the
+# native test view is not, so the host is told to answer that late (`late 300`). The strip is drawn
+# from the keys, so the wait must not show in it.
+steady_cases() {
+  local words first delays
+  host_command "late 300"; sleep 0.3
+  clear_doc; mark; type_text "It was a follow-"; sleep 1.5
+  quick "slow app: the strip is redrawn at the hyphen, not when the app reports it" "$(strip_delay)" 60
+  words=$(strip_now)
+  check "slow app: after a hyphen no word completes the word before it" "0" \
+    "$(printf '%s' "$words" | tr '·' '\n' | grep -ci '^ *follow')"
+  if [ -n "$words" ]; then echo "PASS  slow app: after a hyphen the next word is offered"; pass=$((pass+1))
+  else echo "FAIL  slow app: no strip after a hyphen"; fail=$((fail+1)); fi
+  clear_doc; mark; type_text "They can read/"; sleep 1.5
+  quick "slow app: the strip is redrawn at the slash" "$(strip_delay)" 60
+  check "slow app: after a slash no word completes the word before it" "0" \
+    "$(printf '%s' "$(strip_now)" | tr '·' '\n' | grep -ci '^ *read')"
+  # A whole word in one burst: every letter gets its strip from its key. The median is reported
+  # and checked; the first letter of a word may wait up to 50 ms for the language model's order.
+  clear_doc; type_text "Please send the "; sleep 1.0; mark; send "$(printf 'type\t%s' "documentation")"; sleep 1.5
+  delays=$(since_mark | grep -F "Word strip shown " | sed -E 's/.*Word strip shown ([0-9.]+) ms.*/\1/' | sort -n)
+  quick "slow app: the strip keeps up with a word typed in one go (median)" \
+    "$(printf '%s\n' "$delays" | awk '{ v[NR] = $1 } END { if (NR) print v[int((NR + 1) / 2)] }')" 60
+  # Thirteen letters. A strip that waits for the app is drawn for two or three of them.
+  if [ "$(printf '%s\n' "$delays" | grep -c .)" -ge 9 ]; then echo "PASS  slow app: a strip is drawn for most letters of that word"; pass=$((pass+1))
+  else echo "FAIL  slow app: strips drawn for a 13-letter word: $(printf '%s\n' "$delays" | grep -c .)"; fail=$((fail+1)); fi
+  # Tab pressed at once, before the app has reported the last letter: the pick waits for it.
+  clear_doc; type_text "Can you send me the "; sleep 1.0; send "$(printf 'type\t%s' "rep")"; press 48; sleep 1.5
+  check "slow app: Tab pressed before the app reports the last letter still completes the word" "Can you send me the report " "$(doc)"
+  clear_doc; type_text "Can you send me the rep"; sleep 1.5
+  press 48; sleep 1.5
+  check "slow app: Tab completes a partial word" "Can you send me the report " "$(doc)"
+  host_command "late 0"; sleep 0.3
+
+  # Left alone: five seconds after the last key the strip goes, and the next key brings it back.
+  clear_doc; type_text "I would like "; sleep 0.8; mark; sleep 5.2
+  check "idle: the strip goes away five seconds after the last key" "1" \
+    "$(since_mark | grep -c "Word strip hidden: left alone too long")"
+  mark; send "$(printf 'type\t%s' "t")"; sleep 1.0
+  if [ -n "$(strip_now)" ]; then echo "PASS  idle: the next key brings the strip back"; pass=$((pass+1))
+  else echo "FAIL  idle: no strip after typing again"; fail=$((fail+1)); fi
+  # The same for the spelling bar. Mid-word, so the bar is certain to be up.
+  clear_doc; type_text "we need a recipt"; sleep 0.8; mark; sleep 5.2
+  check "idle: the spelling bar closes five seconds after the last key" "1" \
+    "$(since_mark | grep -c "Spelling bar closed: left alone too long")"
+  mark; send "$(printf 'type\t%s' "s")"; sleep 1.2
+  if since_mark | grep -q "Offered [0-9]* spelling fix"; then echo "PASS  idle: the next key brings the bar back"; pass=$((pass+1))
+  else echo "FAIL  idle: no bar after typing again"; fail=$((fail+1)); fi
+
+  # A slip in the middle of a word typed in one go: the bar waits until the writer stops, so it
+  # is drawn once, for the letters they stopped at, and not once for every key after the slip.
+  clear_doc; mark; send "$(printf 'type\t%s' "we need a recipt")"; sleep 1.5
+  check "slip mid-word: the spelling bar is drawn once, at the pause" "1" \
+    "$(since_mark | grep -c "Offered [0-9]* spelling fix")"
+  press_option 20; sleep 1.2
+  check "slip mid-word: the bar that came at the pause still takes a pick" "We need a receipt " "$(doc)"
+
+  # A line with no closing mark gets its second look when the writer stops in it. The doubled word
+  # is one the sentence rules fix and the word-by-word check cannot see.
+  clear_doc; type_text "we should talk about the the plan for next "; sleep 2.5
+  check "pause: an unfinished line is proofread when the writer stops" "We should talk about the plan for next " "$(doc)"
+  # And not in the middle of typing: the same line typed on without a pause stays as typed until one.
+  clear_doc; type_text "we should talk about the the plan for next week and then decide"; sleep 0.2
+  check "pause: nothing is rewritten while the writer is still typing" "We should talk about the the plan for next week and then decide" "$(doc)"
+
+  # A word the writer keeps writing: flagged in the first three lines it stands in, then theirs.
+  clear_doc
+  for line in "please check the zorvex export today" "the zorvex job ran late again" "ask them about zorvex first"; do
+    type_text "$line"; sleep 0.6; press 36; sleep 1.2
+  done
+  mark; type_text "send the zorvex "; sleep 1.5
+  check "kept: a word left standing in three lines is no longer flagged" "0" \
+    "$(since_mark | grep -c "Offered [0-9]* spelling fix")"
+
+  # A message box grows a line as it fills: the same field with another frame. The strip stays.
+  clear_doc; mark; type_text "I would like "; sleep 1.2
+  first=$(strip_shown 1)
+  mark; host_command nudge-frame; sleep 1.2
+  check "frame: a field that changes its frame keeps its strip" "0" "$(since_mark | grep -c "Word strip hidden: ")"
+  press 48; sleep 1.0
+  check "frame: Tab still types the first word" "I would like $first " "$(doc)"
+}
+
 # Self-learning: undoing an auto-fix (deleting it and retyping the word) sticks, and the same word is
 # left alone afterwards. The writer's kept-word list is restored when the run ends.
 learn_cases() {
@@ -345,7 +450,10 @@ learn_cases() {
   for _ in 1 2 3 4 5 6 7 8; do press 51; sleep 0.1; done
   type_text "becuase "; sleep 1.5
   check "learn: an undo is kept across a torn read of the field" "It broke becuase " "$(doc)"
-  check "learn: the torn read was read again" "1" "$(since_mark | grep -c "Torn read")"
+  # At least the one the host was asked for. The real race can add its own (one did, in the run
+  # that changed this check from "exactly one"), and it is read again the same way.
+  if [ "$(since_mark | grep -c "Torn read")" -ge 1 ]; then echo "PASS  learn: the torn read was read again"; pass=$((pass+1))
+  else echo "FAIL  learn: no torn read was read again"; fail=$((fail+1)); fi
   check "learn: the torn read ended no focus session" "0" "$(since_mark | grep -c "detail=Selection range exceeds")"
   clear_doc; type_text "the monkee "; sleep 1.5
   press 53; sleep 0.3
@@ -652,6 +760,11 @@ if [ "${E2E_ONLY:-}" = predict ]; then
   echo "$pass passed, $fail failed  (log: $LOG)"; [ $fail -eq 0 ]; exit
 fi
 
+if [ "${E2E_ONLY:-}" = steady ]; then
+  steady_cases
+  echo "$pass passed, $fail failed  (log: $LOG)"; [ $fail -eq 0 ]; exit
+fi
+
 if [ "${E2E_ONLY:-}" = review ]; then
   for attempt in 1 2 3 4 5; do
     clear_doc; type_text "Honestly I went their yesterday. "; sleep 1.5
@@ -733,6 +846,7 @@ esac
 
 learn_cases
 predict_cases
+steady_cases
 tense_cases
 model_cases
 toggle_cases

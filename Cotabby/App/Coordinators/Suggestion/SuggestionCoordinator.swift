@@ -85,6 +85,13 @@ final class SuggestionCoordinator: ObservableObject {
     /// The work prepared for the last typed key ends in a fix, the bar, or a suppression. Read by
     /// the word strip, which then leaves that key alone.
     var isSpellingPendingForLastKey = false
+    /// A spelling bar for an unfinished word, waiting for the writer to pause before it is shown
+    /// (see `holdsBack`). Cancelled by the next key and by any newer decision.
+    var heldSpellingBar: DispatchWorkItem?
+    /// How long the writer must stop inside a word before the bar for it comes up. Longer than
+    /// the gap between two keys of someone typing (95% of this fork's writer's gaps inside a
+    /// word are under 234 ms), far shorter than the second a bar is read in.
+    static let midWordBarHoldSeconds: TimeInterval = 0.3
     /// When the last typed key reached `handleInputEvent`, so the timings count from the key itself
     /// and include the spelling work done there. Consumed by the publish wait.
     var pendingKeystrokeUptimeNanoseconds: UInt64?

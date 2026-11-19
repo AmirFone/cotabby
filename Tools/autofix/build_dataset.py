@@ -11,6 +11,10 @@ marks a correct word, where any fix is wrong.
                     test-half held-out sentences
   bare-{train,test}.txt  the trusted typos alone in an empty field (no context at all)
   runon-{train,test}.txt two neighboring words typed without their space (`nextdoor`)
+  keys-{train,test}.txt  generated keyboard slips (a key beside the one meant, a dropped letter, an
+                    extra letter, two letters swapped) on words drawn from held-out sentences as
+                    often as they occur in text, so short common words get their share. The Birkbeck
+                    typos are handwriting and spelling beliefs; these are finger slips
   clean-train-NN.txt every word of sampled Tatoeba training sentences (the engine flags well under
                     1% of them: names, slang, British spellings)
   clean-test.txt    every word of the test-half held-out sentences
@@ -30,6 +34,12 @@ source, heldout_path, bench, out = sys.argv[1:5]
 os.makedirs(out, exist_ok=True)
 CLEAN_TRAIN_SENTENCES = 400_000
 CLEAN_SHARDS = 16
+KEY_TRAIN_LINES = 40_000
+KEY_TEST_LINES = 8_000
+# One day of a real writer's one-edit slips: neighboring key 25%, dropped letter 26%, extra letter
+# 20% (half of them a key beside the one meant), swapped neighbors 18%.
+SLIP_KINDS = {"neighbor": 25, "drop": 26, "extra": 20, "swap": 18}
+TWO_EDIT_SHARE = 0.15
 WORD = re.compile(r"[a-z]+")
 dictionary = {line.split()[0] for line in open("Cotabby/Resources/frequency_dictionary_en_82_765.txt", encoding="utf-8")}
 
@@ -85,6 +95,73 @@ def run_on_lines(pool, limit, seed):
     return lines[:limit]
 
 
+def key_neighbors():
+    """The same map as `AutoFixFeatures.keyNeighbors` (AutoFixConfidence.swift): the keys beside a key
+    in its own row, and the two it touches in each neighboring row (the rows are staggered)."""
+    rows = ["qwertyuiop", "asdfghjkl", "zxcvbnm"]
+    near = {}
+    for r, row in enumerate(rows):
+        for column, key in enumerate(row):
+            beside = {row[c] for c in (column - 1, column + 1) if 0 <= c < len(row)}
+            for other in (r - 1, r + 1):
+                if 0 <= other < len(rows):
+                    offsets = (column - 1, column) if r < other else (column, column + 1)
+                    beside |= {rows[other][c] for c in offsets if 0 <= c < len(rows[other])}
+            near[key] = sorted(beside)
+    return near
+
+
+KEY_NEIGHBORS = key_neighbors()
+
+
+def slip(word, kind, rng):
+    """One finger slip of `kind` at a random place in `word`."""
+    if len(word) < 2:  # a second slip on what the first left of a two-letter word
+        return word
+    at = rng.randrange(len(word))
+    if kind == "neighbor":
+        return word[:at] + rng.choice(KEY_NEIGHBORS[word[at]]) + word[at + 1:]
+    if kind == "drop":
+        return word[:at] + word[at + 1:]
+    if kind == "swap":
+        at = rng.randrange(len(word) - 1)
+        return word[:at] + word[at + 1] + word[at] + word[at + 2:]
+    # An extra letter: the key beside the one meant caught as well (half), the key itself twice, or any letter.
+    roll = rng.random()
+    extra = rng.choice(KEY_NEIGHBORS[word[at]]) if roll < 0.5 else word[at] if roll < 0.8 else rng.choice("abcdefghijklmnopqrstuvwxyz")
+    at += rng.randrange(2)
+    return word[:at] + extra + word[at:]
+
+
+def keyboard_lines(pool, limit, seed):
+    """Finger slips on words drawn uniformly from the running text, so a word gets slips as often as
+    it is written (`teh`, `yhe`, `thr` far more often than any long word). A slip that is itself a
+    word is skipped. Nothing marks the ambiguous ones: a short form one key from several common
+    words gets whatever first candidate the engine gives it, and when that is not the word it was
+    made from the row is a negative, which is how the model learns to leave those as offers."""
+    rng = random.Random(seed)
+    kinds, weights = list(SLIP_KINDS), list(SLIP_KINDS.values())
+    spots = [(words, i) for words in (sentence.split(" ") for sentence in pool) for i, w in enumerate(words)
+             if len(w) >= 2 and WORD.fullmatch(w.lower()) and w.lower() in dictionary and (i == 0 or w == w.lower())]
+    rng.shuffle(spots)
+    lines = []
+    for words, i in spots:
+        if len(lines) == limit:
+            break
+        intended = words[i].lower()
+        chosen = [rng.choices(kinds, weights)[0] for _ in range(2 if rng.random() < TWO_EDIT_SHARE else 1)]
+        for _ in range(8):  # another place in the word when the slip is a word itself
+            typo = intended
+            for kind in chosen:
+                typo = slip(typo, kind, rng)
+            if typo != intended and len(typo) >= 2 and typo not in dictionary:
+                if words[i][0].isupper():
+                    typo = typo.capitalize()
+                lines.append(f"{intended}\t{' '.join(words[:i] + [typo])} ")
+                break
+    return lines
+
+
 def clean_lines(pool):
     for sentence in pool:
         words = sentence.split(" ")
@@ -108,6 +185,8 @@ write("runon-train.txt", run_on_lines(heldout[:half], 2_000, 21))
 write("runon-test.txt", run_on_lines(heldout[half:], 600, 22))
 write("bare-train.txt", bare_lines(typo_table("dev", ["holbrook-missp", "wikipedia", "aspell"])))
 write("bare-test.txt", bare_lines(typo_table("test", ["holbrook-missp", "wikipedia", "aspell"])))
+write("keys-train.txt", keyboard_lines(heldout[:half], KEY_TRAIN_LINES, 31))
+write("keys-test.txt", keyboard_lines(heldout[half:], KEY_TEST_LINES, 32))
 
 # Wrong-word rows: a sentence with one real word swapped for another the corpora recorded for it
 # (`went` typed as `want`), or for a listed confusable. `<intended><TAB><before><TAB><typed><TAB><after>`;

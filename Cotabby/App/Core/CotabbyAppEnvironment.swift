@@ -33,6 +33,11 @@ final class CotabbyAppEnvironment {
         // in the first moment after launch taught `the` and `that` as the writer's own words.
         guard PersonalPhraseModel.isLearningEnabledInDefaults, corrector.isLoaded() else { return }
         let english = SpellingDictionaryLanguage.english.rawValue
+        // Before the vocabulary learns: a word that becomes the writer's own with this line is
+        // then learned from this line already.
+        for word in coordinator.wordsLeftStanding(in: sentence) where memory.recordLeftStanding(word) {
+            CotabbyLogger.app.info("A word left standing in \(PersonalCorrectionMemory.linesBeforeAWordIsKept) lines is now kept as typed")
+        }
         vocabulary.learn(
             sentence: sentence,
             isDictionaryWord: { corrector.isDictionaryWord($0) },
@@ -464,6 +469,9 @@ final class CotabbyAppEnvironment {
         // share. It is given first look at every keystroke the suggestion coordinator receives.
         // The candidate list rides the same single capture slot as the emoji picker and macros. It is
         // fed by the suggestion coordinator (typo gate, alternates) rather than by its own trigger.
+        // One clock for the spelling bar and the word strip: both go away five seconds after the
+        // writer's last key and come back with the next one (`InlinePanelIdleTimer`).
+        let inlinePanelIdle = InlinePanelIdleTimer()
         let candidateListController = CandidateListController(
             panel: CandidateListPanelController(),
             focusModel: focusModel,
@@ -475,7 +483,8 @@ final class CotabbyAppEnvironment {
                 ) ?? "Return"
             },
             correctionMemory: personalCorrectionMemory,
-            qualityMetricsStore: qualityMetricsStore
+            qualityMetricsStore: qualityMetricsStore,
+            idle: inlinePanelIdle
         )
         candidateListController.onCommitted = { [weak suggestionCoordinator] in
             suggestionCoordinator?.schedulePredictionAfterHostPublishDelay()
@@ -603,13 +612,17 @@ final class CotabbyAppEnvironment {
             isSpellingPending: { [weak suggestionCoordinator] in
                 suggestionCoordinator?.isSpellingPendingForLastKey ?? false
             },
-            isLanguageModelPending: { wordLanguageModel.isAnswerPending(forTextBefore: $0) }
+            isLanguageModelPending: { wordLanguageModel.isAnswerPending(forTextBefore: $0) },
+            isAnotherPanelUp: { [weak suggestionCoordinator] in
+                suggestionCoordinator?.isInlinePanelOwningKeys ?? false
+            },
+            idle: inlinePanelIdle
         )
-        wordPredictionController.onSentenceSettled = { [weak focusModel] sentence in
-            let snapshot = focusModel?.snapshot
-            trainingLog.noteSentence(sentence, textBefore: snapshot?.context?.precedingText, app: snapshot?.bundleIdentifier)
+        wordPredictionController.onSentenceSettled = { [weak focusModel] sentence, textBefore in
+            trainingLog.noteSentence(sentence, textBefore: textBefore, app: focusModel?.snapshot.bundleIdentifier)
         }
         wordPredictionController.onStripUse = { trainingLog.noteStrip($0) }
+        trainingLog.currentApp = { [weak focusModel] in focusModel?.snapshot.bundleIdentifier }
         suggestionCoordinator.onSpellingDecision = { trainingLog.noteDecision($0) }
         suggestionCoordinator.onSentencePass = { trainingLog.noteSentencePass($0, words: $1) }
         trainingLog.session = {
@@ -659,7 +672,8 @@ final class CotabbyAppEnvironment {
             emoji: emojiPickerController,
             macro: macroController,
             participants: [candidateListController, sentenceCheckController, wordPredictionController],
-            inputMonitor: inputMonitor
+            inputMonitor: inputMonitor,
+            idle: inlinePanelIdle
         )
         suggestionCoordinator.emojiInputObserver = { [weak inlineCommandCoordinator] event in
             inlineCommandCoordinator?.observe(event) ?? false

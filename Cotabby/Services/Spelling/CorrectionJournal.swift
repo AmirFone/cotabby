@@ -15,6 +15,9 @@ final class CorrectionJournal {
         case autoFixKept
         /// Cotabby fixed it automatically and the writer undid it.
         case autoFixUndone
+        /// Cotabby fixed it automatically and the writer changed the fix into a third word:
+        /// `final` is what they meant, `offered` the fix that was wrong.
+        case autoFixReplaced
         /// The writer picked a fix from the spelling bar or card.
         case picked
         /// The writer kept the word as typed from the bar.

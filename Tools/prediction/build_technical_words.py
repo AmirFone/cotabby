@@ -118,6 +118,8 @@ TERMS = {
         PII MFA OTP UTF ASCII Unicode
     """,
     SOMETIMES: """
+        proto nosql tldr offboarding signoff workstream workstreams timebox timeboxed resync unsync desync prefill
+        requeue reingest datalake lakehouse SharePoint OneDrive
         TOML INI JSONL Parquet Avro Protobuf protobufs Thrift WebSocket WebSockets WebAssembly Wasm
         SMTP IMAP FTP SFTP ICMP BGP MQTT AMQP HMAC AES RSA ECDSA PKI CIDR
         mTLS OIDC SCIM RBAC ABAC

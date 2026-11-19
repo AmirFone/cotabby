@@ -46,14 +46,18 @@ On a Mac with less than 16 GB of memory, install tabby-2-mini (or tabby-2-nano u
 - **Unsure words open a three-slot bar** above the word, like the iPhone: `"what you typed"` | **best fix** | runner-up. Tab takes the highlighted slot, ←/→ move, ⌥1/2/3 pick directly, or click. Return only picks after you move the highlight. Picking the quoted slot keeps your word and stops flagging it. Esc leaves this one word alone (no bar, no fix) until you move on. Shift- and Option-arrows go to the app. If you keep typing, the bar just goes away.
 - **Next-word strip** above the caret while you type: up to five likely words, likeliest first, ordered by a language model that reads your last few sentences. That is what makes the verb form follow the tense you are writing in: after `Yesterday we` the letters `walk` offer **walked** first, after `She is still` **walking**, after `Every morning she` **walks**. It never offers slurs or swear words. Tab types the highlighted one (the first, to begin with) and the strip moves on to the word after it. → steps the highlight to the next word and ← steps back, then Tab or Return types it; ⌥1…5 pick a slot directly. The arrows are only taken when the app has no use for them: → when nothing follows the caret on its line, ← once → has moved the highlight. With text to the right of the caret, and for ↑/↓ always, arrows stay caret movement and the strip steps aside. Esc hides it until the next word.
 - **Size and glass of the panels are yours to pick** (Settings → Writing → Suggestion Size, Glass). Size: Compact (the default, about a fifth smaller than before), Regular, Large. Glass: Clear (the default: smoked glass, the document shows through and the words are drawn bolder with a fine outline), Standard (the frosted look every earlier build had), Solid (hides the document, for the strongest contrast). `defaults write com.jacobfu.tabby.dev cotabbyPanelSize regular` and `cotabbyPanelGlass standard` bring back the old look.
+- **The strip follows your keys, not the app.** It is redrawn the moment a key is pressed, for the text that key leaves, also after a hyphen or a slash and in apps that are slow to report what was typed (chat and browser windows take 30 to 400 ms). It stays when a message box grows a line, and a Tab pressed before the app has caught up waits for it and then types the word.
+- **Panels go away when you stop.** Five seconds after your last key the strip and the spelling bar are taken down, and the next key brings them back.
+- **Inside a word the bar waits for a pause.** A slip in the middle of a word no longer swaps the strip for a bar on every key: the strip stays (and offers the word a slip away from what you typed), and the bar comes up if you stop for a third of a second or when the word is finished.
 - **Capitals like the iPhone:** the first word of a sentence and `i` / `i'm` / `i've`.
 - **Words joined by a dot, slash or hyphen get the same help.** In `users.nmae`, `read/wriet` or `schema.table.colum` the word after the mark is checked and the strip completes it, and a word finished by a slash or a hyphen is checked like one before a comma (`recieve/`, `teh-`). Because such text is as often a name as prose, a fix there is offered on the bar and never made by itself, and the word after a dot is not capitalized. Web and email addresses, file names (`notes.txt`), paths (`src/main/app`, `~/Desktop`) and version numbers are left alone as before. Right after a dot the strip waits for the first letter, since a dot is nearly always the end of a sentence.
-- **Sentence pass** when you finish a sentence (`.` `!` `?`):
+- **Sentence pass** when you finish a sentence (`.` `!` `?`), and in a line with no closing mark whenever you stop typing in it (from five words, 0.7 s after your last key, at the end of a word). An unfinished line's last word is left for the next look, since what follows often decides it; a fix you undo and a word you typed past on the card are not brought up again in that line:
   - fixed automatically: doubled words (`the the`), `hello ,world`, double spaces, leftover certain typos;
   - also fixed automatically: `could of` → could have (not `of course`);
   - reviewed in one pass: likely wrong words judged from both sides (`went their yesterday` → there, `to tired` → too, `I want to by a car` → buy) and uncertain typos. The card steps through them: Tab takes the fix and moves on, ←/→ pick another option, Esc keeps your word (and it is not flagged there again). Typing closes it with no change. Wrong words are never changed without asking.
 - **Learns you:** a fix you pick or retype ranks higher next time. Once you have made the same fix for the same slip twice, that word leads the bar whatever the dictionary thinks is likelier, and from the third time it is made for you (`wich` → which, for someone who always means *which*, even though *with* is the commoner word). A slip you correct to two different words about as often has no habit and stays a choice. Undoing a fix marks the word as meant; correcting it yourself later takes that back. A fix only counts as undone once it has been seen in the field and is gone again, so a fix that never landed is not read as you rejecting it.
-- **Knows software terms:** about 1,100 engineering words are built in, so `backend`, `kubectl` and `jsonb` are not flagged, slips go to the term (`frontned` → frontend), and the strip offers `Kubernetes`, `JSON` or `repo` where the text calls for them (see "Software-engineering vocabulary").
+- **Learns the words you keep.** A word Cotabby flags that is still there, as you typed it, in three lines you finished or sent becomes yours: no more bar, the strip offers it, and the sentence pass leaves it alone. A word you have ever corrected is never learned this way, and correcting a learned word once takes it back out.
+- **Knows software terms:** about 1,130 engineering words are built in, so `backend`, `kubectl` and `jsonb` are not flagged, slips go to the term (`frontned` → frontend), and the strip offers `Kubernetes`, `JSON` or `repo` where the text calls for them (see "Software-engineering vocabulary").
 - **Learns your working vocabulary** (Settings → Writing → Learn From My Sentences, on by default). Three things, all on this Mac:
   - every word of a sentence you finish is counted, with the words before it. A sentence with a system name or a term in it used to teach nothing; now only the unknown spelling itself is left out, so a slip is never offered back;
   - the strip's order then leans toward the words you use far more than general English does (`replay`, `tenant`, `backfill` for someone who writes them all day) and toward what you wrote after the same words before, without overruling the model where it is sure;
@@ -102,9 +106,9 @@ offered, how sure the engine was, or what you typed past.
 
 | `kind` | Written when | What it holds |
 |---|---|---|
-| `strip` | you finish a word, or pick one | the strip before any letter (`shownFirst`) and as it last stood (`shownLast`), how many letters you had typed by then, the slot you picked (`pickedSlot`, absent when you typed the word out), and `rank`: where the word you meant stood in the last list (0 is first, absent when it was not listed) |
+| `strip` | you finish a word, or pick one | every strip drawn for the word with the letters typed at the time (`draws`), `listedAt` and `listedSlot`: how many letters you had typed when the word you meant first stood in the strip, and where; also the strip before any letter (`shownFirst`) and as it last stood (`shownLast`), how many letters you had typed by then, the slot you picked (`pickedSlot`, absent when you typed the word out), and `rank`: where the word you meant stood in the last list (0 is first, absent when it was not listed) |
 | `decision` | the spelling engine flags a word | what it did (`fixed` without asking, `offered`, `offeredChoices`, `offeredWrongWord`, or `held`), its candidates best first with their scores, and the trained model's `confidence` in the first one |
-| `outcome` | you react | what became of the word: `autoFixKept`, `autoFixUndone`, `picked`, `keptAsTyped`, `selfCorrected` |
+| `outcome` | you react | what became of the word: `autoFixKept`, `autoFixUndone`, `autoFixReplaced` (you changed the fix into a third word: a wrong fix, with the word you meant), `picked`, `keptAsTyped`, `selfCorrected` |
 | `sentencePass` | the sentence model has read the finished sentence | every word it would change, its probability for it, and whether that was enough to fix it (`fixed`), to ask (`asked`), or neither (`left`) |
 | `sentenceFix` | you type on, or undo | `kept` or `undone`, and the fixed sentence |
 
@@ -125,6 +129,33 @@ found and fixed in 0.4.0: a chat line that ends in a full stop and is sent with 
 (only lines without one were), a sentence sent within 0.8 s of its full stop was dropped because the
 field was already empty, and a fix was looked for in its sentence by exact capitals (`the` was not found
 in `The cat`).
+
+The first full day recorded on 0.4.3 (1,043 records) showed what the record itself was missing, and
+0.4.4 fills it in:
+
+- **Every line of a message.** Only the last line was saved when Return sent a message; a line ended
+  with Shift+Return is now saved like one that was sent. About 72% of the lines typed that day were
+  saved.
+- **The whole last word.** A line was saved as the app had last reported it, so one line in ten ended
+  in a word cut short (`gy` for `gym`). It is now saved as the keys left it.
+- **What the strip showed at every letter** (`draws`, `listedAt`, `listedSlot`). `rank` only looked at
+  the last strip, which is usually drawn for the complete word and so never lists it: `rank` was
+  absent for 720 of 840 typed-out words, and for 466 of those only for that reason. And nine words in
+  ten had no strip step at all, because the strip for the next word was drawn before the finished one
+  was reported.
+- **Wrong fixes you replace** (`autoFixReplaced`). A fix you delete and replace with another word left
+  no trace: 8 of 10 wrong fixes that day were invisible to the record and to the count that tunes the
+  auto-fix threshold.
+- **When and where, on every record.** `day` and `app` are stamped on every line, and each example has
+  `run` (a random name for one launch of the app) and `at` (milliseconds into that launch), so the
+  single events whose sentence was never saved still line up in time. They had neither.
+- A sentence that ends in several marks (`!!!`) is saved, a dot inside a file name no longer cuts the
+  sentence there, a sentence's `context` is read when the sentence is finished and not 0.8 s later when
+  a sent message's field is already empty, and a sentence-model pass over a line that was still being
+  written is a step of the sentence it became.
+- A `decision` step is now written when a bar is really shown or a fix made. Before, one was written
+  on every key while a word with a slip in it was being typed (1,173 of 1,886 that day), which read
+  as 1,400 offers where there were 280.
 
 Not recorded: a change you make to a sentence by going back to it after typing on (only what you do
 at the caret as you write is seen), and letters you typed and deleted inside a word.
@@ -250,7 +281,7 @@ The dictionary is general English: it has `server` and `database` but not `backe
 someone who writes about software the strip then never offered the word being typed, and the
 spelling engine flagged it or changed it into an ordinary word (`kuberntes` was offered `currents`).
 
-`Tools/prediction/build_technical_words.py` holds about 1,100 terms (languages, tools, protocols, data
+`Tools/prediction/build_technical_words.py` holds about 1,130 terms (languages, tools, protocols, data
 formats, cloud services, and the everyday jargon of code review and operations) and writes two lists:
 
 - **`technical_words_en.txt`, for the word strip:** every term with a count and its usual capitals.
@@ -258,7 +289,7 @@ formats, cloud services, and the everyday jargon of code review and operations) 
   `kubectl` or `repo` first where the text calls for it, shown the way it is written. A term that is
   also an ordinary word (`swift`, `spring`, `react`, `rust`) gets no capitals, so a sentence about
   the weather is not offered a programming language.
-- **`technical_spelling_en.txt`, for the spelling dictionary:** the 640 terms the dictionary lacks
+- **`technical_spelling_en.txt`, for the spelling dictionary:** the 660 terms the dictionary lacks
   that can be accepted as typed without hiding a real slip.
   These are no longer flagged (the system checker calls most of them misspelled), slips are fixed
   toward them (`frontned` → frontend, `josn` → json, `kuberntes` → kubernetes), and the sentence
@@ -311,6 +342,32 @@ Trained on the Birkbeck misspelling corpora placed in held-out sentences (Tatoeb
 | Words the checker flags in untouched text (2,102) | 206 edited | 79 edited |
 
 "Wrong" overstates the real rate: the corpora list `realy` under `ready` and `thorugh` under `thought`. The 79 edits in untouched text are almost all real slips in the subtitles and web pages themselves (`seperate`, `anyyhing`, `ofyou` → of you); the debatable ones are British spellings and compounds (`fertiliser`, `videogames`). First-guess accuracy in sentences rose from 76.9% to 80.9% (schoolchildren's spellings: 54.8% to 60.1%; run-together words: 76.1% to 98.0%). The sentences are harder than the Tatoeba-only set used before 2026-11-12, where the same pipeline scored 83.3% and fixed 65.5% unasked, so the two sets of numbers are not comparable. Word vectors (word2vec trained on the same sentences) were tried as an extra context signal and added nothing measurable on top of the n-gram table, so they are not shipped.
+
+**Keyboard slips: measured, and the retrained model not shipped (0.4.4).** The training typos are
+handwriting and spelling beliefs. A recorded day of one writer's typing was 77% one-edit finger slips
+(a key beside the one meant 25%, a dropped letter 26%, an extra letter 20%, two letters swapped 18%),
+and where the model's first candidate was right it fixed 82% of the swaps but only 22% of the
+neighbouring-key slips. `build_dataset.py` now generates such slips on words of held-out sentences
+(`keys-train`, `keys-test`), and every report includes the keyboard test:
+
+| Keyboard test (7,362 flagged slips) | Trained without the slips, as shipped | Trained with the slips (weight 0.3) | Two models (short words without them) |
+|---|---|---|---|
+| Fixed unasked, wrong among them | 47.3%, 1.4% | 67.0%, 1.4% | 52.2%, 1.4% |
+| Right first candidates that were fixed | 55.6% | 75.6% | 60.8% |
+| Typos in sentences (1,313) | 62.7%, 3.2% | 62.1%, 2.9% | 61.6%, 2.8% |
+| Typos in an empty field (1,711) | 69.0%, 3.6% | 64.2%, 2.9% | 64.0%, 2.8% |
+| Words the checker flags in untouched text | 80 edited | 88 | 85 |
+| Two real days: fixed unasked / changed to another word | 344 / 3 | 380 / 7 | 359 / 1 |
+
+Trained with the slips, the model fixes far more generated slips but, on the two real days, its new
+fixes of two- to four-letter forms were wrong 6 times in 43, where the generated test predicted 1 in
+75: a generated slip of `form` is not the `fomr` a writer types for `from`. Keeping the short words on
+a model trained without the slips removes those errors and most of the gain with them (a plain
+retrain on today's engine already gives 353 of those 359). Neither clears the bar of "more fixes, no
+more wrong ones, no more edits of untouched text", so the shipped model is unchanged. The options stay
+in `train.py` (`KEYS_WEIGHT`, `SHORT_TARGET_WRONG`, `SHORT_PLAIN`); with none set it trains as before.
+What would help is the writer's own short-word slips as training rows, which the fuller training
+record of 0.4.4 starts to collect.
 
 ## Wrong-word model
 
@@ -594,6 +651,7 @@ E2E_ONLY=speed Tools/e2e/live-smoke.sh        # key-to-fix timings only (E2E_PAC
 E2E_ONLY=tense Tools/e2e/live-smoke.sh        # the word strip's verb forms (needs the CLI; COTABBY_SPELL=<path>)
 E2E_PAUSE_OTHER=1 Tools/e2e/live-smoke.sh     # quit the released Cotabby for the run (it types into the test window)
 E2E_ONLY=toggle Tools/e2e/live-smoke.sh       # the on/off shortcut only
+E2E_ONLY=steady Tools/e2e/live-smoke.sh       # the strip in a slow app, after - and /, left alone, in a field that changes its frame
 E2E_ONLY=training Tools/e2e/live-smoke.sh     # the opt-in training record (on for that run only)
 # A picture of Settings at one setting, taken by the app of its own window only:
 E2E_ONLY=settings E2E_SETTING=trainingData E2E_SETTINGS_HEIGHT=2200 E2E_SHOT=/tmp/settings.png Tools/e2e/live-smoke.sh
@@ -657,6 +715,40 @@ before:
 Known and not fixed: a capitalized `Ive` (a name) is still read as `I've`; a few two-edit slips
 pick the commoner neighbour (`was bord` → born); `asan` is read as `as an`; text you paste and send
 is learned like text you typed; counts of words you no longer use do not fade.
+
+## A day of real typing (0.4.4)
+
+The first full day recorded with 0.4.3 (1,043 records from chat and browser windows: 130 saved
+lines, 1,099 words with a strip record, 1,886 spelling decisions) was read by twelve analysts, one
+angle each, and their main claims were checked against the code and on screen. What it showed, and
+what 0.4.4 does about it:
+
+| What the day showed | What changed |
+|---|---|
+| The strip was redrawn only once the app reported a key. In an app that is slow at that, it stood behind the word; after `-` or `/` it still completed the word before, because only letters, spaces and apostrophes were followed, and because a slow app's older text was taken for the newest | The strip is drawn from every key, for the text the keys leave (`TextFromKeys`), and a read of the field that is only an earlier state of those keys is recognised and waited out, by the strip and by the spelling check |
+| A text box that changes its frame (a message box growing a line) counted as another field: the strip vanished and Tab typed a tab | The same Accessibility element under a new number is the same field |
+| A Tab pressed before a slow app had reported the last letter was swallowed and typed nothing | The pick waits up to half a second for the field and then types |
+| From the first slipped letter of a word every key drew a spelling bar and took the strip down: 1,173 bars, two in three with another first word than the one before, seven in ten gone within 200 ms. 257 of the 325 words whose strip stopped before their last letter were this | Inside a word the bar waits for a pause of 0.3 s; the strip stays, and offers the word a slip away from the letters typed |
+| With a slip in the first letters the strip listed only rare words that start with them (`habitat` for `hab` when `have` was meant): 168 words | The language-model ordering gets the near misses as their own list. After a slip the word meant is listed 82.1% of the time (was 76.7%) and first 71.4% (was 68.9%); text typed right loses 0.1 point of first-suggestion accuracy |
+| The sentence pass needs `.`, `!` or `?` and a space. 106 of 130 lines ended in nothing and were sent with Return: it ran on 4, and 105 errors were left standing | A line with no closing mark is proofread whenever the writer pauses in it (from five words; its last word waits for the next look). Replayed on that day's lines the pass makes 7 right fixes and 1 doubtful one in words the writer left as typed |
+| One product name was written 25 times and flagged 24 times, with the same wrong fix offered each time. Nothing learned from typing past the bar | A flagged word left standing in three finished lines is kept. On that day the name is flagged 3 times instead of 17 on a fresh install |
+| 305 of 1,067 bundled software terms were flagged one letter before they were complete (`debounc`), because "could still become a word" only asked the 30,000 commonest words | The check also asks the software terms and the words the writer keeps |
+| 8 of 10 wrong automatic fixes left no trace: the writer replaced the fix with a third word, which is not an undo | Recorded as `autoFixReplaced`, counted as a wrong fix, and the right word is learned |
+| The strip and the bar had clocks of 8 and 10 s that restarted whenever the panel was drawn, also with nobody typing | One clock, five seconds from the last key, and a panel that went away stays away until the next key |
+| The record lost lines, last words, and most strip steps | See "Training data" |
+
+Looked at and not changed, because the day's numbers argue against it:
+
+- **Lowering the auto-fix threshold.** Between 0.60 and 0.75 about one first candidate in five was
+  wrong, and the wrong fixes that were made sat at 0.78 to 0.92 among the right ones.
+- **Ordering the strip by keys saved.** The writer takes the first slot (86% of 259 picks, after two
+  or three letters); ordered by keys saved, the word they picked would have stood first 47 times
+  instead of 205.
+- **Dropping completions with one or two letters left.** It would have cost 17 to 41 of the picks.
+
+Still open: wrong real words (`its` for `it's`, `form` for `from`) are mostly left to the sentence
+model, which fixes some at a pause and none in the last word of a line; and a sentence sent with
+Return right after its last word gets no look at that word.
 
 ## Building from source on another Mac
 

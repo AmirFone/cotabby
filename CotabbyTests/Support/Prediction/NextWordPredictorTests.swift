@@ -179,6 +179,55 @@ final class NextWordPredictorTests: XCTestCase {
         XCTAssertEqual(prediction?.words.contains("with"), false)
     }
 
+    func test_languageModel_nearMissLeads_evenWhenManyWordsStartWithTheSlippedLetters() {
+        // #given `hab` typed for `have`: plenty of words start with those letters, all unlikely here
+        let text = "we hab"
+        let model = LanguageModelFixture.scores(textBefore: text, [
+            "have": 0.3, "habitat": 0.00001, "habits": 0.00001, "habit": 0.00002, "habitats": 0.000005, "habitual": 0.000004,
+        ])
+        var sources = sources(completions: ["habitat", "habits", "habit", "habitats", "habitual"], languageModel: model)
+        // The forgiven-starts list is full of the exact matches, as it is for any common start.
+        sources.fuzzyCompletions = { _, _ in ["habitat", "habits", "habit", "habitats", "habitual"] }
+        sources.nearMisses = { _, _ in ["have", "had", "has"] }
+
+        // #when predicting
+        let prediction = NextWordPredictor.predict(textBefore: text, sources: sources)
+
+        // #then the word meant leads, and the words the letters do spell are still there
+        XCTAssertEqual(prediction?.words.first, "have")
+        XCTAssertEqual(prediction?.words.contains("habit"), true)
+    }
+
+    func test_languageModel_nearMissDoesNotLead_whenTheLettersSpellALikelyWord() {
+        // #given `ses` typed for `session`, where `see` is a slip away and far commoner
+        let text = "join the ses"
+        let model = LanguageModelFixture.scores(textBefore: text, ["session": 0.05, "sessions": 0.01, "see": 0.4, "set": 0.2])
+        var sources = sources(completions: ["session", "sessions"], languageModel: model)
+        sources.nearMisses = { _, _ in ["see", "set"] }
+
+        // #when predicting
+        let prediction = NextWordPredictor.predict(textBefore: text, sources: sources)
+
+        // #then the word being typed stays first
+        XCTAssertEqual(prediction?.words.first, "session")
+    }
+
+    func test_withoutTheLanguageModel_nearMissesAreNotAskedFor() {
+        // #given the table alone, where nothing balances a slip against a likelier word
+        var asked = false
+        var sources = sources()
+        sources.nearMisses = { _, _ in
+            asked = true
+            return ["see"]
+        }
+
+        // #when predicting for a word in progress
+        _ = NextWordPredictor.predict(textBefore: "I want to gon", sources: sources)
+
+        // #then the near-miss list is left alone
+        XCTAssertFalse(asked)
+    }
+
     func test_languageModel_nearMissComesFirstWhenNothingLikelyStartsWithTheLetters() {
         // #given a misspelled start, "wich", that only begins a very unlikely word
         let text = "I know wich"

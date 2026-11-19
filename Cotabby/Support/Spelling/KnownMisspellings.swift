@@ -20,7 +20,11 @@ import Foundation
 ///   `agen` is `again` or `agent`, `sayed` is `said` or `stayed`, `brot` is `brought` or `broth`.
 ///   None of those is here. The second reading has to come from the same kind of mistake (a sound,
 ///   a dropped letter or apostrophe); that some other word is one mistyped key away does not count,
-///   or nothing could be listed.
+///   or nothing could be listed. One exception was taken out for that reason all the same:
+///   `thay` is `they` by sound, and `that` with the key beside `t`, and `that` is common enough
+///   that a writer whose slips are finger slips meant it every time (three of three in a recorded
+///   day, each fixed to `they`). A fix from this table also cannot be unlearned by correcting it,
+///   which a fix from the ranker can.
 ///
 /// The table complements, not replaces, the general engines: `PhoneticKey` finds sound-alikes for any
 /// common word, and SymSpell covers slips of one or two letters. Entries here are the spellings those
@@ -328,7 +332,6 @@ nonisolated enum KnownMisspellings {
         "tempreture": "temperature",
         "thankx": "thanks",
         "thankyou": "thank you",
-        "thay": "they",
         "thort": "thought",
         "thot": "thought",
         "togeather": "together",

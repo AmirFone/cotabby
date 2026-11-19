@@ -209,6 +209,9 @@ extension SuggestionCoordinator {
     }
 
     func handleInputEvent(_ event: CapturedInputEvent) -> Bool {
+        // The writer is typing on: a spelling bar that was waiting for them to stop is not shown.
+        heldSpellingBar?.cancel()
+        heldSpellingBar = nil
         prepareSpellingAtKeystroke(for: event)
         // Give the emoji picker first look at every keystroke so it can drive its trigger state
         // machine. When a capture is involved, the picker owns the interaction: the suggestion
@@ -270,6 +273,11 @@ extension SuggestionCoordinator {
     /// Chrome's slower contenteditable publish on a busy page, short enough that the user can
     /// always type ahead without the rescheduled suggestion feeling stuck.
     fileprivate static let hostPublishWaitCeilingMs = 400
+
+    /// The longer wait for a field that is visibly publishing a burst of keys one at a time (it
+    /// shows the text as it stood a few keys ago, see `isBehindTheKeys`). Such a host is slow, not
+    /// silent, and the text it will show in a moment is the one to check and predict for.
+    private static let hostPublishBehindCeilingMs = 1200
 
     /// Interval between AX polls while waiting for the host publish. Same order of magnitude as
     /// the focus poll itself (default 80ms) but tighter so we catch the publish promptly without
@@ -418,7 +426,14 @@ extension SuggestionCoordinator {
         let selectionChanged = currentContext?.selection.location != baseline.selectionLocation
         let showsTypedCharacter = elementChanged
             || baseline.expectedSuffix.map { currentContext?.precedingText.hasSuffix($0) ?? true } ?? true
-        let isPublished = (textChanged || elementChanged || selectionChanged) && showsTypedCharacter
+        // "Changed and ends with the key's character" is also true of an earlier state of a burst
+        // that a slow host is still publishing: the space after `can` passes for the space after
+        // `read`, and any change passes for a `/`, whose character is not waited for. Taken as
+        // the published key, that state got the spelling check and the strip, and the text the
+        // keys really left got neither, because nothing polls after "published". The word strip
+        // follows the keys themselves and knows when the field is only an earlier state.
+        let isBehindTheKeys = currentContext.map { wordPredictionPresenter?.isBehindTheKeys($0.precedingText) ?? false } ?? false
+        let isPublished = (textChanged || elementChanged || selectionChanged) && showsTypedCharacter && !isBehindTheKeys
         if isPublished || (baseline.alreadyShowsKey && !textChanged) {
             // The publish arrived. When it matches the snapshot a speculative post-acceptance
             // generation was built against, that generation is already in flight (or applied) for
@@ -486,7 +501,8 @@ extension SuggestionCoordinator {
             ? Self.hostPublishFirstPollIntervalMs
             : Self.hostPublishPollIntervalMs
         let nextElapsed = elapsedMs + interval
-        guard nextElapsed < baseline.ceilingMs else {
+        let ceilingMs = isBehindTheKeys ? max(baseline.ceilingMs, Self.hostPublishBehindCeilingMs) : baseline.ceilingMs
+        guard nextElapsed < ceilingMs else {
             if baseline.generatesAtCeiling {
                 schedulePrediction(
                     consumedDelayMilliseconds: Self.elapsedMilliseconds(since: baseline.keystrokeUptimeNanoseconds)

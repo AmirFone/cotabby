@@ -17,11 +17,16 @@ nonisolated struct AutoFixOutcome: Equatable {
         case confirmed
         /// The typed spelling is back where the fix was.
         case reverted
+        /// Another word stands where the fix was: neither what was typed nor what Cotabby made of
+        /// it. The fix was wrong and the writer put in what they meant (`replacement`).
+        case replaced
     }
 
     let kind: Kind
     let typo: String
     let fix: String
+    /// The word the writer put in the fix's place; only for `.replaced`.
+    var replacement: String?
 }
 
 nonisolated struct AutoFixOutcomeTracker {
@@ -83,6 +88,14 @@ nonisolated struct AutoFixOutcomeTracker {
             }
             if word == item.fix, Self.hasFinishedAnotherWord(after: rest.dropFirst(word.count)) {
                 outcomes.append(AutoFixOutcome(kind: .confirmed, typo: item.typo, fix: item.fix))
+                return nil
+            }
+            // A third word, finished, where the fix had been seen. Most wrong fixes end this way
+            // (the writer deletes the fix and types what they meant, not the slip again), and
+            // until this was reported they left no trace: nothing learned the right word, and
+            // the count of undone fixes that tunes the threshold missed them.
+            if item.wasSeen, wordIsFinished, !word.isEmpty, word != item.fix, word != item.typo {
+                outcomes.append(AutoFixOutcome(kind: .replaced, typo: item.typo, fix: item.fix, replacement: word))
                 return nil
             }
             return item

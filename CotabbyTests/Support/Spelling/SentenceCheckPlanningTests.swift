@@ -141,4 +141,98 @@ final class SentenceCheckPlanningTests: XCTestCase {
         XCTAssertEqual(segments.filter(\.isChanged).map(\.text), ["received", "their"])
         XCTAssertEqual(segments.map(\.text).joined(separator: " "), "I received their email yesterday.")
     }
+
+    // MARK: - A line the writer has not ended
+
+    func test_extractUnfinished_takesTheLineSoFar_oneSpaceAfterAWord() {
+        // #given five words and a space, no closing mark
+        let line = FinishedSentenceExtractor.extractUnfinished(from: "can you send the report ")
+
+        // #then the line is the sentence, marked unfinished, with the space as what follows it
+        XCTAssertEqual(line?.sentence, "can you send the report")
+        XCTAssertEqual(line?.trailingWhitespace, " ")
+        XCTAssertEqual(line?.isUnfinished, true)
+    }
+
+    func test_extractUnfinished_needsFiveWords() {
+        XCTAssertNil(FinishedSentenceExtractor.extractUnfinished(from: "can you send the "))
+    }
+
+    func test_extractUnfinished_notInTheMiddleOfAWord() {
+        XCTAssertNil(FinishedSentenceExtractor.extractUnfinished(from: "can you send the report ov"))
+    }
+
+    func test_extractUnfinished_leavesAFinishedSentenceToTheOtherExtractor() {
+        // #given a sentence that has ended
+        let text = "Can you send the report over. "
+
+        // #then it is a finished sentence and not an unfinished line
+        XCTAssertNil(FinishedSentenceExtractor.extractUnfinished(from: text))
+        XCTAssertNotNil(FinishedSentenceExtractor.extract(from: text))
+    }
+
+    func test_extractUnfinished_startsAfterTheSentenceBefore() {
+        // #given a finished sentence and five words of the next
+        let line = FinishedSentenceExtractor.extractUnfinished(from: "That works. can you send the report ")
+
+        // #then only the new line is taken, and the sentence before it is context
+        XCTAssertEqual(line?.sentence, "can you send the report")
+        XCTAssertEqual(line?.precedingContext, "That works. ")
+    }
+
+    func test_extractUnfinished_startsAtTheLineBreak() {
+        let line = FinishedSentenceExtractor.extractUnfinished(from: "first line here\ncan you send the report ")
+
+        XCTAssertEqual(line?.sentence, "can you send the report")
+    }
+
+    func test_extractUnfinished_refusesCodeAndLinks() {
+        XCTAssertNil(FinishedSentenceExtractor.extractUnfinished(from: "see https://example.com for the full list "))
+        XCTAssertNil(FinishedSentenceExtractor.extractUnfinished(from: "set x = y in the config file "))
+    }
+
+    func test_extractUnfinished_notAfterTwoSpacesOrALineBreak() {
+        XCTAssertNil(FinishedSentenceExtractor.extractUnfinished(from: "can you send the report  "))
+        XCTAssertNil(FinishedSentenceExtractor.extractUnfinished(from: "can you send the report\n"))
+    }
+
+    // MARK: - An unfinished line's verdict leaves the last word alone
+
+    func test_leavingTheLastWordAlone_keepsAFixEarlierInTheLine() {
+        // #given a fix to the third word of six
+        let result = LocalProofreadResult(original: "I saw teh cat run away", autoCorrected: "I saw the cat run away", flags: [])
+
+        // #then it stands
+        XCTAssertEqual(result.leavingTheLastWordAlone?.autoCorrected, "I saw the cat run away")
+    }
+
+    func test_leavingTheLastWordAlone_dropsAVerdictThatChangedTheLastWord() {
+        let result = LocalProofreadResult(original: "after lunch I went their", autoCorrected: "after lunch I went there", flags: [])
+
+        XCTAssertNil(result.leavingTheLastWordAlone)
+    }
+
+    func test_leavingTheLastWordAlone_dropsAFlagOnTheLastWord_andKeepsEarlierOnes() throws {
+        // #given a flag on a middle word and one on the last word
+        let sentence = "we went their and then form"
+        let their = try XCTUnwrap(sentence.range(of: "their"))
+        let form = try XCTUnwrap(sentence.range(of: "form"))
+        let result = LocalProofreadResult(original: sentence, autoCorrected: sentence, flags: [
+            SentenceFlag(range: their, typed: "their", options: ["there"]),
+            SentenceFlag(range: form, typed: "form", options: ["from"]),
+        ])
+
+        // #then only the middle word is still asked about
+        XCTAssertEqual(result.leavingTheLastWordAlone?.flags.map(\.typed), ["their"])
+    }
+
+    func test_leavingTheLastWordAlone_isNilWhenOnlyTheLastWordWasFlagged() throws {
+        let sentence = "we went home and then form"
+        let form = try XCTUnwrap(sentence.range(of: "form"))
+        let result = LocalProofreadResult(original: sentence, autoCorrected: sentence, flags: [
+            SentenceFlag(range: form, typed: "form", options: ["from"]),
+        ])
+
+        XCTAssertNil(result.leavingTheLastWordAlone)
+    }
 }

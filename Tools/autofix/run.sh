@@ -9,9 +9,11 @@
 # COTABBY_RESOURCES=<dir> reads the engine's resources from, and writes both models to, another
 # folder than Cotabby/Resources: the way to try a candidate dictionary or context table (a copy of
 # the folder with one file swapped) and compare its report before shipping anything.
+# AUTOFIX_ONLY=1 skips the wrong-word rows and model (a retrain of the auto-fix judge alone).
 # Needs: uv (for the Python environment), a built cotabby-spell (see FORK.md).
 set -euo pipefail
 WORK="$1"; shift
+SCRIPTS="$(dirname "$0")"
 CLI="${COTABBY_SPELL:-build/DerivedData/Build/Products/Release/cotabby-spell}"
 RESOURCES="${COTABBY_RESOURCES:-Cotabby/Resources}"
 DICTIONARY="$RESOURCES/frequency_dictionary_en_82_765.txt"
@@ -28,7 +30,7 @@ if [ ! -f "$WORK/tatoeba/heldout.txt" ]; then
   python3 Tools/ngram/build_model.py "$WORK/tatoeba/eng_sentences.tsv.bz2" "$DICTIONARY" "$WORK/tatoeba/model.txt" "$WORK/tatoeba/heldout.txt"
 fi
 [ -f "$WORK/birkbeck/aspell-realword-dev.txt" ] || python3 Tools/cotabby-spell/fetch-birkbeck.py "$WORK/birkbeck"
-[ -f "$WORK/lines/runon-train.txt" ] || python3 Tools/autofix/build_dataset.py \
+[ -f "$WORK/lines/keys-train.txt" ] || python3 "$SCRIPTS/build_dataset.py" \
   "$WORK/tatoeba/eng_sentences.tsv.bz2" "$WORK/tatoeba/heldout.txt" "$WORK/birkbeck" "$WORK/lines"
 
 # One engine process per file; they share nothing, so all of them run at once.
@@ -41,16 +43,18 @@ for name in holbrook-missp wikipedia aspell missp; do
     "$CLI" --resources "$RESOURCES" --no-model --features "$WORK/birkbeck/$name-$split.txt" "$WORK/rows/iso-$name-$split.jsonl" > /dev/null &
   done
 done
-# Wrong-word rows, in shards of 2,100 sentences.
-mkdir -p "$WORK/wrong"
-for name in wrongword-train wrongword-clean-train wrongword-test wrongword-clean-test; do
-  (cd "$WORK/wrong" && split -l 2100 -a 2 "$WORK/lines/$name.txt" "$name.")
-done
-for shard in "$WORK"/wrong/wrongword-*.??; do
-  "$CLI" --resources "$RESOURCES" --no-model --wrong-features "$shard" "$shard.csv" > /dev/null &
-done
+if [ -z "${AUTOFIX_ONLY:-}" ]; then
+  # Wrong-word rows, in shards of 2,100 sentences.
+  mkdir -p "$WORK/wrong"
+  for name in wrongword-train wrongword-clean-train wrongword-test wrongword-clean-test; do
+    (cd "$WORK/wrong" && split -l 2100 -a 2 "$WORK/lines/$name.txt" "$name.")
+  done
+  for shard in "$WORK"/wrong/wrongword-*.??; do
+    "$CLI" --resources "$RESOURCES" --no-model --wrong-features "$shard" "$shard.csv" > /dev/null &
+  done
+fi
 wait
 
-"$WORK/venv/bin/python" Tools/autofix/train.py "$WORK/rows" "$DICTIONARY" "$WORK/birkbeck" \
+"$WORK/venv/bin/python" "$SCRIPTS/train.py" "$WORK/rows" "$DICTIONARY" "$WORK/birkbeck" \
   "$RESOURCES/autofix_confidence_en.json" "$@"
-"$WORK/venv/bin/python" Tools/autofix/train_wrong_word.py "$WORK/wrong" "$RESOURCES/wrong_word_en.json" "$@"
+[ -n "${AUTOFIX_ONLY:-}" ] || "$WORK/venv/bin/python" "$SCRIPTS/train_wrong_word.py" "$WORK/wrong" "$RESOURCES/wrong_word_en.json" "$@"

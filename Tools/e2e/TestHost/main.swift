@@ -8,7 +8,8 @@ import AppKit
 /// The test script talks to it through three files in the same cache folder, so it needs no
 /// Accessibility grant of its own: `doc.txt` and `field.txt` mirror the two texts (rewritten within
 /// 30 ms of any change, whoever made it), and each line appended to `host-commands.txt` is one of
-/// `focus-text`, `focus-field`, `clear-field`, `light`, `dark`, `busy`, `tear-read`.
+/// `focus-text`, `focus-field`, `clear-field`, `light`, `dark`, `busy`, `tear-read`, `late <ms>`,
+/// `nudge-frame`.
 final class HostDelegate: NSObject, NSApplicationDelegate {
     var window: NSWindow!
     private var textView: NSTextView!
@@ -44,9 +45,27 @@ final class HostDelegate: NSObject, NSApplicationDelegate {
             // The next read of the text view's selection is answered as from before a Backspace
             // (see `TearingTextView`).
             case "tear-read": TearingTextView.tornSelectionReads = 1
+            // The window grows a little and moves, as a message box does when it takes another
+            // line: the same text view with another frame.
+            case "nudge-frame":
+                var frame = window.frame
+                frame.size.height += 18
+                frame.origin.x += 6
+                window.setFrame(frame, display: true)
+            // `late 300`: Accessibility reads of the text view answer with the text as it was
+            // 300 ms ago, like an app that is slow to publish a key; `late 0` ends it.
+            case let line where line.hasPrefix("late "):
+                TearingTextView.publishDelay = (Double(line.dropFirst(5)) ?? 0) / 1000
+                TearingTextView.noteText(of: textView)
             default: break
             }
         }
+    }
+
+    /// Every change of the text or the caret goes into the view's record of what it held when
+    /// (see `TearingTextView.publishDelay`).
+    @objc private func textOrCaretChanged(_ notification: Notification) {
+        TearingTextView.noteText(of: textView)
     }
 
     /// Fills the whole window, title bar included, with a loud pattern, for judging how see-through
@@ -152,6 +171,12 @@ final class HostDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
         textView = text
         self.field = field
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(textOrCaretChanged), name: NSText.didChangeNotification, object: text
+        )
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(textOrCaretChanged), name: NSTextView.didChangeSelectionNotification, object: text
+        )
         let commands = folder.appendingPathComponent("host-commands.txt")
         try? Data().write(to: commands)
         Timer.scheduledTimer(withTimeInterval: 0.03, repeats: true) { [weak self] _ in self?.tick() }
@@ -168,6 +193,13 @@ final class HostDelegate: NSObject, NSApplicationDelegate {
 /// On a real field this is a race that shows up once in a few hundred Backspaces, too rarely to
 /// test by waiting for it; `tear-read` makes the next read one of those.
 ///
+/// It can also answer late. A native text view tells Accessibility about a key within a few
+/// milliseconds; Electron and Chromium apps (the chat and browser windows most writing happens in)
+/// take 30 to 400 ms, often longer than the gap to the next key. With `publishDelay` set, every
+/// Accessibility read of the text and the caret is answered with what the view held that long ago,
+/// while the view itself, and `doc.txt`, are up to date. That is the one condition under which a
+/// strip that waits for the field falls behind the writer, and no native view shows it.
+///
 /// The state is static because the view is made by `NSTextView.scrollableTextView()` and only given
 /// this class afterwards, so it can hold nothing of its own.
 final class TearingTextView: NSTextView {
@@ -175,15 +207,56 @@ final class TearingTextView: NSTextView {
     private static var countIsFromBeforeTheKey = false
     private static let charactersDeleted = 4
 
+    /// How far behind Accessibility reads are answered, in seconds; 0 answers with the live text.
+    static var publishDelay: TimeInterval = 0
+    /// What the view held and when, oldest first; only kept while `publishDelay` is set.
+    private static var held: [(time: TimeInterval, text: String, selection: NSRange)] = []
+
+    static func noteText(of view: NSTextView) {
+        guard publishDelay > 0 else {
+            held = []
+            return
+        }
+        let now = ProcessInfo.processInfo.systemUptime
+        held.append((now, view.string, view.selectedRange()))
+        // Everything older than the entry that is being published now can go.
+        while held.count > 1, held[1].time <= now - publishDelay { held.removeFirst() }
+    }
+
+    /// The text and caret an Accessibility client is told about right now: the newest that is at
+    /// least `publishDelay` old. Nil when reads are answered live.
+    private static var published: (text: String, selection: NSRange)? {
+        guard publishDelay > 0, let oldest = held.first else { return nil }
+        let due = ProcessInfo.processInfo.systemUptime - publishDelay
+        let entry = held.last { $0.time <= due } ?? oldest
+        return (entry.text, entry.selection)
+    }
+
     override func accessibilitySelectedTextRange() -> NSRange {
         Self.countIsFromBeforeTheKey = Self.tornSelectionReads > 0
-        guard Self.tornSelectionReads > 0 else { return super.accessibilitySelectedTextRange() }
+        guard Self.tornSelectionReads > 0 else { return Self.published?.selection ?? super.accessibilitySelectedTextRange() }
         Self.tornSelectionReads -= 1
         return NSRange(location: (string as NSString).length + Self.charactersDeleted, length: 0)
     }
 
     override func accessibilityNumberOfCharacters() -> Int {
-        super.accessibilityNumberOfCharacters() + (Self.countIsFromBeforeTheKey ? Self.charactersDeleted : 0)
+        let count = Self.published.map { ($0.text as NSString).length } ?? super.accessibilityNumberOfCharacters()
+        return count + (Self.countIsFromBeforeTheKey ? Self.charactersDeleted : 0)
+    }
+
+    override func accessibilityValue() -> String? {
+        Self.published?.text ?? super.accessibilityValue()
+    }
+
+    override func accessibilityString(for range: NSRange) -> String? {
+        guard let text = Self.published?.text as NSString? else { return super.accessibilityString(for: range) }
+        guard range.location >= 0, NSMaxRange(range) <= text.length else { return nil }
+        return text.substring(with: range)
+    }
+
+    override func accessibilityAttributedString(for range: NSRange) -> NSAttributedString? {
+        guard Self.published != nil else { return super.accessibilityAttributedString(for: range) }
+        return accessibilityString(for: range).map(NSAttributedString.init(string:))
     }
 }
 

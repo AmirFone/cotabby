@@ -71,6 +71,9 @@ struct ExportReplay {
         var sentences = 0, changedByWriter = 0, cameOutRight = 0, clean = 0, cleanUntouched = 0
         var keptWords = 0, capitalOnly = 0, unaligned = 0
         var changedKept: [String: [String]] = [:]
+        // Words the writer left as typed that got a bar or a place on the review card: asked
+        // about for nothing, unless it is a slip they never noticed.
+        var askedAboutKept: [String: Int] = [:]
 
         for row in rows {
             guard let typed = row["typed"] as? String, let final = row["final"] as? String else { continue }
@@ -100,6 +103,7 @@ struct ExportReplay {
                 let was = String(typedWords[index]), meant = String(finalWords[index]), got = String(outWords[index])
                 if was == meant {
                     keptWords += 1
+                    if got == meant, replayed.offers[index] != nil { askedAboutKept[Self.core(was), default: 0] += 1 }
                     guard got != meant else { continue }
                     guard got.lowercased() != meant.lowercased() else {
                         capitalOnly += 1
@@ -134,6 +138,12 @@ struct ExportReplay {
             if showsWords { words.prefix(60).forEach { print("    \($0)") } }
         }
         print("  capital only (the text before each sentence is not in this export): \(capitalOnly)")
+        let asked = askedAboutKept.values.reduce(0, +)
+        print("  left alone but asked about (a bar or the review card): \(share(asked, keptWords)), \(askedAboutKept.count) different words")
+        if showsWords {
+            askedAboutKept.sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }.prefix(40)
+                .forEach { print("    \($0.key) ×\($0.value)") }
+        }
         if unaligned > 0 { print("\n\(unaligned) sentences whose word count changed are counted whole only, not word by word") }
         return 0
     }
@@ -253,6 +263,10 @@ struct ExportReplay {
         let corrector = harness.dependencies.symSpellCorrector
         let checker = harness.dependencies.spellChecker
         let english = SpellingDictionaryLanguage.english.rawValue
+        // As the app does when a line is finished: a flagged word left standing in it is counted,
+        // and the third line makes it the writer's own.
+        TypoGateInputs.wordsLeftStanding(in: final, dependencies: harness.dependencies, settings: harness.settings)
+            .forEach { memory?.recordLeftStanding($0) }
         harness.vocabulary.learn(
             sentence: final,
             isDictionaryWord: { corrector.isDictionaryWord($0) },

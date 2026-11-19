@@ -770,6 +770,128 @@ final class SuggestionCoordinatorSpellingModelTests: XCTestCase {
         XCTAssertTrue(rig.inserter.replacements.isEmpty, "An unfinished word is never changed")
     }
 
+    // MARK: - Unfinished software terms and kept words are not misspellings
+
+    func test_unfinishedSoftwareTerm_isLetThrough() throws {
+        // #given the letters of bundled terms the frequency dictionary has no common word for
+        let rig = try makeRig(text: "")
+        rig.coordinator.technicalTerms = TechnicalVocabulary.spellingTerms()
+
+        // #then each start is a word in progress, not a typo to put a bar on
+        for start in ["we need to debounc", "deploy with cloudfo", "query the clickhou"] {
+            XCTAssertEqual(engineDecision(for: start, in: rig, word: "").0, .proceed, start)
+        }
+    }
+
+    func test_unfinishedKeptWord_isLetThrough() throws {
+        // #given a name the writer keeps, typed up to its last letter but one
+        let rig = try makeRig(text: "")
+        let memory = makeMemory()
+        memory.recordKept("zorvexia")
+        rig.coordinator.personalCorrectionMemory = memory
+
+        // #then it is not flagged on the way
+        XCTAssertEqual(engineDecision(for: "send it to zorvexi", in: rig, word: "").0, .proceed)
+    }
+
+    // MARK: - Words left standing in a finished line
+
+    func test_wordsLeftStanding_areTheFlaggedWordsTheEngineHasNoGoodFixFor() throws {
+        // #given a line with an invented product name, a certain misspelling, and a slip with a clear fix
+        let rig = try makeRig(text: "")
+
+        // #then only the name is a candidate for being the writer's own word
+        XCTAssertEqual(rig.coordinator.wordsLeftStanding(in: "we moved the zorvex data yesterday"), ["zorvex"])
+        XCTAssertEqual(rig.coordinator.wordsLeftStanding(in: "I saw teh cat and it was unfortunatly gone"), [])
+    }
+
+    func test_wordsLeftStanding_leavesIdentifiersAndPathsOut() throws {
+        let rig = try makeRig(text: "")
+
+        XCTAssertEqual(rig.coordinator.wordsLeftStanding(in: "look at zorvex_qlmt and src/zorvex before lunch"), [])
+    }
+
+    func test_wordsLeftStanding_countsAWordOncePerLine() throws {
+        let rig = try makeRig(text: "")
+
+        XCTAssertEqual(rig.coordinator.wordsLeftStanding(in: "the zorvex job feeds the Zorvex table"), ["zorvex"])
+    }
+
+    // MARK: - The bar for an unfinished word waits for a pause (word strip on)
+
+    func test_midWordTypo_withTheStripOn_keepsTheStrip_andShowsNoBarWhileTyping() async throws {
+        // #given the word strip on, and a word with a slip in it that is not finished
+        let text = "that was unfortunatl"
+        let rig = try makeRig(text: text)
+        let bar = SpellingOfferRecorder()
+        let strip = StripRecorder()
+        rig.coordinator.candidateOfferPresenter = bar
+        rig.coordinator.wordPredictionPresenter = strip
+
+        // #when the key is published and the cycle runs
+        rig.coordinator.prepareTypoGate(precedingText: text, textAfter: "")
+        scheduleCycleForTypedText(in: rig)
+        await waitUntil("The strip was never told the text") { strip.noted.last == text }
+
+        // #then the strip has the word, was not taken down, and no bar is up
+        XCTAssertFalse(rig.coordinator.isSpellingPendingForLastKey, "the strip may draw for this key")
+        XCTAssertEqual(strip.timesHidden, 0)
+        XCTAssertTrue(bar.presented.isEmpty)
+    }
+
+    func test_midWordTypo_withTheStripOn_showsTheBarOnceTheWriterStops() async throws {
+        // #given the same, and nothing typed after it
+        let text = "that was unfortunatl"
+        let rig = try makeRig(text: text)
+        let bar = SpellingOfferRecorder()
+        let strip = StripRecorder()
+        rig.coordinator.candidateOfferPresenter = bar
+        rig.coordinator.wordPredictionPresenter = strip
+        rig.coordinator.prepareTypoGate(precedingText: text, textAfter: "")
+        scheduleCycleForTypedText(in: rig)
+
+        // #when the hold passes with the field unchanged
+        await waitUntil("The bar never came up after the pause") { !bar.presented.isEmpty }
+
+        // #then the bar offers the word and the strip steps aside for it
+        XCTAssertTrue(bar.presented.first?.candidates.contains("unfortunately") == true)
+        XCTAssertEqual(strip.timesHidden, 1)
+    }
+
+    func test_midWordTypo_withTheStripOn_aKeyBeforeThePauseEnds_showsNoBar() async throws {
+        // #given a bar held back for an unfinished word
+        let text = "that was unfortunatl"
+        let rig = try makeRig(text: text)
+        let bar = SpellingOfferRecorder()
+        let strip = StripRecorder()
+        rig.coordinator.candidateOfferPresenter = bar
+        rig.coordinator.wordPredictionPresenter = strip
+        rig.coordinator.prepareTypoGate(precedingText: text, textAfter: "")
+        scheduleCycleForTypedText(in: rig)
+        await waitUntil("The strip was never told the text") { strip.noted.last == text }
+
+        // #when the writer types the next letter before the hold is over
+        _ = rig.coordinator.handleInputEvent(CapturedInputEvent(kind: .textMutation, keyCode: 0, characters: "y", flags: []))
+        try await Task.sleep(nanoseconds: UInt64((SuggestionCoordinator.midWordBarHoldSeconds + 0.2) * 1_000_000_000))
+
+        // #then the bar that was waiting is not shown
+        XCTAssertTrue(bar.presented.isEmpty)
+    }
+
+    func test_finishedTypo_withTheStripOn_isDecidedAtOnce() throws {
+        // #given the strip on and a misspelled word finished with a space
+        let text = "We met at the restarant "
+        let rig = try makeRig(text: text)
+        rig.coordinator.wordPredictionPresenter = StripRecorder()
+        rig.coordinator.prepareTypoGate(precedingText: text, textAfter: "")
+
+        // #then the fix is pending for this key, and is typed the moment the key is published
+        XCTAssertTrue(rig.coordinator.isSpellingPendingForLastKey)
+        noteKeyPublished(in: rig)
+        XCTAssertTrue(rig.coordinator.handlePreparedTypoGateWithoutQueueing(context: rig.focusProvider.snapshot.context))
+        XCTAssertEqual(rig.inserter.replacements.first?.text, "restaurant ")
+    }
+
     func test_preparedFix_isTypedInTheSameTurnTheFieldShowsTheKey() throws {
         // #given the spelling work done at the keypress for the text the field now shows
         let text = "We met at the restarant "
@@ -902,6 +1024,18 @@ final class SuggestionCoordinatorSpellingModelTests: XCTestCase {
         XCTAssertFalse(proofread("He was too tired to walk home.").hasSuggestions)
         XCTAssertEqual(proofread("I could of done it better.").autoCorrected, "I could have done it better.")
     }
+}
+
+/// The word strip as the coordinator sees it: on, and recording what it was told.
+@MainActor
+private final class StripRecorder: WordPredictionPresenting {
+    let replacesGhostText = true
+    private(set) var noted: [String] = []
+    private(set) var timesHidden = 0
+
+    func noteTypedText(_ precedingText: String, caretRect: CGRect, focusChangeSequence: UInt64) { noted.append(precedingText) }
+    func hidePredictions() { timesHidden += 1 }
+    func isBehindTheKeys(_ precedingText: String) -> Bool { false }
 }
 
 @MainActor

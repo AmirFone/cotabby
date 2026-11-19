@@ -692,6 +692,7 @@ cves 200000 CVEs
 daemonset 200000
 dart 200000
 dataflow 200000 Dataflow
+datalake 200000
 dataloader 200000
 dataloaders 200000
 ddl 200000 DDL
@@ -711,6 +712,7 @@ deprioritized 200000
 deserialization 200000
 destructor 200000
 destructors 200000
+desync 200000
 dhcp 200000 DHCP
 disassembler 200000
 dml 200000 DML
@@ -814,6 +816,7 @@ kinesis 200000 Kinesis
 kubeconfig 200000
 kustomize 200000 Kustomize
 kwargs 200000
+lakehouse 200000
 langchain 200000 LangChain
 leaderless 200000
 lexer 200000
@@ -870,15 +873,18 @@ ngrok 200000
 nibble 200000
 ninja 200000
 nomad 200000
+nosql 200000
 npx 200000
 nullptr 200000
 nuxt 200000 Nuxt
 nvim 200000
 nvm 200000
+offboarding 200000
 oidc 200000 OIDC
 okta 200000 Okta
 olap 200000 OLAP
 ollama 200000 Ollama
+onedrive 200000 OneDrive
 onnx 200000 ONNX
 opcode 200000
 opcodes 200000
@@ -914,6 +920,7 @@ polyfills 200000
 powershell 200000 PowerShell
 prefetch 200000
 prefetching 200000
+prefill 200000
 preflight 200000
 preload 200000
 preprocess 200000
@@ -923,6 +930,7 @@ pretrained 200000
 pretraining 200000
 printf 200000
 prisma 200000 Prisma
+proto 200000
 protobuf 200000 Protobuf
 protobufs 200000
 psql 200000
@@ -950,10 +958,12 @@ redux 200000
 refcount 200000
 refcounting 200000
 rehydrate 200000
+reingest 200000
 remix 200000
 repro 200000
 reproducibility 200000
 reproducible 200000
+requeue 200000
 reqwest 200000
 rerank 200000
 reranking 200000
@@ -961,6 +971,7 @@ rerender 200000
 rerenders 200000
 resharding 200000
 responsive 200000
+resync 200000
 retro 200000
 retros 200000
 ripgrep 200000
@@ -995,11 +1006,13 @@ serializer 200000
 serializers 200000
 sftp 200000 SFTP
 sharded 200000
+sharepoint 200000 SharePoint
 shortcut 200000
 shortcuts 200000
 sidebar 200000
 sidekiq 200000 Sidekiq
 sigkill 200000 SIGKILL
+signoff 200000
 sigterm 200000 SIGTERM
 sitemap 200000
 sklearn 200000
@@ -1047,7 +1060,10 @@ thrift 200000
 throttle 200000
 thunk 200000
 thunks 200000
+timebox 200000
+timeboxed 200000
 timescaledb 200000 TimescaleDB
+tldr 200000
 tmux 200000
 todo 200000
 todos 200000
@@ -1077,6 +1093,7 @@ udfs 200000 UDFs
 uikit 200000 UIKit
 uint 200000
 unmarshal 200000
+unsync 200000
 untyped 200000
 uvicorn 200000 Uvicorn
 vagrant 200000
@@ -1102,6 +1119,8 @@ websockets 200000 WebSockets
 wget 200000
 wip 200000 WIP
 wireguard 200000 WireGuard
+workstream 200000
+workstreams 200000
 xargs 200000
 xcodebuild 200000
 xcodegen 200000

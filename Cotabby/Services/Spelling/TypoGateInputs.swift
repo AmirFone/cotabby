@@ -204,6 +204,26 @@ final class TypoGateInputs {
         return usual != word.prefix(1).uppercased() + word.dropFirst()
     }
 
+    /// See `SuggestionCoordinator.wordsLeftStanding`, which this is the body of. It lives here so
+    /// the command-line replay judges a finished line by the same rule as the app.
+    static func wordsLeftStanding(in sentence: String, dependencies: SpellingEngineDependencies, settings: TypoGate.Settings) -> [String] {
+        var seen: Set<String> = []
+        return WordToken.tokens(in: sentence).compactMap { token -> String? in
+            let word = token.text
+            guard !token.isJoined, word.count >= 3, word.allSatisfy(\.isLetter), seen.insert(word.lowercased()).inserted,
+                  KnownMisspellings.fix(for: word) == nil else { return nil }
+            let inputs = TypoGateInputs(
+                dependencies: dependencies, precedingText: String(sentence[..<token.range.upperBound]) + " ", textAfter: ""
+            )
+            guard inputs.isTypo(word) else { return nil }
+            _ = inputs.decide(settings: settings)
+            return (inputs.autoFixConfidence(word) ?? 0) < mostConfidenceInAFixOfAnOwnWord ? word : nil
+        }
+    }
+
+    /// Above this the engine's first fix is right more often than not, and the word is a slip.
+    static let mostConfidenceInAFixOfAnOwnWord = 0.5
+
     func isTypo(_ word: String) -> Bool {
         guard memory?.isKept(word) != true, !dependencies.technicalTerms.contains(word.lowercased()) else { return false }
         // `cant` and `thats` pass the system checker but are almost always a dropped apostrophe;
@@ -212,8 +232,17 @@ final class TypoGateInputs {
         return dependencies.spellChecker.isTypo(word, language: language(for: word)?.rawValue)
     }
 
+    /// Could these letters still become a word that is spelled right? Yes when a common
+    /// dictionary word starts with them, and also when a bundled software term or a word the
+    /// writer keeps does. Those two were not asked: "common" means the 30,000 most frequent
+    /// words, most software terms are below that, so `debounc` and `cloudfo` were flagged as
+    /// misspellings one letter before they became `debounce` and `cloudformation` (305 of the
+    /// 1,067 bundled terms had such a start), and a kept name was flagged on its way to being
+    /// typed in full.
     func isWordInProgress(_ word: String) -> Bool {
-        sources(for: word, isMidWord: true).isCommonWordPrefix
+        if sources(for: word, isMidWord: true).isCommonWordPrefix { return true }
+        let lowered = word.lowercased()
+        return dependencies.technicalTerms.contains { $0.hasPrefix(lowered) } || memory?.isStartOfKeptWord(lowered) == true
     }
 
     func candidates(_ word: String, isMidWord: Bool) -> [SpellingCandidate] {

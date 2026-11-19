@@ -13,6 +13,10 @@ nonisolated struct FinishedSentence: Equatable, Sendable {
     let trailingWhitespace: String
     /// Up to a few hundred characters before the sentence, sent as read-only context.
     let precedingContext: String
+    /// True for a line the writer has not ended: no closing mark yet, they have only stopped typing
+    /// (`FinishedSentenceExtractor.extractUnfinished`). Its last word has nothing after it to be
+    /// judged by, so a check of such a line leaves that word alone.
+    var isUnfinished = false
 }
 
 nonisolated enum FinishedSentenceExtractor {
@@ -42,6 +46,41 @@ nonisolated enum FinishedSentenceExtractor {
             sentence: sentence,
             trailingWhitespace: trailingWhitespace,
             precedingContext: String(body[..<sentenceStartIndex].suffix(precedingContextCharacters))
+        )
+    }
+
+    /// A line that is worth a look although it has no closing mark: at least this many words.
+    static let unfinishedMinimumWords = 5
+
+    /// The line the writer is in the middle of, when the caret stands one space after a word and
+    /// the line has no closing mark yet. Nil for a line that `extract` takes (it has ended), one
+    /// under `unfinishedMinimumWords`, and anything `extract` would refuse.
+    ///
+    /// Why this exists: a sentence used to get its second look only once it ended in a period,
+    /// question mark or exclamation mark and a space. Chat lines mostly end in nothing and are sent
+    /// with Return, when it is too late to fix them. On one recorded day that was 106 of 130 lines,
+    /// and the check ran on 4. So the line is also looked at whenever the writer pauses in it
+    /// (`SentenceCheckController` decides when), as far as it has got.
+    static func extractUnfinished(from precedingText: String) -> FinishedSentence? {
+        guard precedingText.last == " " else { return nil }
+        let body = precedingText.trimmingTrailingWhitespace()
+        let trailingWhitespace = String(precedingText.dropFirst(body.count))
+        guard trailingWhitespace == " ", !body.isEmpty, !SentenceBoundaryClassifier.endsSentence(body) else { return nil }
+
+        let start = sentenceStart(in: body)
+        let sentence = String(body[start...]).trimmingCharacters(in: .whitespacesAndNewlines)
+        let words = sentence.split(whereSeparator: \.isWhitespace)
+        guard (unfinishedMinimumWords...maximumWords).contains(words.count),
+              sentence.count <= maximumCharacters,
+              body.hasSuffix(sentence),
+              !looksMachineReadable(sentence) else { return nil }
+
+        let sentenceStartIndex = body.index(body.endIndex, offsetBy: -sentence.count)
+        return FinishedSentence(
+            sentence: sentence,
+            trailingWhitespace: trailingWhitespace,
+            precedingContext: String(body[..<sentenceStartIndex].suffix(precedingContextCharacters)),
+            isUnfinished: true
         )
     }
 

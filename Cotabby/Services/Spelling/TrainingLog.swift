@@ -58,6 +58,10 @@ final class TrainingLog {
     /// The build and models behind this launch's lines, asked for once, when the first line is
     /// written (by then the models have been chosen).
     var session: (() -> TrainingLogEvent)?
+    /// The app in front (bundle identifier), stamped on every line while the writer lets the app
+    /// be saved. A sentence line used to be the only one that said where it was typed, so a word
+    /// fixed in a line that was never saved (cut off, sent with a click) belonged nowhere.
+    var currentApp: (() -> String?)?
 
     /// This launch's name in the file: random, so two launches' sequences cannot be confused, and
     /// saying nothing about when it was.
@@ -112,12 +116,8 @@ final class TrainingLog {
         guard sentence.count <= Self.maximumSentenceCharacters,
               sentence.split(whereSeparator: \.isWhitespace).count >= 3,
               !FinishedSentenceExtractor.looksMachineReadable(sentence) else { return }
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd"
         append(.sentence(
-            text: sentence, day: formatter.string(from: today()),
+            text: sentence, day: Self.dayFormatter.string(from: today()),
             context: savesContext() ? textBefore.flatMap { Self.context(before: sentence, in: $0) } : nil,
             app: savesApp() ? app : nil
         ))
@@ -240,8 +240,20 @@ final class TrainingLog {
         let first = firstUptime ?? now
         firstUptime = first
         order += 1
-        return .init(run: run, order: order, milliseconds: Int((now - first) / 1_000_000))
+        return .init(
+            run: run, order: order, milliseconds: Int((now - first) / 1_000_000),
+            day: Self.dayFormatter.string(from: today()), app: savesApp() ? currentApp?() : nil
+        )
     }
+
+    /// A calendar day (`2026-11-15`); the time of day is deliberately not kept.
+    private static let dayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
 
     private func append(_ event: TrainingLogEvent) {
         guard isEnabled(), fileURL != nil else { return }

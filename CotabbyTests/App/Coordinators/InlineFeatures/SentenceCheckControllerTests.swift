@@ -198,6 +198,154 @@ final class SentenceCheckControllerTests: XCTestCase {
         ])
     }
 
+    // MARK: - A line the writer has not ended
+
+    /// Long enough for the pause check to wake, look, and type.
+    private func waitOutThePause() async {
+        try? await Task.sleep(nanoseconds: SentenceCheckController.pauseDelayNanoseconds + 250_000_000)
+        await settleModelPass()
+    }
+
+    func test_unfinishedLine_isCheckedWhenTheWriterPauses() async {
+        // #given a chat line with no closing mark and a wrong word early in it
+        let line = "can you send teh report over when you get "
+        let harness = makeHarness(sentence: line, proofread: { finished in
+            LocalProofreadResult(
+                original: finished.sentence, autoCorrected: finished.sentence.replacingOccurrences(of: "teh", with: "the"), flags: []
+            )
+        })
+
+        // #when the text is noted and no key follows
+        harness.controller.noteTypedText(line, caretRect: .zero, focusChangeSequence: 1)
+        await settleModelPass()
+        XCTAssertTrue(harness.inserter.replacements.isEmpty, "nothing is changed while the writer may still be typing")
+        await waitOutThePause()
+
+        // #then the word is fixed in place, from its first changed letter to the caret
+        XCTAssertEqual(harness.inserter.replacements.map(\.text), ["he report over when you get "])
+    }
+
+    func test_unfinishedLine_isNotCheckedWhileKeysKeepComing() async {
+        // #given the same line, and a key before the pause is over
+        let line = "can you send teh report over when you get "
+        let harness = makeHarness(sentence: line, proofread: { finished in
+            LocalProofreadResult(
+                original: finished.sentence, autoCorrected: finished.sentence.replacingOccurrences(of: "teh", with: "the"), flags: []
+            )
+        })
+        harness.controller.noteTypedText(line, caretRect: .zero, focusChangeSequence: 1)
+
+        // #when the writer types on
+        _ = harness.controller.observe(CapturedInputEvent(kind: .textMutation, keyCode: 0, characters: "a", flags: []))
+        await waitOutThePause()
+
+        // #then nothing was typed behind their caret
+        XCTAssertTrue(harness.inserter.replacements.isEmpty)
+    }
+
+    func test_unfinishedLine_shorterThanFiveWords_isLeftAlone() async {
+        // #given four words
+        var asked = 0
+        let harness = makeHarness(sentence: "can you send teh ", proofread: { _ in
+            asked += 1
+            return nil
+        })
+
+        // #when the writer pauses
+        harness.controller.noteTypedText("can you send teh ", caretRect: .zero, focusChangeSequence: 1)
+        await waitOutThePause()
+
+        // #then the line is not looked at yet
+        XCTAssertEqual(asked, 0)
+    }
+
+    func test_unfinishedLine_theLastWordIsNotChanged() async {
+        // #given a line whose only change would be to its last word, which nothing follows yet
+        let line = "yesterday after lunch I went their "
+        let harness = makeHarness(sentence: line, proofread: { finished in
+            LocalProofreadResult(
+                original: finished.sentence, autoCorrected: finished.sentence.replacingOccurrences(of: "their", with: "there"), flags: []
+            )
+        })
+
+        // #when the writer pauses
+        harness.controller.noteTypedText(line, caretRect: .zero, focusChangeSequence: 1)
+        await waitOutThePause()
+
+        // #then the word stays: `their way home` may still be coming
+        XCTAssertTrue(harness.inserter.replacements.isEmpty)
+    }
+
+    func test_unfinishedLine_fixTheWriterUndid_isNotMadeAgainWhenTheLineHasGrown() async {
+        // #given a fix made at a pause and undone by the writer
+        let line = "can you send teh report over when you get "
+        let harness = makeHarness(sentence: line, proofread: { finished in
+            LocalProofreadResult(
+                original: finished.sentence, autoCorrected: finished.sentence.replacingOccurrences(of: "teh", with: "the"), flags: []
+            )
+        })
+        harness.controller.noteTypedText(line, caretRect: .zero, focusChangeSequence: 1)
+        await waitOutThePause()
+        XCTAssertEqual(harness.inserter.replacements.count, 1)
+        let fixed = line.replacingOccurrences(of: "teh", with: "the")
+        harness.controller.noteTypedText(fixed, caretRect: .zero, focusChangeSequence: 1)
+        harness.controller.noteTypedText(line, caretRect: .zero, focusChangeSequence: 1)
+
+        // #when the line has two more words and the writer pauses again
+        let longer = line + "a chance "
+        harness.focus.setPrecedingText(longer)
+        harness.controller.noteTypedText(longer, caretRect: .zero, focusChangeSequence: 1)
+        await waitOutThePause()
+
+        // #then the word they put back is left as they wrote it
+        XCTAssertEqual(harness.inserter.replacements.count, 1)
+    }
+
+    func test_unfinishedLine_wordAskedAboutOnce_isNotAskedAboutAtTheNextPause() async {
+        // #given a review card for a word in an unfinished line, which the writer types past
+        let line = "I think we went their after the long "
+        let flagged: (FinishedSentence) -> LocalProofreadResult? = { finished in
+            guard let range = finished.sentence.range(of: "their") else { return nil }
+            return LocalProofreadResult(
+                original: finished.sentence, autoCorrected: finished.sentence,
+                flags: [SentenceFlag(range: range, typed: "their", options: ["there"])]
+            )
+        }
+        let harness = makeHarness(sentence: line, proofread: flagged)
+        harness.controller.noteTypedText(line, caretRect: .zero, focusChangeSequence: 1)
+        await waitOutThePause()
+        XCTAssertEqual(harness.panel.reviews.count, 1)
+        _ = harness.controller.observe(CapturedInputEvent(kind: .textMutation, keyCode: 0, characters: "m", flags: []))
+        XCTAssertFalse(harness.controller.isShowingFix)
+
+        // #when the line has grown and the writer pauses again
+        let longer = line + "meeting on "
+        harness.focus.setPrecedingText(longer)
+        harness.controller.noteTypedText(longer, caretRect: .zero, focusChangeSequence: 1)
+        await waitOutThePause()
+
+        // #then the same word is not put to them a second time
+        XCTAssertEqual(harness.panel.reviews.count, 1)
+        XCTAssertFalse(harness.controller.isShowingFix)
+    }
+
+    func test_unfinishedLine_theModelReadsItWhenTheRulesHaveNothing() async {
+        // #given a line the rules leave alone and the model corrects
+        let line = "we drove the Tyoda to the office this "
+        let harness = makeHarness(sentence: line, proofread: { _ in nil }, model: { finished in
+            LocalProofreadResult(
+                original: finished.sentence, autoCorrected: finished.sentence.replacingOccurrences(of: "Tyoda", with: "Toyota"), flags: []
+            )
+        })
+
+        // #when the writer pauses
+        harness.controller.noteTypedText(line, caretRect: .zero, focusChangeSequence: 1)
+        await waitOutThePause()
+
+        // #then the model's fix is typed in place
+        XCTAssertEqual(harness.inserter.replacements.map(\.text), ["oyota to the office this "])
+    }
+
     // MARK: - Sentence model stage
 
     func test_sentenceModelFix_isTypedInPlace() async {

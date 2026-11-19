@@ -31,6 +31,25 @@ nonisolated struct LocalProofreadResult: Equatable, Sendable {
     var suggested: String { flags.applying(choices: flags.map { $0.options[0] }, to: autoCorrected) }
     var hasAutoFixes: Bool { autoCorrected != original }
     var hasSuggestions: Bool { !flags.isEmpty }
+
+    /// This verdict for a line that is not finished: nothing about its last word.
+    ///
+    /// The last word of an unfinished line has no word after it, and what follows is often what
+    /// decides (`I went their` may go on `way home`). It is judged when the line has grown past
+    /// it. A fix that was already made to that word cannot be taken out of `autoCorrected` alone,
+    /// so then the whole verdict is dropped (nil) and the next look, a few words on, makes the
+    /// other fixes too. Nil as well when nothing is left to do.
+    var leavingTheLastWordAlone: LocalProofreadResult? {
+        let lastWord: (String) -> Substring? = { $0.split(whereSeparator: \.isWhitespace).last }
+        guard lastWord(original) == lastWord(autoCorrected) else { return nil }
+        guard let end = autoCorrected.lastIndex(where: { !$0.isWhitespace }),
+              let start = autoCorrected[...end].lastIndex(where: \.isWhitespace) else { return nil }
+        let kept = LocalProofreadResult(
+            original: original, autoCorrected: autoCorrected,
+            flags: flags.filter { $0.range.upperBound <= start }
+        )
+        return kept.hasAutoFixes || kept.hasSuggestions ? kept : nil
+    }
 }
 
 /// One word the writer should review: where it is, what was typed, and the replacements, best first.

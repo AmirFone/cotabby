@@ -18,13 +18,18 @@ final class InlineCommandCoordinator {
     /// navigation and commit keys, which never start an emoji or macro capture, so they look first.
     private let participants: [any InlineCaptureParticipant]
     private let inputMonitor: any EmojiInputIntercepting
+    /// Told of every key, here, because this is the one place that sees them all: a key that the
+    /// spelling bar takes never reaches the word strip, and both go by this one clock.
+    private let idle: InlinePanelIdleTimer?
 
     init(
         emoji: EmojiPickerController,
         macro: MacroController,
         participants: [any InlineCaptureParticipant] = [],
-        inputMonitor: any EmojiInputIntercepting
+        inputMonitor: any EmojiInputIntercepting,
+        idle: InlinePanelIdleTimer? = nil
     ) {
+        self.idle = idle
         self.emoji = emoji
         self.macro = macro
         self.participants = participants
@@ -49,6 +54,7 @@ final class InlineCommandCoordinator {
         emoji.stop()
         macro.stop()
         participants.forEach { $0.stop() }
+        idle?.stop()
         inputMonitor.emojiCaptureKeyDecider = nil
         updateInterception()
     }
@@ -57,6 +63,9 @@ final class InlineCommandCoordinator {
     /// Returns whether either feature was involved, so the suggestion coordinator can stand down.
     @discardableResult
     func observe(_ event: CapturedInputEvent) -> Bool {
+        // Before anyone looks at the key: a panel that had gone away because the writer stopped
+        // may come back with this very key.
+        idle?.noteActivity()
         for participant in participants where participant.observe(event) {
             updateInterception()
             return true

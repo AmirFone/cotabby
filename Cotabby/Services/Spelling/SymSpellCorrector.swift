@@ -109,12 +109,40 @@ nonisolated final class SymSpellCorrector: @unchecked Sendable {
     }
 
     /// Words whose beginning is within one slip of `prefix` (two from five letters), most frequent
-    /// first: completions that forgive a misspelling in what has been typed so far.
+    /// first: completions that forgive a misspelling in what has been typed so far. Words that
+    /// start with the letters exactly come first, so for a start with many of those this returns
+    /// no near miss at all; `nearMissCompletions` is the list without them.
     func fuzzyCompletions(of prefix: String, language: SpellingDictionaryLanguage = .english, limit: Int) -> [String] {
         let lowered = prefix.lowercased()
         guard let symSpell = cachedIndexOrRequestLoad(for: language) else { return [] }
         return symSpell.prefixMatches(for: lowered, maxEditDistance: lowered.count >= 5 ? 2 : 1, limit: limit).map(\.term)
     }
+
+    /// Words whose beginning is a slip away from `prefix` and that do not start with it, most
+    /// frequent first.
+    ///
+    /// Why a second list: in `fuzzyCompletions` the exact matches come first and use up the
+    /// limit, so any start with ten dictionary words behind it (`hab`: habitat, habits, habit...)
+    /// came back with no near miss, and the strip offered `habitat` to someone typing `have`
+    /// with a finger on the wrong key. In a day of one writer's typing that was the strip's
+    /// largest class of misses, 168 words. Only the language-model ordering asks for this list:
+    /// it charges a slip heavily enough that a near miss leads only when nothing likely starts
+    /// with the letters typed. Without the model the table has no such balance, and there the
+    /// same list cost four points of first-suggestion accuracy on text typed right.
+    func nearMissCompletions(of prefix: String, language: SpellingDictionaryLanguage = .english, limit: Int) -> [String] {
+        let lowered = prefix.lowercased()
+        guard let symSpell = cachedIndexOrRequestLoad(for: language) else { return [] }
+        // The scan finds every match either way; the limit only cuts the sorted list. Enough are
+        // asked for that the exact ones cannot push the near ones out.
+        return symSpell.prefixMatches(for: lowered, maxEditDistance: lowered.count >= 5 ? 2 : 1, limit: Self.nearMissScanLimit)
+            .filter { $0.halfEditDistance > 0 }
+            .sorted { $0.count > $1.count }
+            .prefix(limit)
+            .map(\.term)
+    }
+
+    /// More than any start has exact completions.
+    private static let nearMissScanLimit = 4_000
 
     /// The dictionary lookups the wrong-word check needs, or nil while the index is still loading.
     func wrongWordSources(language: SpellingDictionaryLanguage = .english) -> WrongWordDetector.Sources? {

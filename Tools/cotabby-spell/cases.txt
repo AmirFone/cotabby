@@ -347,3 +347,16 @@ auto:the	I saw teh |
 auto:the	I saw teh, |
 proceed	I saw teh  |
 proceed	I saw teh |
+
+## 0.4.4: from a recorded day of real typing
+# A form that is one word by sound and another by the key beside a letter is offered, not fixed.
+!auto	I think thay |
+# An unfinished software term is a word in progress, not a misspelling.
+proceed	we need to debounc|
+proceed	deploy with cloudfo|
+proceed	query the clickhou|
+# General terms an engineer writes that the dictionary lacks.
+proceed	ask about the proto |
+proceed	we need a signoff |
+proceed	the workstream |
+proceed	then resync |

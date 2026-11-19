@@ -30,6 +30,10 @@ nonisolated enum NextWordPredictor {
         /// Words whose beginning is a slip or two from the typed letters (`necc` → necessary), most
         /// frequent first, so the word stays in the strip after a misspelling creeps into the prefix.
         var fuzzyCompletions: (_ prefix: String, _ limit: Int) -> [String] = { _, _ in [] }
+        /// The same without the words that start with the typed letters exactly: only the near
+        /// misses, which `fuzzyCompletions` leaves out whenever there are many exact ones. Read
+        /// by the language-model ordering alone (`SymSpellCorrector.nearMissCompletions`).
+        var nearMisses: (_ prefix: String, _ limit: Int) -> [String] = { _, _ in [] }
         /// Words people commonly misspell; picking one also saves the fix that typing it would need.
         var isHardToSpell: (String) -> Bool = { _ in false }
         /// The language model's answer for exactly this text before the caret, when it has one
@@ -142,7 +146,8 @@ nonisolated enum NextWordPredictor {
         let parsed = inputs.parsed, prefix = inputs.prefix, fuzzyWords = inputs.fuzzyWords, scores = inputs.tableScores
         if let languageModel = sources.languageModel(textBefore) {
             let candidates = candidateScores(
-                by: languageModel, tableScores: scores, prefix: prefix, fuzzyWords: fuzzyWords, mix: sources.mix
+                by: languageModel, tableScores: scores, prefix: prefix,
+                fuzzyWords: withNearMisses(fuzzyWords, prefix: prefix, sources: sources), mix: sources.mix
             )
             let ranked = wordsRanked(withWritersHabits(candidates, prefix: prefix, context: inputs.context, sources: sources))
             let words = inPreferredSpelling(ranked, prefix: prefix, sources: sources)
@@ -222,10 +227,17 @@ nonisolated enum NextWordPredictor {
         guard let inputs = inputs(textBefore: textBefore, sources: sources),
               let languageModel = sources.languageModel(textBefore) else { return nil }
         let scores = candidateScores(
-            by: languageModel, tableScores: inputs.tableScores, prefix: inputs.prefix, fuzzyWords: inputs.fuzzyWords,
-            mix: sources.mix
+            by: languageModel, tableScores: inputs.tableScores, prefix: inputs.prefix,
+            fuzzyWords: withNearMisses(inputs.fuzzyWords, prefix: inputs.prefix, sources: sources), mix: sources.mix
         )
         return Candidates(prefix: inputs.prefix, context: inputs.context, scores: scores)
+    }
+
+    /// The forgiven starts for the language model's ordering: `fuzzyWords` plus the commonest
+    /// words that are a slip away from the letters typed and do not start with them.
+    private static func withNearMisses(_ fuzzyWords: [String], prefix: String, sources: Sources) -> [String] {
+        guard prefix.count >= fuzzyMinimumPrefix else { return fuzzyWords }
+        return fuzzyWords + sources.nearMisses(prefix, fuzzyLimit).filter { !fuzzyWords.contains($0) }
     }
 
     /// The first five of `words` in the spelling the writer uses (see `AmericanSpellings`): a

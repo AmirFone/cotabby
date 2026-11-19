@@ -14,6 +14,10 @@ import Foundation
 final class PersonalCorrectionMemory {
     static let defaultsKey = "cotabbyPersonalCorrections"
     static let keptDefaultsKey = "cotabbyKeptWords"
+    static let standingDefaultsKey = "cotabbyWordsLeftStanding"
+    /// A flagged word left standing in this many finished lines is the writer's own word (see
+    /// `recordLeftStanding`).
+    static let linesBeforeAWordIsKept = 3
     /// Oldest-inserted typos are evicted past this size, bounding the plist.
     static let maximumTypos = 2_000
 
@@ -22,12 +26,15 @@ final class PersonalCorrectionMemory {
     private var insertionOrder: [String]
     /// Words (or `previous word` pairs for real-word checks) the writer chose to keep as typed.
     private var kept: [String]
+    /// How many finished lines each flagged word was left standing in, for words not yet kept.
+    private var leftStanding: [String: Int]
 
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
         entries = userDefaults.dictionary(forKey: Self.defaultsKey) as? [String: [String: Int]] ?? [:]
         insertionOrder = Array(entries.keys)
         kept = userDefaults.stringArray(forKey: Self.keptDefaultsKey) ?? []
+        leftStanding = userDefaults.dictionary(forKey: Self.standingDefaultsKey) as? [String: Int] ?? [:]
     }
 
     /// Main-actor stores deallocated inside app-hosted tests need a nonisolated deinit; see
@@ -50,6 +57,9 @@ final class PersonalCorrectionMemory {
             kept.remove(at: index)
             userDefaults.set(kept, forKey: Self.keptDefaultsKey)
         }
+        if leftStanding.removeValue(forKey: key) != nil {
+            userDefaults.set(leftStanding, forKey: Self.standingDefaultsKey)
+        }
         if entries[key] == nil {
             insertionOrder.append(key)
         }
@@ -69,6 +79,37 @@ final class PersonalCorrectionMemory {
         kept.append(key)
         if kept.count > Self.maximumTypos { kept.removeFirst(kept.count - Self.maximumTypos) }
         userDefaults.set(kept, forKey: Self.keptDefaultsKey)
+    }
+
+    /// A word Cotabby flags was still there, as typed, in a line the writer finished: they saw
+    /// the offer, or would have, and wrote on. The third such line makes the word kept, as if
+    /// they had picked the quoted slot on the bar. Returns true when this call did that.
+    ///
+    /// Why: nothing used to learn from typing past the bar, only from the quoted slot, which this
+    /// fork's writer never used in a day of work. A product name they wrote 25 times was flagged
+    /// 24 times, with the same wrong fix offered each time, and the sentence model "corrected" it
+    /// besides.
+    ///
+    /// Why three lines and not one: a slip the writer did not notice is also left standing. On
+    /// that same day every such slip (53 forms) stood in exactly one line; the words that came
+    /// back were real ones. A word with a fix on record is never counted (the writer has said
+    /// what it should have been), and accepting a fix later takes a kept word back out
+    /// (`recordAccepted`), so a wrong lesson can be unlearned by correcting the word once.
+    @discardableResult
+    func recordLeftStanding(_ word: String) -> Bool {
+        let key = word.lowercased()
+        guard key.count >= 3, !kept.contains(key), entries[key] == nil else { return false }
+        let lines = (leftStanding[key] ?? 0) + 1
+        defer { userDefaults.set(leftStanding, forKey: Self.standingDefaultsKey) }
+        guard lines >= Self.linesBeforeAWordIsKept else {
+            // Mostly one-off slips, which never come back: when the tally is full, the singles go.
+            if leftStanding.count >= Self.maximumTypos { leftStanding = leftStanding.filter { $0.value > 1 } }
+            leftStanding[key] = lines
+            return false
+        }
+        leftStanding.removeValue(forKey: key)
+        recordKept(key)
+        return true
     }
 
     /// Settled automatic fixes: kept ones count as accepted, undone ones mark the typed word as
@@ -110,6 +151,12 @@ final class PersonalCorrectionMemory {
         kept.contains(key.lowercased())
     }
 
+    /// True when a kept word begins with `letters` (lowercase): the writer may be in the middle
+    /// of typing it.
+    func isStartOfKeptWord(_ letters: String) -> Bool {
+        !letters.isEmpty && kept.contains { $0.hasPrefix(letters) }
+    }
+
     /// Forgets every learned fix and kept word, here and in UserDefaults. Called when the writer
     /// clears what Cotabby learned in Settings (`CotabbyAppEnvironment.forgetEverythingLearned`);
     /// until it was, nothing in the app could undo a wrongly learned fix.
@@ -117,7 +164,9 @@ final class PersonalCorrectionMemory {
         entries = [:]
         insertionOrder = []
         kept = []
+        leftStanding = [:]
         userDefaults.removeObject(forKey: Self.defaultsKey)
         userDefaults.removeObject(forKey: Self.keptDefaultsKey)
+        userDefaults.removeObject(forKey: Self.standingDefaultsKey)
     }
 }

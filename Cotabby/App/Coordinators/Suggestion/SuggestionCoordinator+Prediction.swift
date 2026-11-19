@@ -541,7 +541,9 @@ extension SuggestionCoordinator {
     func prepareTypoGate(precedingText: String, textAfter: String) {
         guard settingsSnapshot.suppressCompletionsOnTypo else { return }
         let inputs = TypoGateInputs(dependencies: spellingEngineDependencies, precedingText: precedingText, textAfter: textAfter)
-        isSpellingPendingForLastKey = inputs.decide(settings: typoGateSettings()) != .proceed
+        // A bar that is held back takes nothing from the strip, so the strip draws for this key.
+        let decision = inputs.decide(settings: typoGateSettings())
+        isSpellingPendingForLastKey = decision != .proceed && !holdsBack(decision, precedingText: precedingText)
         preparedTypoGate = PreparedTypoGate(precedingText: precedingText, textAfter: textAfter, inputs: inputs)
         traceTyping("prepared")
     }
@@ -568,8 +570,10 @@ extension SuggestionCoordinator {
         noticeSelfCorrections(precedingText: context.precedingText)
         let decision = prepared.inputs.decide(settings: typoGateSettings())
         // Asked last, because asking records this text as looked at. The normal route asks again
-        // for the same text when this lane stands down, and gets the same answer.
-        guard decision != .proceed, claimTypedText(in: context) else { return false }
+        // for the same text when this lane stands down, and gets the same answer. A bar that is
+        // held back is nothing to hurry: it goes the normal route, which takes the prepared work.
+        guard decision != .proceed, !holdsBack(decision, precedingText: context.precedingText),
+              claimTypedText(in: context) else { return false }
         lastGatedPrecedingText = context.precedingText
         preparedTypoGate = nil
         traceTyping("decided (fast lane)")
@@ -619,6 +623,9 @@ extension SuggestionCoordinator {
         rawContext: FocusedInputSnapshot,
         workID: UInt64
     ) -> Bool {
+        // Whatever was decided for the text before this one is out of date.
+        heldSpellingBar?.cancel()
+        heldSpellingBar = nil
         if case let .applyCorrection(word, correctedWord) = decision {
             defer { reportDecision(decision, inputs: inputs, rawContext: rawContext) }
             // Nothing may sit between the decision and the keys that type the fix: closing the word
@@ -628,16 +635,83 @@ extension SuggestionCoordinator {
             applyAutomaticCorrection(typoWord: word, correctedWord: correctedWord, rawContext: rawContext, workID: workID)
             return true
         }
-        if decision != .proceed {
-            // The spelling bar or a suppressed typo owns this word; predictions wait.
-            wordPredictionPresenter?.hidePredictions()
-            reportDecision(decision, inputs: inputs, rawContext: rawContext)
+        if holdsBack(decision, precedingText: rawContext.precedingText) {
+            // The word is unfinished and the writer may be in the middle of typing it: the strip
+            // keeps the word, and the bar comes only if they stop (`holdSpellingBar`).
+            candidateOfferPresenter?.dismissChoices()
+            noteTextForWordStrip(rawContext)
+            holdSpellingBar(decision, inputs: inputs, rawContext: rawContext)
+            return false
         }
+        if decision == .proceed {
+            candidateOfferPresenter?.dismissChoices()
+            noteTextForWordStrip(rawContext)
+            return false
+        }
+        return present(decision, inputs: inputs, rawContext: rawContext, workID: workID)
+    }
+
+    /// True for a decision about an unfinished word that puts the spelling bar up (or flags the
+    /// word with nothing to offer) while the word strip is on. Such a bar is not shown at once.
+    ///
+    /// Why: the gate judges the word on every key, so from the first slipped letter each key drew
+    /// a bar, and each bar took the strip down. On one recorded day of real typing that was 1,173
+    /// bars, two in three with another first word than the one before, seven in ten replaced
+    /// within 200 ms, and in 88 of 201 automatic fixes a bar stood for 76 ms on the last letter
+    /// before the fix at the space removed it. Nobody reads a panel that fast (a bar was acted on
+    /// after a second, never under 200 ms), and to the writer it was the strip vanishing as they
+    /// typed. Meanwhile the strip, which forgives a slip in the letters typed, held the intended
+    /// word more often than those bars did.
+    ///
+    /// So inside a word the strip stays, and the bar waits for a pause. A finished word is
+    /// decided at once, as before: that is where fixes are made.
+    ///
+    /// Only with the strip on. Without it the old rule stands, because there the bar is all the
+    /// help there is, and ghost text must not continue a misspelled word.
+    private func holdsBack(_ decision: TypoGateDecision, precedingText: String) -> Bool {
+        guard wordPredictionPresenter?.replacesGhostText == true else { return false }
+        switch decision {
+        case .proceed, .applyCorrection, .offerRealWordFix:
+            return false
+        case .suppress, .offerCorrection, .offerRankedCorrection, .offerChoices:
+            return TypoGate.isMidWord(precedingText)
+        }
+    }
+
+    /// Shows the bar for an unfinished word once the writer has stopped for `midWordBarHoldSeconds`
+    /// with the field still as it was judged. The next key cancels it (`handleInputEvent`), and
+    /// so does any newer decision (`carryOut`). A word flagged with nothing to offer shows nothing
+    /// later either; it only no longer costs the strip.
+    private func holdSpellingBar(_ decision: TypoGateDecision, inputs: TypoGateInputs, rawContext: FocusedInputSnapshot) {
+        guard decision != .suppress else { return }
+        let held = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.heldSpellingBar = nil
+            guard let context = self.focusModel.snapshot.context,
+                  context.precedingText == rawContext.precedingText, context.trailingText == rawContext.trailingText,
+                  self.dismissedTypo == nil, SyntheticEventPoster.secondsUntilSettled <= 0,
+                  self.currentDisabledReason(focusSnapshot: self.focusModel.snapshot) == nil else { return }
+            _ = self.present(decision, inputs: inputs, rawContext: context, workID: self.currentWorkID)
+        }
+        heldSpellingBar = held
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.midWordBarHoldSeconds, execute: held)
+    }
+
+    /// Hands the word to the spelling bar (or holds a flagged word with nothing to offer): the
+    /// strip steps aside, the record is told, and the bar is drawn. True, because the word is now
+    /// owned and no continuation is generated for it.
+    private func present(
+        _ decision: TypoGateDecision,
+        inputs: TypoGateInputs,
+        rawContext: FocusedInputSnapshot,
+        workID: UInt64
+    ) -> Bool {
+        // The spelling bar or a suppressed typo owns this word; predictions wait.
+        wordPredictionPresenter?.hidePredictions()
+        reportDecision(decision, inputs: inputs, rawContext: rawContext)
 
         switch decision {
         case .proceed:
-            candidateOfferPresenter?.dismissChoices()
-            noteTextForWordStrip(rawContext)
             return false
         case .suppress:
             candidateOfferPresenter?.dismissChoices()
@@ -806,9 +880,27 @@ extension SuggestionCoordinator {
                 personalCorrectionMemory?.recordKept(outcome.typo)
                 qualityMetricsStore.recordCorrectionReverted()
                 correctionJournal?.record(.autoFixUndone, typed: outcome.typo, final: outcome.typo, offered: outcome.fix)
+            case .replaced:
+                noteReplacedAutoFix(outcome)
             }
             CotabbyLogger.suggestion.debug("Auto-fix \(outcome.typo) -> \(outcome.fix) \(outcome.kind)")
         }
+    }
+
+    /// The writer changed an automatic fix into a third word. That is a wrong fix whichever
+    /// word it is, and it counts as one. It teaches the right word only when the third word could
+    /// be what the slip was meant as (the same test as for a word the writer retypes themselves):
+    /// someone who deletes `the` to write `however` was rewording, not correcting.
+    private func noteReplacedAutoFix(_ outcome: AutoFixOutcome) {
+        guard let meant = outcome.replacement else { return }
+        qualityMetricsStore.recordCorrectionReverted()
+        let corrector = symSpellCorrector
+        let isCorrection = SelfCorrectionDetector.isPlausibleFix(typed: outcome.typo, corrected: meant) {
+            corrector.isDictionaryWord($0)
+        }
+        guard isCorrection else { return }
+        personalCorrectionMemory?.recordAccepted(typo: outcome.typo, replacement: meant)
+        correctionJournal?.record(.autoFixReplaced, typed: outcome.typo, final: meant, offered: outcome.fix)
     }
 
     var spellingEngineDependencies: SpellingEngineDependencies {
@@ -847,6 +939,18 @@ extension SuggestionCoordinator {
         let result = proofreadLocally(FinishedSentence(sentence: sentence + ".", trailingWhitespace: " ", precedingContext: ""))
         guard !result.hasAutoFixes else { return nil }
         return Set(result.flags.map { $0.typed.lowercased() })
+    }
+
+    /// The words of a line the writer finished that Cotabby flags as misspelled and is not sure
+    /// how to fix: candidates for being the writer's own words (`PersonalCorrectionMemory
+    /// .recordLeftStanding`). Each word once, as written.
+    ///
+    /// Left out: words inside paths, identifiers and other joined tokens, the certain
+    /// misspellings (`teh`, `dont`), and a word the engine has a confident fix for. Such a word
+    /// standing in a finished line is a slip that got through, not a word to learn; only where
+    /// the engine itself has no good answer does "the writer keeps writing it" count for more.
+    func wordsLeftStanding(in sentence: String) -> [String] {
+        TypoGateInputs.wordsLeftStanding(in: sentence, dependencies: spellingEngineDependencies, settings: typoGateSettings())
     }
 
     /// The instant on-device proofread of a finished sentence (see `LocalSentenceProofreader`).
@@ -1579,6 +1683,8 @@ extension SuggestionCoordinator {
 
     /// Cancels debounce/generation tasks and advances the work id so late completions are ignored.
     func cancelPredictionWork() {
+        heldSpellingBar?.cancel()
+        heldSpellingBar = nil
         pendingSpeculativeSignature = nil
         hostPublishPollGeneration &+= 1
         workController.cancelAll()

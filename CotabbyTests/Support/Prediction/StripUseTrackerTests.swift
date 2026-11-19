@@ -7,9 +7,9 @@ final class StripUseTrackerTests: XCTestCase {
         // #given a strip shown before the word, and again after two letters
         var tracker = StripUseTracker()
         XCTAssertNil(tracker.typed("We met "))
-        tracker.shown(["the", "a", "at"], for: "We met ")
+        _ = tracker.shown(["the", "a", "at"], for: "We met ")
         XCTAssertNil(tracker.typed("We met y"))
-        tracker.shown(["you", "yesterday", "your"], for: "We met ye")
+        _ = tracker.shown(["you", "yesterday", "your"], for: "We met ye")
 
         // #when the writer finishes the word themselves
         let use = tracker.typed("We met yesterday ")
@@ -17,15 +17,16 @@ final class StripUseTrackerTests: XCTestCase {
         // #then both lists are kept, with how far the word had got when the last one was up
         XCTAssertEqual(use, StripUse(
             before: "We met", word: "yesterday", shownFirst: ["the", "a", "at"],
-            shownLast: ["you", "yesterday", "your"], lettersTyped: 2, pickedSlot: nil
+            shownLast: ["you", "yesterday", "your"], lettersTyped: 2, pickedSlot: nil,
+            draws: [.init(typed: "", shown: ["the", "a", "at"]), .init(typed: "ye", shown: ["you", "yesterday", "your"])]
         ))
     }
 
     func test_pick_reportsTheSlotAndTheLettersTyped() {
         var tracker = StripUseTracker()
         _ = tracker.typed("We met ")
-        tracker.shown(["the", "a"], for: "We met ")
-        tracker.shown(["yesterday", "you"], for: "We met ye")
+        _ = tracker.shown(["the", "a"], for: "We met ")
+        _ = tracker.shown(["yesterday", "you"], for: "We met ye")
 
         let use = tracker.picked(slot: 0, word: "yesterday", shown: ["yesterday", "you"], textBefore: "We met ye")
 
@@ -40,7 +41,7 @@ final class StripUseTrackerTests: XCTestCase {
     func test_onlyTheCurrentSentence_isKeptAsWhatCameBefore() {
         var tracker = StripUseTracker()
         _ = tracker.typed("It rained. Then we ")
-        tracker.shown(["went"], for: "It rained. Then we ")
+        _ = tracker.shown(["went"], for: "It rained. Then we ")
 
         XCTAssertEqual(tracker.typed("It rained. Then we left ")?.before, "Then we")
     }
@@ -55,11 +56,11 @@ final class StripUseTrackerTests: XCTestCase {
     func test_deletionPasteOrAnotherField_startsOverWithoutAReport() {
         var tracker = StripUseTracker()
         _ = tracker.typed("We met ")
-        tracker.shown(["the"], for: "We met ")
+        _ = tracker.shown(["the"], for: "We met ")
 
         // #when text is removed, several words arrive at once, or the field changes
         XCTAssertNil(tracker.typed("We "))
-        tracker.shown(["are"], for: "We ")
+        _ = tracker.shown(["are"], for: "We ")
         XCTAssertNil(tracker.typed("We are going home "))
         XCTAssertNil(tracker.typed("Another field "))
     }
@@ -68,8 +69,8 @@ final class StripUseTrackerTests: XCTestCase {
         // #given a word whose strip was up while it was typed, then fixed in place by the spelling engine
         var tracker = StripUseTracker()
         _ = tracker.typed("I will ")
-        tracker.shown(["be", "go"], for: "I will ")
-        tracker.shown(["receive", "recall"], for: "I will rec")
+        _ = tracker.shown(["be", "go"], for: "I will ")
+        _ = tracker.shown(["receive", "recall"], for: "I will rec")
 
         // #when the next text the strip hears of already has the fixed word and its space
         let use = tracker.typed("I will receive ")
@@ -77,5 +78,47 @@ final class StripUseTrackerTests: XCTestCase {
         // #then the use is for the word as it stands, against what the strip had shown
         XCTAssertEqual(use?.word, "receive")
         XCTAssertEqual(use?.shownLast, ["receive", "recall"])
+    }
+
+    func test_stripForTheNextWord_drawnBeforeTheFieldIsRead_reportsTheWordBeforeIt() {
+        // #given a word typed out with a strip up, as the keys draw it: every letter gets its
+        // strip, and the strip for the word after it is drawn at the space, before any read
+        var tracker = StripUseTracker()
+        _ = tracker.typed("We ")
+        _ = tracker.shown(["are", "have"], for: "We ")
+        _ = tracker.shown(["met", "may"], for: "We m")
+        _ = tracker.shown(["met", "mean"], for: "We me")
+        _ = tracker.shown(["meta"], for: "We met")
+
+        // #when the strip for the next word is drawn
+        let use = tracker.shown(["the", "a"], for: "We met ")
+
+        // #then the finished word is reported there, with every strip it had
+        XCTAssertEqual(use?.word, "met")
+        XCTAssertEqual(use?.draws.map(\.typed), ["", "m", "me", "met"])
+        XCTAssertEqual(use?.draws.first { $0.shown.contains("met") }?.typed, "m")
+        // And the read that follows does not report it a second time.
+        XCTAssertNil(tracker.typed("We met "))
+    }
+
+    func test_sameStripDrawnAgain_isKeptOnce() {
+        var tracker = StripUseTracker()
+        _ = tracker.typed("We ")
+        _ = tracker.shown(["are"], for: "We ")
+        _ = tracker.shown(["are"], for: "We ")
+        _ = tracker.shown(["all"], for: "We a")
+
+        XCTAssertEqual(tracker.typed("We are ")?.draws.count, 2)
+    }
+
+    func test_pick_carriesTheStripsDrawnForTheWord() {
+        var tracker = StripUseTracker()
+        _ = tracker.typed("We met ")
+        _ = tracker.shown(["the", "a"], for: "We met ")
+        _ = tracker.shown(["yesterday", "you"], for: "We met ye")
+
+        let use = tracker.picked(slot: 0, word: "yesterday", shown: ["yesterday", "you"], textBefore: "We met ye")
+
+        XCTAssertEqual(use.draws.map(\.typed), ["", "ye"])
     }
 }

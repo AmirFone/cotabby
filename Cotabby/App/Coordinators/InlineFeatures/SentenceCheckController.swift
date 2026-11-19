@@ -23,7 +23,8 @@ import Logging
 /// 1. `noteTypedText` runs on every prediction cycle that a key of the writer started (the
 ///    coordinator keeps it away from text nobody just typed). When the text before the caret ends
 ///    with a finished sentence plus the Space or Return that finished it, a check is scheduled
-///    after a short pause so it never fires mid-burst.
+///    after a short pause so it never fires mid-burst. A line with no closing mark is checked
+///    too, as far as it has got, when the writer stops typing in it (`schedulePauseCheck`).
 /// 2. The response is shown only if every edit is confident and the field still ends with that exact
 ///    sentence. Otherwise nothing appears.
 /// 3. While the card is up, Tab applies the fix and Escape dismisses it. Any other key dismisses it and
@@ -81,6 +82,11 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
     /// Long enough to skip a sentence the writer is still revising, short enough to land before the
     /// next sentence is well underway.
     static let idleDelayNanoseconds: UInt64 = 600_000_000
+    /// How long the writer must have stopped, at the end of a word, before an unfinished line is
+    /// looked at. A fix is typed in place of what stands before the caret, so it must not start
+    /// while keys are arriving: gaps between this fork's writer's keys inside a line are almost
+    /// all under a quarter second, and a pause to think or read is a second or more.
+    static let pauseDelayNanoseconds: UInt64 = 700_000_000
     static let minimumEditConfidence = 0.5
     private static let escapeKeyCode: CGKeyCode = 53
 
@@ -123,6 +129,15 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
     private var modelTask: Task<Void, Never>?
     /// Sentences whose local fixes the writer undid; never fixed again in this field.
     private var rejectedSentences: Set<String> = []
+    /// Word fixes the writer undid (`typed→fixed`, lowercase). An unfinished line is checked again
+    /// each time it has grown, as a longer text every time, so "this sentence was rejected" would
+    /// not stop the same fix from being made again three words later.
+    private var rejectedWordFixes: Set<String> = []
+    /// Words the review card asked about and the writer typed past (the word and the one before
+    /// it, lowercase). Asked once: the same card must not come back at every pause in the line.
+    private var passedOverFlags: Set<String> = []
+    /// The look at an unfinished line that is waiting for the writer to stop.
+    private var pauseCheck: Task<Void, Never>?
     private var fixOutcomes = SentenceFixOutcomeTracker()
     private var checkedFocusChangeSequence: UInt64?
 
@@ -210,6 +225,8 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
     /// a card left up would keep offering a fix the writer just asked not to get.
     func standDown() {
         cancelWaiting()
+        pauseCheck?.cancel()
+        pauseCheck = nil
         modelTask?.cancel()
         hideCard()
     }
@@ -228,6 +245,11 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
             modelCheckedSentences = []
             rejectedSentences = []
         }
+        // Kept across a field that only got a new number (a message box that grew a line), and
+        // dropped with the words themselves.
+        let lowered = precedingText.lowercased()
+        rejectedWordFixes = rejectedWordFixes.filter { lowered.contains($0.prefix { $0 != "→" }) }
+        passedOverFlags = passedOverFlags.filter { lowered.contains($0.drop { $0 != "|" }.dropFirst()) }
         settleLocalFixOutcomes(precedingText)
         // A sentence that is no longer in the field (deleted, or the field was cleared after sending)
         // may be typed again and deserves a fresh check.
@@ -236,8 +258,11 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
         modelCheckedSentences = modelCheckedSentences.filter { precedingText.contains($0) }
         guard let finished = FinishedSentenceExtractor.extract(from: precedingText) else {
             cancelWaiting()
+            schedulePauseCheck(precedingText, caretRect: caretRect, focusChangeSequence: focusChangeSequence)
             return
         }
+        pauseCheck?.cancel()
+        pauseCheck = nil
         if isShowingFix {
             CotabbyLogger.suggestion.debug("Sentence pass skipped: a card is already showing")
         }
@@ -266,6 +291,61 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
         phase = .waiting(sentence: finished.sentence, task: task)
     }
 
+    // MARK: - A line the writer has not ended
+
+    /// Looks at the line so far once the writer has stopped typing for `pauseDelayNanoseconds`
+    /// with the caret one space after a word. Every key cancels it (`observe`), and so does the
+    /// next text noted here, so it only ever runs in a real pause, on the text that pause left.
+    ///
+    /// The same two stages as for a finished sentence, in the same order: the local rules, then
+    /// the sentence model if the rules had nothing. What they return is cut down first
+    /// (`usable`), and the cloud check is left out: it is for whole sentences.
+    private func schedulePauseCheck(_ precedingText: String, caretRect: CGRect, focusChangeSequence: UInt64) {
+        pauseCheck?.cancel()
+        pauseCheck = nil
+        guard isLocalEnabled(), !isShowingFix,
+              let line = FinishedSentenceExtractor.extractUnfinished(from: precedingText),
+              !rejectedSentences.contains(line.sentence),
+              !locallyCheckedSentences.contains(line.sentence) || !modelCheckedSentences.contains(line.sentence) else { return }
+        pauseCheck = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: Self.pauseDelayNanoseconds)
+            guard let self, !Task.isCancelled else { return }
+            self.pauseCheck = nil
+            self.focusModel.refreshNow()
+            guard !self.isShowingFix, self.isStillCurrent(line, focusChangeSequence: focusChangeSequence) else { return }
+            let caret = self.focusModel.snapshot.context?.caretRect ?? caretRect
+            CotabbyLogger.suggestion.debug("Sentence pass: looking at an unfinished line of \(line.sentence.count) characters")
+            if self.runLocalPass(on: line, caretRect: caret, focusChangeSequence: focusChangeSequence) { return }
+            self.startModelPass(on: line, caretRect: caret, focusChangeSequence: focusChangeSequence)
+        }
+    }
+
+    /// What a stage's verdict comes to for this line: unchanged for a finished sentence, without
+    /// the last word for an unfinished one, and in both cases without anything the writer has
+    /// already turned down in this field. Nil when nothing is left.
+    private func usable(_ result: LocalProofreadResult?, for finished: FinishedSentence) -> LocalProofreadResult? {
+        guard var result = finished.isUnfinished ? result?.leavingTheLastWordAlone : result else { return nil }
+        let undone = SentenceFixOutcomeTracker.wordChanges(original: result.original, corrected: result.autoCorrected)
+            .contains { rejectedWordFixes.contains(Self.fixKey(typed: $0.typed, fixed: $0.fixed)) }
+        guard !undone else { return nil }
+        let flags = result.flags.filter { !passedOverFlags.contains(Self.flagKey($0, in: result.autoCorrected)) }
+        if flags.count != result.flags.count {
+            result = LocalProofreadResult(original: result.original, autoCorrected: result.autoCorrected, flags: flags)
+        }
+        return result.hasAutoFixes || result.hasSuggestions ? result : nil
+    }
+
+    private static func fixKey(typed: String, fixed: String) -> String {
+        "\(typed.lowercased())→\(fixed.lowercased())"
+    }
+
+    /// The word before the flagged one and the word itself: the same word after another word is
+    /// another question.
+    private static func flagKey(_ flag: SentenceFlag, in sentence: String) -> String {
+        let previous = WordToken.tokens(in: sentence).last { $0.range.upperBound <= flag.range.lowerBound }?.text ?? ""
+        return "\(previous.lowercased())|\(flag.typed.lowercased())"
+    }
+
     // MARK: - Local pass
 
     /// Runs the on-device pass once per sentence. Returns true when it acted (applied fixes or showed
@@ -274,7 +354,7 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
         guard isLocalEnabled(),
               !rejectedSentences.contains(finished.sentence),
               locallyCheckedSentences.insert(finished.sentence).inserted else { return false }
-        guard let result = localProofread(finished), result.hasAutoFixes || result.hasSuggestions else {
+        guard let result = usable(localProofread(finished), for: finished) else {
             CotabbyLogger.suggestion.debug("Sentence pass: nothing to fix in \(finished.sentence.count)-character sentence")
             return false
         }
@@ -320,7 +400,8 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
         let corrected = FinishedSentence(
             sentence: result.autoCorrected,
             trailingWhitespace: finished.trailingWhitespace,
-            precedingContext: finished.precedingContext
+            precedingContext: finished.precedingContext,
+            isUnfinished: finished.isUnfinished
         )
         // The local rules have nothing to add to a sentence either stage just corrected.
         locallyCheckedSentences.insert(result.autoCorrected)
@@ -373,10 +454,10 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
         // `Task` starts work that can wait (`await`) without blocking the main thread; it inherits
         // this class's main-actor isolation, so everything after the `await` is back on the main thread.
         modelTask = Task { [weak self] in
-            let result = await modelProofread(finished)
+            let answer = await modelProofread(finished)
             let milliseconds = (DispatchTime.now().uptimeNanoseconds - started) / 1_000_000
             guard let self, !Task.isCancelled else { return }
-            guard let result, result.hasAutoFixes || result.hasSuggestions else {
+            guard let result = self.usable(answer, for: finished) else {
                 CotabbyLogger.suggestion.debug("Sentence model: nothing to fix (\(milliseconds) ms)")
                 return
             }
@@ -410,6 +491,8 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
                 onLocalFixOutcome?(original, corrected, true)
             case let .reverted(original, corrected):
                 rejectedSentences.insert(original)
+                SentenceFixOutcomeTracker.wordChanges(original: original, corrected: corrected)
+                    .forEach { rejectedWordFixes.insert(Self.fixKey(typed: $0.typed, fixed: $0.fixed)) }
                 qualityMetricsStore.recordCorrectionReverted()
                 onLocalFixOutcome?(original, corrected, false)
                 CotabbyLogger.suggestion.debug("Sentence pass: fixes undone, leaving the sentence as written")
@@ -633,6 +716,9 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
     @discardableResult
     func observe(_ event: CapturedInputEvent) -> Bool {
         pendingDecision = nil
+        // The writer is typing: the look at the unfinished line waits for the next pause.
+        pauseCheck?.cancel()
+        pauseCheck = nil
         if case .reviewing(let review) = phase {
             return observeReview(event, review: review)
         }
@@ -678,6 +764,11 @@ final class SentenceCheckController: SentenceFixPresenting, InlineCapturePartici
 
     private func hideCard() {
         guard isShowingFix else { return }
+        // Whatever this card asked about has been asked: decided words are remembered by the
+        // caller (`onReviewChoice`), and the rest the writer typed past.
+        if case .reviewing(let review) = phase {
+            review.flags.forEach { passedOverFlags.insert(Self.flagKey($0, in: review.finished.sentence)) }
+        }
         phase = .idle
         pendingDecision = nil
         panel.hide()

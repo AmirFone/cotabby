@@ -69,6 +69,11 @@ struct PredictionHarness {
                     guard ProcessInfo.processInfo.environment["NO_FUZZY"] == nil else { return [] }
                     return corrector.fuzzyCompletions(of: prefix, limit: limit)
                 },
+                nearMisses: { prefix, limit in
+                    let environment = ProcessInfo.processInfo.environment
+                    guard environment["NO_FUZZY"] == nil, environment["NO_NEAR_MISSES"] == nil else { return [] }
+                    return corrector.nearMissCompletions(of: prefix, limit: limit)
+                },
                 isHardToSpell: { ProcessInfo.processInfo.environment["NO_HARD"] == nil && hardWords.contains($0) },
                 languageModel: { languageModel?.scores(forTextBefore: $0) },
                 isKnownWord: { supplement.contains($0) },

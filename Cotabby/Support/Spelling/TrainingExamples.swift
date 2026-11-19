@@ -65,6 +65,7 @@ nonisolated enum TrainingLogEvent: Equatable, Sendable {
                 "last": use.shownLast, "letters": use.lettersTyped
             ]
             if let slot = use.pickedSlot { object["picked"] = slot }
+            if !use.draws.isEmpty { object["draws"] = use.draws.map { ["t": $0.typed, "w": $0.shown] as [String: Any] } }
             return object
         case let .sentencePass(sentence, words):
             return [
@@ -129,10 +130,14 @@ nonisolated enum TrainingLogEvent: Equatable, Sendable {
 
     private static func stripUse(from json: [String: Any]) -> StripUse? {
         guard let word = json["word"] as? String else { return nil }
+        let draws = (json["draws"] as? [[String: Any]] ?? []).compactMap { entry -> StripUse.Draw? in
+            guard let typed = entry["t"] as? String, let shown = entry["w"] as? [String] else { return nil }
+            return .init(typed: typed, shown: shown)
+        }
         return StripUse(
             before: json["before"] as? String ?? "", word: word,
             shownFirst: json["first"] as? [String] ?? [], shownLast: json["last"] as? [String] ?? [],
-            lettersTyped: json["letters"] as? Int ?? 0, pickedSlot: json["picked"] as? Int
+            lettersTyped: json["letters"] as? Int ?? 0, pickedSlot: json["picked"] as? Int, draws: draws
         )
     }
 
@@ -192,6 +197,11 @@ nonisolated struct TrainingLogLine: Equatable, Sendable {
         let run: String
         let order: Int
         let milliseconds: Int
+        /// The calendar day and the app the line was written in, on every line since 0.4.4, so an
+        /// event whose sentence was never saved still says when and where it happened. The app
+        /// only while the writer lets it be saved.
+        var day: String?
+        var app: String?
     }
 
     let event: TrainingLogEvent
@@ -206,7 +216,9 @@ nonisolated struct TrainingLogLine: Equatable, Sendable {
         guard let event = TrainingLogEvent(json: json) else { return nil }
         self.event = event
         if let run = json["run"] as? String, let order = json["n"] as? Int, let milliseconds = json["ms"] as? Int {
-            stamp = Stamp(run: run, order: order, milliseconds: milliseconds)
+            stamp = Stamp(
+                run: run, order: order, milliseconds: milliseconds, day: json["day"] as? String, app: json["app"] as? String
+            )
         } else {
             stamp = nil
         }
@@ -218,6 +230,9 @@ nonisolated struct TrainingLogLine: Equatable, Sendable {
             object["run"] = stamp.run
             object["n"] = stamp.order
             object["ms"] = stamp.milliseconds
+            // A sentence line has its own day and app, read when the sentence was finished.
+            if object["day"] == nil, let day = stamp.day { object["day"] = day }
+            if object["app"] == nil, let app = stamp.app { object["app"] = app }
         }
         return object
     }
@@ -242,8 +257,9 @@ nonisolated struct TrainingExample: Codable, Equatable, Sendable {
         var word: String?
         /// What the word became (`outcome`), or the whole corrected sentence (`sentenceFix`).
         var final: String?
-        /// `outcome`: the journal's kind (`autoFixKept`, `autoFixUndone`, `picked`, `keptAsTyped`,
-        /// `selfCorrected`). `decision`: the action. `sentenceFix`: `kept` or `undone`.
+        /// `outcome`: the journal's kind (`autoFixKept`, `autoFixUndone`, `autoFixReplaced`,
+        /// `picked`, `keptAsTyped`, `selfCorrected`). `decision`: the action. `sentenceFix`:
+        /// `kept` or `undone`.
         var how: String?
         /// `decision`: the candidates, best first. `outcome`: the fix that was turned down.
         var candidates: [String]?
@@ -255,8 +271,15 @@ nonisolated struct TrainingExample: Codable, Equatable, Sendable {
         var lettersTyped: Int?
         var pickedSlot: Int?
         /// `strip`: where the finished word stood in the last list shown (0 is first), nil when
-        /// it was not listed: the one number that says whether the strip was right.
+        /// it was not listed. The last list is often drawn for the complete word, which is never
+        /// offered back, so nil here does not mean the strip never had it: see `listedAt`.
         var rank: Int?
+        /// `strip`: every strip drawn for the word, in order, with the letters typed at the time.
+        var draws: [StripUse.Draw]?
+        /// `strip`: how many letters had been typed when the word that was meant first stood in
+        /// the strip, and in which slot (0 is first). Nil when no strip drawn for it listed it.
+        var listedAt: Int?
+        var listedSlot: Int?
         /// `sentencePass`: each word the model would change, its probability, and whether it was
         /// `fixed`, `asked` about, or `left`.
         var changes: [SentencePassWord]?
@@ -297,6 +320,11 @@ nonisolated struct TrainingExample: Codable, Equatable, Sendable {
     /// beyond what `accepted` and `rejected` already say.
     var steps: [Step]?
     var session: Session?
+    /// Which launch of the app wrote the example (a random name, the same for everything written
+    /// until the app quit) and how many milliseconds into that launch its first step came. With
+    /// these, examples line up in time, also the single events whose sentence was never saved.
+    var run: String?
+    var at: Int?
 }
 
 nonisolated enum TrainingExampleBuilder {
@@ -333,7 +361,12 @@ nonisolated enum TrainingExampleBuilder {
         }
         assembly.placeWaitingDetails()
         let looseWords = assembly.pendingWords.map { assembly.looseDraft(for: $0) }
-        return (assembly.drafts + looseWords + assembly.pendingDetails.map(Draft.init(detail:))).map(\.example)
+        let looseDetails = assembly.pendingDetails.map { detail -> Draft in
+            var draft = Draft(detail: detail)
+            draft.session = assembly.session
+            return draft
+        }
+        return (assembly.drafts + looseWords + looseDetails).map(\.example)
     }
 
     /// Where a line stood in the stream.
@@ -391,7 +424,9 @@ nonisolated enum TrainingExampleBuilder {
                 }
                 detail.sentencesSeen += 1
                 if detail.sentencesSeen >= Self.sentencesToWait {
-                    drafts.insert(Draft(detail: detail), at: drafts.count - 1)
+                    var loose = Draft(detail: detail)
+                    loose.session = session
+                    drafts.insert(loose, at: drafts.count - 1)
                 } else {
                     waiting.append(detail)
                 }
@@ -405,6 +440,7 @@ nonisolated enum TrainingExampleBuilder {
         /// fix happened and is not a bare pair of words.
         mutating func looseDraft(for word: WordEvent) -> Draft {
             var draft = Draft(word: word)
+            draft.session = session
             let typed = word.typed.lowercased()
             guard let index = pendingDetails.lastIndex(where: {
                 $0.place.position < word.place.position && $0.decision?.typed.lowercased() == typed
@@ -587,7 +623,9 @@ nonisolated enum TrainingExampleBuilder {
             guard !read.isEmpty else { return false }
             return [final, beforeSentenceFix].compactMap { $0 }.contains { sentence in
                 let tokens = TrainingExampleBuilder.words(of: sentence)
-                return tokens.count == read.count
+                // Since 0.4.4 a line is also read while it is being written, as far as it has got:
+                // that pass read the beginning of this sentence, so it may be shorter.
+                return tokens.count >= read.count
                     && Double(zip(read, tokens).filter { $0 == $1 }.count) >= 0.6 * Double(read.count)
             }
         }
@@ -603,6 +641,10 @@ nonisolated enum TrainingExampleBuilder {
                     let how = word.how == CorrectionJournal.Kind.autoFixUndone.rawValue ? "autoFix" : "offered"
                     rejected.append(.init(typed: word.typed, fix: word.offered, how: how))
                 } else {
+                    // A fix the writer changed into a third word turned one down and made another.
+                    if word.how == CorrectionJournal.Kind.autoFixReplaced.rawValue {
+                        rejected.append(.init(typed: word.typed, fix: word.offered, how: "autoFix"))
+                    }
                     accepted.append(.init(typed: word.typed, fix: word.final, how: Self.acceptedHow(word.how)))
                     if !isLoose, let range = TrainingExampleBuilder.wholeWordRange(of: word.final, in: typed) {
                         // The word goes back as it was typed, under the capital it stands with.
@@ -625,10 +667,23 @@ nonisolated enum TrainingExampleBuilder {
                 scope: looseScope ?? "sentence", day: day, typed: typed, final: final,
                 accepted: accepted, rejected: rejected
             )
+            // The first line written for this example: when it began, and, for an event whose
+            // sentence was never saved, the day and app its own line was stamped with.
+            let first = (words.map(\.place) + details.map(\.place) + fixSteps.map(\.place))
+                .filter { $0.stamp != nil }.min { $0.position < $1.position }?.stamp
             example.context = context
-            example.app = app
+            example.app = app ?? first?.app
             example.session = session
             example.steps = steps
+            example.run = first?.run
+            example.at = first?.milliseconds
+            if example.day == nil, let day = first?.day {
+                example = TrainingExample(
+                    scope: example.scope, day: day, typed: example.typed, final: example.final,
+                    accepted: example.accepted, rejected: example.rejected, context: example.context, app: example.app,
+                    steps: example.steps, session: example.session, run: example.run, at: example.at
+                )
+            }
             return example
         }
 
@@ -673,6 +728,13 @@ nonisolated enum TrainingExampleBuilder {
                     step.pickedSlot = use.pickedSlot
                     let meant = becameByTyped[use.word.lowercased()] ?? use.word.lowercased()
                     step.rank = use.shownLast.firstIndex { $0.lowercased() == meant }
+                    if !use.draws.isEmpty {
+                        step.draws = use.draws
+                        if let draw = use.draws.first(where: { $0.shown.contains { $0.lowercased() == meant } }) {
+                            step.listedAt = draw.typed.count
+                            step.listedSlot = draw.shown.firstIndex { $0.lowercased() == meant }
+                        }
+                    }
                     placed.append((detail.place, step))
                 }
             }
@@ -697,7 +759,7 @@ nonisolated enum TrainingExampleBuilder {
         private static func acceptedHow(_ journalKind: String) -> String {
             switch CorrectionJournal.Kind(rawValue: journalKind) {
             case .autoFixKept: return "autoFix"
-            case .selfCorrected: return "selfCorrected"
+            case .selfCorrected, .autoFixReplaced: return "selfCorrected"
             default: return "picked"
             }
         }

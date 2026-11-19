@@ -124,6 +124,14 @@ enum TypoGate {
         return .offerCorrection(word: word, correctedWord: top.term)
     }
 
+    /// True while the word at the caret is unfinished: no space and no punctuation after it yet.
+    /// The same test `resolve` makes, for callers that have to know which kind of decision they
+    /// were handed.
+    static func isMidWord(_ precedingText: String) -> Bool {
+        guard let current = CurrentWordExtractor.extractTrailingWord(from: precedingText) else { return false }
+        return current.trailingSpaceCount == 0 && current.trailingPunctuation.isEmpty
+    }
+
     /// Whether the top fix may be applied without asking. A model probability decides when there is
     /// one; otherwise the score must be high and well ahead of the runner-up.
     static func isCertain(top: SpellingCandidate, margin: Double, confidence: Double?, settings: Settings) -> Bool {

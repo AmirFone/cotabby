@@ -214,8 +214,10 @@ final class TrainingExampleBuilderTests: XCTestCase {
 
     // MARK: - The timeline
 
-    private func line(_ event: TrainingLogEvent, _ order: Int, ms: Int, run: String = "a") -> TrainingLogLine {
-        TrainingLogLine(event, stamp: .init(run: run, order: order, milliseconds: ms))
+    private func line(
+        _ event: TrainingLogEvent, _ order: Int, ms: Int, run: String = "a", day: String? = nil, app: String? = nil
+    ) -> TrainingLogLine {
+        TrainingLogLine(event, stamp: .init(run: run, order: order, milliseconds: ms, day: day, app: app))
     }
 
     func test_decisionsStripUsesAndOutcomes_becomeOneOrderedTimeline() throws {
@@ -399,8 +401,12 @@ final class TrainingExampleBuilderTests: XCTestCase {
             line(.decision(decision), 1, ms: 0),
             line(.strip(StripUse(before: "I", word: "saw", shownFirst: ["am"], shownLast: ["saw"], lettersTyped: 2, pickedSlot: 3)), 2, ms: 7),
             line(.session(version: "0.4.0", stripModel: nil, hasSentenceModel: false), 3, ms: 9),
-            line(.sentence(text: "I saw it.", day: day, context: "Before.", app: "com.example"), 4, ms: 11),
+            line(.sentence(text: "I saw it.", day: day, context: "Before.", app: "com.example"), 4, ms: 11, day: day, app: "com.example"),
             line(.sentencePass(sentence: "I saw teh cat.", words: [.init(typed: "teh", written: "the", probability: 0.75, action: "asked")]), 5, ms: 12),
+            line(.strip(StripUse(
+                before: "I", word: "saw", shownFirst: ["am"], shownLast: ["saw"], lettersTyped: 2, pickedSlot: nil,
+                draws: [.init(typed: "", shown: ["am"]), .init(typed: "sa", shown: ["saw", "said"])]
+            )), 6, ms: 13, day: day, app: "com.example"),
         ]
 
         for original in lines {
@@ -408,5 +414,87 @@ final class TrainingExampleBuilderTests: XCTestCase {
             let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
             XCTAssertEqual(TrainingLogLine(json: object), original)
         }
+    }
+
+    // MARK: - 0.4.4: every strip of a word, replaced fixes, and events with no saved sentence
+
+    func test_stripStep_saysWhenTheWordWasFirstListed_notOnlyWhetherTheLastStripHadIt() throws {
+        // #given a word the strip had from its second letter, typed out to the end, where the last
+        // strip (drawn for the whole word) no longer lists it
+        let use = StripUse(
+            before: "I saw the", word: "resident", shownFirst: ["cat"], shownLast: ["residents", "residential"],
+            lettersTyped: 8, pickedSlot: nil,
+            draws: [
+                .init(typed: "", shown: ["cat"]), .init(typed: "r", shown: ["red", "road"]),
+                .init(typed: "re", shown: ["report", "resident"]), .init(typed: "resident", shown: ["residents", "residential"]),
+            ]
+        )
+        let lines = [line(.strip(use), 1, ms: 0), line(.sentence(text: "I saw the resident today.", day: day), 2, ms: 900)]
+
+        // #when the example is built
+        let step = try XCTUnwrap(TrainingExampleBuilder.examples(fromLines: lines).first?.steps?.first)
+
+        // #then the last strip did not have it, and the record still says the strip did, at two
+        // letters, in the second slot
+        XCTAssertNil(step.rank)
+        XCTAssertEqual(step.listedAt, 2)
+        XCTAssertEqual(step.listedSlot, 1)
+        XCTAssertEqual(step.draws?.count, 4)
+    }
+
+    func test_fixTheWriterReplacedWithAThirdWord_isARejectedFixAndAnAcceptedOne() throws {
+        // #given `thay` fixed to `they`, which the writer changed to `that`
+        let lines = [
+            line(.word(how: "autoFixReplaced", typed: "thay", final: "that", offered: "they"), 1, ms: 0),
+            line(.sentence(text: "I think that works.", day: day), 2, ms: 900),
+        ]
+
+        // #when the example is built
+        let example = try XCTUnwrap(TrainingExampleBuilder.examples(fromLines: lines).first)
+
+        // #then the sentence is as first typed, the wrong fix is rejected, and the word meant is accepted
+        XCTAssertEqual(example.typed, "I think thay works.")
+        XCTAssertEqual(example.rejected, [.init(typed: "thay", fix: "they", how: "autoFix")])
+        XCTAssertEqual(example.accepted, [.init(typed: "thay", fix: "that", how: "selfCorrected")])
+    }
+
+    func test_eventWhoseSentenceWasNeverSaved_stillSaysWhenWhereAndWhichBuild() throws {
+        // #given a decision in a line that was never saved, stamped like every line since 0.4.4
+        let decision = SpellingDecisionRecord(
+            typed: "recieve", action: "offered", candidates: [.init(term: "receive", score: 1.2)], confidence: 0.6, before: "did you"
+        )
+        let lines = [
+            line(.session(version: "0.4.4", stripModel: nil, hasSentenceModel: true), 1, ms: 0),
+            line(.decision(decision), 2, ms: 4_200, day: day, app: "com.example.chat"),
+        ]
+
+        // #when the examples are built
+        let example = try XCTUnwrap(TrainingExampleBuilder.examples(fromLines: lines).first)
+
+        // #then the lone event carries its day, app, build, launch and time in the launch
+        XCTAssertEqual(example.scope, "decision")
+        XCTAssertEqual(example.day, day)
+        XCTAssertEqual(example.app, "com.example.chat")
+        XCTAssertEqual(example.session?.version, "0.4.4")
+        XCTAssertEqual(example.run, "a")
+        XCTAssertEqual(example.at, 4_200)
+    }
+
+    func test_passOverTheLineAsFarAsItHadGot_isAStepOfTheSentenceItBecame() throws {
+        // #given the sentence model's look at the first six words of a line, and the whole line saved later
+        let lines = [
+            line(.sentencePass(
+                sentence: "can you send teh report over",
+                words: [.init(typed: "teh", written: "the", probability: 0.97, action: "fixed")]
+            ), 1, ms: 0),
+            line(.sentence(text: "can you send the report over when you get a chance", day: day), 2, ms: 5_000),
+        ]
+
+        // #when the examples are built
+        let examples = TrainingExampleBuilder.examples(fromLines: lines)
+
+        // #then there is one example, and the pass is a step of it
+        XCTAssertEqual(examples.count, 1)
+        XCTAssertEqual(examples.first?.steps?.map(\.kind), ["sentencePass"])
     }
 }

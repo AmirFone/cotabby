@@ -244,7 +244,9 @@ struct CandidateOffer: Equatable, Sendable {
     /// Per-candidate confidence in [0, 1] for spelling offers; empty for continuations.
     let scores: [Double]
     var caretRect: CGRect
-    let focusChangeSequence: UInt64
+    /// The field the offer is for. A variable because a field that only changes its frame gets a
+    /// new number and keeps its bar (`CandidateListController.handleFocusSnapshot`).
+    var focusChangeSequence: UInt64
     /// The row highlighted when the offer opens. Spelling bars put the typed word first and the
     /// best fix in the middle, like the iPhone keyboard, so they open on row 1.
     var preferredIndex = 0
@@ -359,6 +361,11 @@ protocol WordPredictionPresenting: AnyObject {
     var replacesGhostText: Bool { get }
     func noteTypedText(_ precedingText: String, caretRect: CGRect, focusChangeSequence: UInt64)
     func hidePredictions()
+    /// True when `precedingText` is the field as it stood a few keys ago: a host that has not yet
+    /// told Accessibility about the writer's last keys. The presenter follows the keys themselves,
+    /// so it is the one that can tell; the coordinator asks before it takes a read of the field
+    /// for the text those keys left.
+    func isBehindTheKeys(_ precedingText: String) -> Bool
 }
 
 /// The suggestion coordinator's handle on the per-sentence proofreading card.

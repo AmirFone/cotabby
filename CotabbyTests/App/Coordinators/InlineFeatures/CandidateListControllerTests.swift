@@ -171,6 +171,54 @@ final class CandidateListControllerTests: XCTestCase {
         XCTAssertFalse(harness.controller.isCapturing)
     }
 
+    func test_leftAlone_theBarCloses_andStaysClosedUntilAKey() {
+        // #given a spelling bar, and a writer who typed a moment ago
+        let idle = InlinePanelIdleTimer(seconds: 0.05)
+        let harness = makeHarness(precedingText: "I think wich ", idle: idle)
+        let offer = harness.spellingOffer(typo: "wich", candidates: ["which", "with"])
+        idle.noteActivity()
+        harness.controller.presentChoices(offer)
+        XCTAssertFalse(harness.panel.isHidden)
+
+        // #when no key follows for longer than the idle time
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+
+        // #then the bar is closed and takes no keys
+        XCTAssertTrue(harness.panel.isHidden)
+        XCTAssertFalse(harness.controller.isCapturing)
+
+        // #when the same offer is made again without a key, as a re-run of the spelling gate would
+        harness.controller.presentChoices(offer)
+
+        // #then it stays closed
+        XCTAssertTrue(harness.panel.isHidden)
+
+        // #when the writer presses a key and the gate offers again
+        idle.noteActivity()
+        harness.controller.presentChoices(offer)
+
+        // #then the bar is back
+        XCTAssertFalse(harness.panel.isHidden)
+        XCTAssertTrue(harness.controller.isCapturing)
+    }
+
+    func test_fieldThatOnlyChangedItsFrame_keepsItsBar_andAPickStillTypes() {
+        // #given a spelling bar in a message box
+        let harness = makeHarness(precedingText: "I think wich ")
+        harness.controller.presentChoices(harness.spellingOffer(typo: "wich", candidates: ["wich", "which", "with"]))
+
+        // #when the box grows a line: the same element, reported under a new number
+        harness.focus.publish(precedingText: "I think wich ", focusChangeSequence: 2, sameElement: true)
+
+        // #then the bar is still up and still takes a pick
+        XCTAssertFalse(harness.panel.isHidden)
+        XCTAssertTrue(harness.controller.isCapturing)
+        _ = harness.controller.observe(Self.key(125))
+        _ = harness.controller.observe(Self.key(48))
+        flushMainQueue()
+        XCTAssertEqual(harness.inserter.replacements.first?.text, "which ")
+    }
+
     func test_spellingBar_opensOnBestFixAndTabTakesIt() {
         // #given the iPhone-style bar: typed word, best fix, runner-up
         let harness = makeHarness(precedingText: "I think wich ")
@@ -367,7 +415,7 @@ final class CandidateListControllerTests: XCTestCase {
         }
     }
 
-    private func makeHarness(precedingText: String, trailingText: String = "") -> Harness {
+    private func makeHarness(precedingText: String, trailingText: String = "", idle: InlinePanelIdleTimer? = nil) -> Harness {
         let suite = "CandidateListControllerTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
@@ -384,7 +432,8 @@ final class CandidateListControllerTests: XCTestCase {
             isWordAcceptKey: { $0.keyCode == 48 },
             acceptKeyLabel: { "Tab" },
             correctionMemory: memory,
-            qualityMetricsStore: metrics
+            qualityMetricsStore: metrics,
+            idle: idle
         )
         controller.onCommitted = { counter.value += 1 }
         controller.start()
@@ -470,17 +519,24 @@ private final class MutableFocus: SuggestionFocusProviding {
         snapshot = Self.make(precedingText: text, focusChangeSequence: 1)
     }
 
-    func publish(precedingText: String, focusChangeSequence: UInt64) {
-        snapshot = Self.make(precedingText: precedingText, focusChangeSequence: focusChangeSequence)
+    /// Another field unless `sameElement` says the field only got a new number (its frame changed).
+    func publish(precedingText: String, focusChangeSequence: UInt64, sameElement: Bool = false) {
+        snapshot = Self.make(
+            precedingText: precedingText, focusChangeSequence: focusChangeSequence,
+            elementIdentifier: sameElement ? "field-1" : "field-\(focusChangeSequence)"
+        )
         subject.send(snapshot)
     }
 
-    private static func make(precedingText: String, trailingText: String = "", focusChangeSequence: UInt64) -> FocusSnapshot {
+    private static func make(
+        precedingText: String, trailingText: String = "", focusChangeSequence: UInt64, elementIdentifier: String = "field-1"
+    ) -> FocusSnapshot {
         FocusSnapshot(
             applicationName: "TestApp",
             bundleIdentifier: "com.test.app",
             capability: .supported,
             context: CotabbyTestFixtures.focusedInputSnapshot(
+                elementIdentifier: elementIdentifier,
                 precedingText: precedingText,
                 trailingText: trailingText,
                 focusChangeSequence: focusChangeSequence

@@ -43,9 +43,6 @@ final class CandidateListController: CandidateOfferPresenting, InlineCapturePart
         static let digits: [CGKeyCode] = [18, 19, 20, 21]
     }
 
-    /// A list left alone this long closes itself so it never lingers over the writer's work.
-    private static let idleTimeoutNanoseconds: UInt64 = 10_000_000_000
-
     private let panel: any CandidateListPanelPresenting
     private let focusModel: any SuggestionFocusProviding
     private let inserter: any SuggestionInserting
@@ -53,6 +50,9 @@ final class CandidateListController: CandidateOfferPresenting, InlineCapturePart
     private let acceptKeyLabel: () -> String
     private let correctionMemory: PersonalCorrectionMemory
     private let qualityMetricsStore: SuggestionQualityMetricsStore
+    /// Closes the list when the writer stops typing and keeps it closed until the next key, the
+    /// same clock the word strip goes by.
+    private let idle: InlinePanelIdleTimer
 
     private var phase: Phase = .idle
     private var selectedIndex = 0
@@ -60,7 +60,9 @@ final class CandidateListController: CandidateOfferPresenting, InlineCapturePart
     /// the bar and reaches the app, so sending a chat message never turns into a correction.
     private var hasNavigated = false
     private var pendingDecision: PendingDecision?
-    private var idleTimeoutTask: Task<Void, Never>?
+    /// The Accessibility element of the field the list on screen was opened in: the second of a
+    /// field's two names (see `handleFocusSnapshot`).
+    private var shownElement: String?
     private var cancellables = Set<AnyCancellable>()
     private var lastCountedOffer: CandidateOffer.Source?
 
@@ -84,8 +86,11 @@ final class CandidateListController: CandidateOfferPresenting, InlineCapturePart
         isWordAcceptKey: @escaping (InputMonitorKeyEvent) -> Bool,
         acceptKeyLabel: @escaping () -> String,
         correctionMemory: PersonalCorrectionMemory,
-        qualityMetricsStore: SuggestionQualityMetricsStore
+        qualityMetricsStore: SuggestionQualityMetricsStore,
+        idle: InlinePanelIdleTimer? = nil
     ) {
+        // Built here and not as a default argument: a default is evaluated outside the main actor.
+        self.idle = idle ?? InlinePanelIdleTimer()
         self.panel = panel
         self.focusModel = focusModel
         self.inserter = inserter
@@ -105,8 +110,14 @@ final class CandidateListController: CandidateOfferPresenting, InlineCapturePart
     func start() {
         panel.onSelectIndex = { [weak self] index in
             guard let self, case .showing(let offer) = self.phase, offer.candidates.indices.contains(index) else { return }
+            self.idle.noteActivity()
             self.selectedIndex = index
             self.commitSelection()
+        }
+        idle.whenRunOut { [weak self] in
+            guard let self, self.isCapturing else { return }
+            CotabbyLogger.suggestion.debug("Spelling bar closed: left alone too long")
+            self.dismissChoices()
         }
         panel.onClickOutside = { [weak self] in
             self?.dismissChoices()
@@ -124,7 +135,10 @@ final class CandidateListController: CandidateOfferPresenting, InlineCapturePart
     // MARK: - CandidateOfferPresenting
 
     func presentChoices(_ offer: CandidateOffer) {
-        guard offer.candidates.count > 1 else {
+        // `idle.hasRunOut`: the spelling gate also runs when no key was pressed (screen text became
+        // ready, a setting changed) and would put back the bar that just closed because the writer
+        // had stopped. The next key brings it back if the word still needs it.
+        guard offer.candidates.count > 1, !idle.hasRunOut else {
             dismissChoices()
             return
         }
@@ -136,9 +150,10 @@ final class CandidateListController: CandidateOfferPresenting, InlineCapturePart
             hasNavigated = false
         }
         phase = .showing(offer)
+        let field = focusModel.snapshot.context
+        shownElement = field?.focusChangeSequence == offer.focusChangeSequence ? field?.elementIdentifier : nil
         panel.show(offer: offer, selectedIndex: selectedIndex, acceptKeyLabel: acceptKeyLabel())
         countOfferIfNew(offer)
-        armIdleTimeout()
         if !wasCapturing {
             onCaptureStateChanged?()
         }
@@ -238,7 +253,6 @@ final class CandidateListController: CandidateOfferPresenting, InlineCapturePart
         case KeyCode.left, KeyCode.right:
             return handleHorizontalArrow(event, offer: offer)
         default:
-            armIdleTimeout()
             return false
         }
     }
@@ -293,7 +307,6 @@ final class CandidateListController: CandidateOfferPresenting, InlineCapturePart
         selectedIndex = (selectedIndex + delta + count) % count
         hasNavigated = true
         panel.setSelectedIndex(selectedIndex)
-        armIdleTimeout()
     }
 
     // MARK: - Commit
@@ -384,8 +397,7 @@ final class CandidateListController: CandidateOfferPresenting, InlineCapturePart
         selectedIndex = 0
         hasNavigated = false
         pendingDecision = nil
-        idleTimeoutTask?.cancel()
-        idleTimeoutTask = nil
+        shownElement = nil
         panel.hide()
         if wasCapturing {
             onCaptureStateChanged?()
@@ -407,27 +419,22 @@ final class CandidateListController: CandidateOfferPresenting, InlineCapturePart
                 phase = .idle
             }
         case .showing(let offer):
-            guard let context = snapshot.context,
-                  !context.isSecure,
-                  context.focusChangeSequence == offer.focusChangeSequence else {
+            // The field's number also moves on when the field only changes its frame (a message
+            // box that grows a line). The same element under a new number is the same field, and
+            // the bar stays on it, as the word strip does (`WordPredictionController.enterField`).
+            guard let context = snapshot.context, !context.isSecure,
+                  context.focusChangeSequence == offer.focusChangeSequence
+                    || (shownElement != nil && context.elementIdentifier == shownElement) else {
                 teardown()
                 return
             }
             // Most focus updates repeat the caret position; only a move needs the panel placed again.
-            guard context.caretRect != offer.caretRect else { return }
+            guard context.caretRect != offer.caretRect || context.focusChangeSequence != offer.focusChangeSequence else { return }
             var moved = offer
+            moved.focusChangeSequence = context.focusChangeSequence
             moved.caretRect = context.caretRect
             phase = .showing(moved)
             panel.show(offer: moved, selectedIndex: selectedIndex, acceptKeyLabel: acceptKeyLabel())
-        }
-    }
-
-    private func armIdleTimeout() {
-        idleTimeoutTask?.cancel()
-        idleTimeoutTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: CandidateListController.idleTimeoutNanoseconds)
-            guard !Task.isCancelled else { return }
-            self?.teardown()
         }
     }
 }

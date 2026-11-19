@@ -8,10 +8,17 @@ import Foundation
 /// and every word the writer typed out themselves, with the right word sitting first in the strip
 /// or missing from it, left no trace at all. `StripUseTracker` follows one word at a time and, when
 /// the word is finished, hands back a `StripUse`: the words shown before any letter, the words
-/// shown last, how many letters had been typed by then, and the slot picked, if one was.
+/// shown last, how many letters had been typed by then, the slot picked, if one was, and every
+/// strip drawn on the way with the letters it was drawn for.
+///
+/// Why every strip and not only the first and last: the last strip is usually drawn when the word
+/// is complete, and a complete word is never offered back, so "was the word in the last strip"
+/// said no for most words whether the strip had been right three letters earlier or not. And the
+/// letters matter as much as the words: a strip drawn for `hab` when `have` was meant is a
+/// different failure from one drawn for `hav`.
 ///
 /// Pure and small: `WordPredictionController` tells it what was shown, what the field holds, and
-/// what was picked. It keeps the text before the current word and two short lists, nothing else.
+/// what was picked. It keeps the text before the current word and the strips drawn for that word.
 
 /// One word's worth of strip history.
 nonisolated struct StripUse: Equatable, Sendable {
@@ -27,6 +34,15 @@ nonisolated struct StripUse: Equatable, Sendable {
     let lettersTyped: Int
     /// The slot the writer picked (0 is the first), or nil when they typed the word out.
     let pickedSlot: Int?
+    /// Each strip drawn for this word, in order: the letters typed at that moment and the words
+    /// shown. Empty in records from before this was kept.
+    var draws: [Draw] = []
+
+    struct Draw: Equatable, Sendable, Codable {
+        /// The letters of the word typed when the strip was drawn ("" before the first).
+        let typed: String
+        let shown: [String]
+    }
 }
 
 nonisolated struct StripUseTracker {
@@ -35,22 +51,32 @@ nonisolated struct StripUseTracker {
     private var first: [String] = []
     private var last: [String] = []
     private var lastLetters = 0
+    private var draws: [StripUse.Draw] = []
 
     /// How much of the sentence so far is kept with a use.
     static let maximumBefore = 300
+    /// More strips than any word gets letters; a word that is typed, deleted and retyped stops
+    /// adding to its record here.
+    static let maximumDraws = 24
 
-    /// The strip drew `words` for the field text `text`.
-    mutating func shown(_ words: [String], for text: String) {
+    /// The strip drew `words` for the field text `text`. Returns the use of the word before, when
+    /// this strip is the first for a new word.
+    ///
+    /// The strip is drawn from the key, before the field is read (`WordPredictionController
+    /// .predictAhead`), so the strip for the next word arrives here before `typed` hears that the
+    /// word before it is finished. This used to start the new word's record and throw the old
+    /// one away unreported, which lost the strip record of nine words in ten.
+    mutating func shown(_ words: [String], for text: String) -> StripUse? {
+        let finished = typed(text)
         let (textBase, prefix) = Self.split(text)
-        if base != textBase {
-            base = textBase
-            first = []
-            last = []
-            lastLetters = 0
-        }
+        base = textBase
         if prefix.isEmpty { first = words }
         last = words
         lastLetters = prefix.count
+        if draws.last != StripUse.Draw(typed: prefix, shown: words), draws.count < Self.maximumDraws {
+            draws.append(.init(typed: prefix, shown: words))
+        }
+        return finished
     }
 
     /// The field now holds `text`. Returns the finished word's use when exactly one word was
@@ -69,6 +95,7 @@ nonisolated struct StripUseTracker {
             first = []
             last = []
             lastLetters = 0
+            draws = []
         }
         guard textBase.hasPrefix(previous) else { return nil }
         let added = textBase.dropFirst(previous.count)
@@ -77,7 +104,7 @@ nonisolated struct StripUseTracker {
               !first.isEmpty || !last.isEmpty else { return nil }
         return StripUse(
             before: Self.sentenceSoFar(previous), word: String(word),
-            shownFirst: first, shownLast: last, lettersTyped: lastLetters, pickedSlot: nil
+            shownFirst: first, shownLast: last, lettersTyped: lastLetters, pickedSlot: nil, draws: draws
         )
     }
 
@@ -88,7 +115,7 @@ nonisolated struct StripUseTracker {
         let use = StripUse(
             before: Self.sentenceSoFar(textBase), word: word,
             shownFirst: base == textBase ? first : [], shownLast: shown,
-            lettersTyped: prefix.count, pickedSlot: slot
+            lettersTyped: prefix.count, pickedSlot: slot, draws: base == textBase ? draws : []
         )
         reset()
         return use
@@ -99,6 +126,7 @@ nonisolated struct StripUseTracker {
         first = []
         last = []
         lastLetters = 0
+        draws = []
     }
 
     /// The text before the word in progress, and the letters of that word.

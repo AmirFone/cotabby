@@ -358,6 +358,7 @@ cve 200000
 cves 200000
 daemonset 200000
 dataflow 200000
+datalake 200000
 dataloader 200000
 dataloaders 200000
 ddl 200000
@@ -372,6 +373,7 @@ deprioritize 200000
 deprioritized 200000
 deserialization 200000
 destructors 200000
+desync 200000
 dhcp 200000
 dml 200000
 dockerized 200000
@@ -442,6 +444,7 @@ kinesis 200000
 kubeconfig 200000
 kustomize 200000
 kwargs 200000
+lakehouse 200000
 langchain 200000
 lgtm 200000
 linearizable 200000
@@ -478,15 +481,18 @@ neovim 200000
 nestjs 200000
 newrelic 200000
 ngrok 200000
+nosql 200000
 npx 200000
 nullptr 200000
 nuxt 200000
 nvim 200000
 nvm 200000
+offboarding 200000
 oidc 200000
 okta 200000
 olap 200000
 ollama 200000
+onedrive 200000
 onnx 200000
 openai 200000
 opensearch 200000
@@ -507,6 +513,7 @@ polyfills 200000
 powershell 200000
 prefetch 200000
 prefetching 200000
+prefill 200000
 preload 200000
 preprocess 200000
 preprocessing 200000
@@ -515,6 +522,7 @@ pretrained 200000
 pretraining 200000
 printf 200000
 prisma 200000
+proto 200000
 protobuf 200000
 protobufs 200000
 psql 200000
@@ -531,12 +539,15 @@ rebalance 200000
 rebalancing 200000
 refcount 200000
 refcounting 200000
+reingest 200000
+requeue 200000
 reqwest 200000
 rerank 200000
 reranking 200000
 rerender 200000
 rerenders 200000
 resharding 200000
+resync 200000
 ripgrep 200000
 roadmap 200000
 roadmaps 200000
@@ -559,8 +570,10 @@ serializer 200000
 serializers 200000
 sftp 200000
 sharded 200000
+sharepoint 200000
 sidekiq 200000
 sigkill 200000
+signoff 200000
 sigterm 200000
 sklearn 200000
 smtp 200000
@@ -592,7 +605,10 @@ testflight 200000
 textbox 200000
 tfstate 200000
 thiserror 200000
+timebox 200000
+timeboxed 200000
 timescaledb 200000
+tldr 200000
 tmux 200000
 todos 200000
 tokenizers 200000
@@ -614,6 +630,7 @@ udf 200000
 udfs 200000
 uikit 200000
 unmarshal 200000
+unsync 200000
 untyped 200000
 uvicorn 200000
 validator 200000
@@ -632,6 +649,8 @@ websockets 200000
 wget 200000
 wip 200000
 wireguard 200000
+workstream 200000
+workstreams 200000
 xargs 200000
 xcodebuild 200000
 xcodegen 200000

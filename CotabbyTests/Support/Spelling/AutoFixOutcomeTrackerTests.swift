@@ -89,6 +89,41 @@ final class AutoFixOutcomeTrackerTests: XCTestCase {
 
         XCTAssertEqual(tracker.pendingCount, 0)
     }
+
+    func test_thirdWordWhereTheFixWas_isAReplacedFix() {
+        // #given `thay ` fixed to `they `, seen in the field
+        var tracker = AutoFixOutcomeTracker()
+        tracker.noteAutoFix(typo: "thay", fix: "they", precedingText: "I think thay ")
+        XCTAssertEqual(tracker.observe("I think they "), [])
+
+        // #when the writer deletes the fix and types another word
+        XCTAssertEqual(tracker.observe("I think the"), [])
+        XCTAssertEqual(tracker.observe("I think tha"), [])
+        let outcomes = tracker.observe("I think that ")
+
+        // #then the fix is reported as replaced, with the word that was meant
+        XCTAssertEqual(outcomes, [.init(kind: .replaced, typo: "thay", fix: "they", replacement: "that")])
+        XCTAssertEqual(tracker.pendingCount, 0)
+    }
+
+    func test_thirdWordBeforeTheFixWasEverSeen_isNoVerdict() {
+        // #given a fix that the field has not shown yet
+        var tracker = AutoFixOutcomeTracker()
+        tracker.noteAutoFix(typo: "thay", fix: "they", precedingText: "I think thay ")
+
+        // #then other text in that place settles nothing
+        XCTAssertEqual(tracker.observe("I think that "), [])
+        XCTAssertEqual(tracker.pendingCount, 1)
+    }
+
+    func test_wordStillBeingRetyped_isNotAReplacementYet() {
+        var tracker = AutoFixOutcomeTracker()
+        tracker.noteAutoFix(typo: "thay", fix: "they", precedingText: "I think thay ")
+        XCTAssertEqual(tracker.observe("I think they "), [])
+
+        XCTAssertEqual(tracker.observe("I think tha"), [])
+        XCTAssertEqual(tracker.pendingCount, 1)
+    }
 }
 
 /// The global auto-fix bar rises only for a writer who keeps undoing auto-fixes.

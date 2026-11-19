@@ -48,6 +48,20 @@ def main():
           share(sum(step.get("rank") == 0 and "pickedSlot" not in step for step in strips), len(strips)))
     if picked:
         print("  picks by slot:", dict(sorted(collections.Counter(step["pickedSlot"] + 1 for step in picked).items())))
+    # Since 0.4.4 every strip drawn for a word is kept, so "was the word ever in the strip, and
+    # from which letter" can be answered. `rank` above only looks at the last strip, which is
+    # usually drawn for the complete word and never lists it.
+    drawn = [step for step in strips if step.get("draws")]
+    if drawn:
+        listed = [step for step in drawn if "listedAt" in step]
+        print(f"  with every strip recorded ({len(drawn)} words):")
+        print("    word stood in a strip at some letter: ", share(len(listed), len(drawn)))
+        print("    ... first, when it first appeared:    ", share(sum(step.get("listedSlot") == 0 for step in listed), len(drawn)))
+        print("    ... before any letter was typed:      ", share(sum(step["listedAt"] == 0 for step in listed), len(drawn)))
+        print("    listed and still typed out:           ",
+              share(sum("pickedSlot" not in step for step in listed), len(listed)))
+        by_letters = collections.Counter(min(step["listedAt"], 6) for step in listed)
+        print("    letters typed when it first appeared: ", dict(sorted(by_letters.items())), "(6 means six or more)")
     missed = [step for step in typing if "rank" not in step and len(step["word"]) >= 5]
     for step in missed[:arguments.examples]:
         print(f"    not listed: {step['word']!r} after {step.get('lettersTyped')} letters, shown {step.get('shownLast')}")
@@ -57,7 +71,9 @@ def main():
     print("\nSpelling engine decisions:", dict(decisions))
     print("What became of them:      ", dict(outcomes))
     kept, undone = outcomes.get("autoFixKept", 0), outcomes.get("autoFixUndone", 0)
-    print("  fixes made without asking that you kept:", share(kept, kept + undone))
+    replaced = outcomes.get("autoFixReplaced", 0)
+    print("  fixes made without asking that you kept:", share(kept, kept + undone + replaced))
+    print(f"  ... undone {undone}, changed into another word {replaced} (recorded since 0.4.4)")
     # A word the engine only offered a fix for, which you then took: sure enough to have been fixed?
     for example in examples:
         timeline = example.get("steps") or []

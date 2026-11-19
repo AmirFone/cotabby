@@ -204,15 +204,236 @@ final class WordPredictionControllerTests: XCTestCase {
         XCTAssertEqual(harness.panel.words, before)
     }
 
-    func test_secondKeyBeforeARead_doesNotGuessAgain() {
+    // MARK: - Drawn from the keys
+
+    func test_everyKeyBeforeARead_isFollowed() {
+        // #given a strip after "I ", and a host that publishes nothing while the writer types on
+        let harness = makeHarness(precedingText: "I ")
+        harness.note("I ")
+
+        // #when a whole word and its space are typed without one read of the field
+        for character in "want " { _ = harness.controller.observe(Self.typed(String(character), keyCode: character == " " ? 49 : 0)) }
+
+        // #then the strip is the one for the text those keys leave, not for the text last read
+        XCTAssertFalse(harness.panel.isHidden)
+        XCTAssertEqual(harness.panel.words.first, "to")
+        XCTAssertTrue(harness.panel.words.contains("it"), "after `want`, not after `I`: \(harness.panel.words)")
+    }
+
+    func test_slashTypedAfterAWord_predictsTheNextWord_notTheWordBeforeIt() {
+        // #given the strip completing the last word of "I want t"
+        let harness = makeHarness(precedingText: "I want t")
+        harness.note("I want t")
+        XCTAssertEqual(harness.panel.words, ["to", "the"])
+
+        // #when the word is finished and a slash typed, before the field is read again
+        _ = harness.controller.observe(Self.typed("o"))
+        _ = harness.controller.observe(Self.typed("/"))
+
+        // #then the strip offers what follows "want to", and no longer completes the word before
+        XCTAssertFalse(harness.panel.isHidden)
+        XCTAssertEqual(Array(harness.panel.words.prefix(3)), ["go", "be", "get"])
+    }
+
+    func test_hyphenTypedAfterAWord_predictsTheNextWord_notTheWordBeforeIt() {
+        let harness = makeHarness(precedingText: "I want t")
+        harness.note("I want t")
+
+        _ = harness.controller.observe(Self.typed("o"))
+        _ = harness.controller.observe(Self.typed("-"))
+
+        XCTAssertFalse(harness.panel.isHidden)
+        XCTAssertEqual(Array(harness.panel.words.prefix(3)), ["go", "be", "get"])
+    }
+
+    func test_keyThatLeavesNothingToComplete_takesTheStripDown() {
+        // #given the strip completing "t"
+        let harness = makeHarness(precedingText: "I want t")
+        harness.note("I want t")
+        XCTAssertFalse(harness.panel.isHidden)
+
+        // #when a period is typed against the letter: no word is completed after a period
+        _ = harness.controller.observe(Self.typed(".", keyCode: 47))
+
+        // #then the completions of the word before it do not stay up
+        XCTAssertTrue(harness.panel.isHidden)
+        XCTAssertFalse(harness.controller.isCapturing)
+    }
+
+    func test_keyAfterAStripWentDown_bringsItBackWithoutARead() {
+        // #given no strip: nothing completes "to" in this table
+        let harness = makeHarness(precedingText: "I want to")
+        harness.note("I want to")
+        XCTAssertTrue(harness.panel.isHidden)
+
+        // #when Space is typed
+        _ = harness.controller.observe(Self.typed(" ", keyCode: 49))
+
+        // #then the next word is offered at once
+        XCTAssertFalse(harness.panel.isHidden)
+        XCTAssertEqual(harness.panel.words.first, "go")
+    }
+
+    func test_readThatConfirmsTheStripDrawnFromTheKey_doesNotDrawItAgain() {
+        // #given a strip drawn from the key "g"
         let harness = makeHarness(precedingText: "I want to ")
         harness.note("I want to ")
-        _ = harness.controller.observe(CapturedInputEvent(kind: .textMutation, keyCode: 5, characters: "g", flags: []))
-        let afterFirst = harness.panel.words
+        _ = harness.controller.observe(Self.typed("g"))
+        let drawn = harness.panel.timesShown
 
-        _ = harness.controller.observe(CapturedInputEvent(kind: .textMutation, keyCode: 31, characters: "o", flags: []))
+        // #when the field is read and holds exactly that text
+        harness.focus.setPrecedingText("I want to g")
+        harness.note("I want to g")
 
-        XCTAssertEqual(harness.panel.words, afterFirst)
+        // #then nothing is drawn again, and Tab picks without the strip being thrown away
+        XCTAssertEqual(harness.panel.timesShown, drawn)
+        _ = harness.controller.observe(Self.key(48))
+        flushMainQueue()
+        XCTAssertEqual(harness.inserter.replacements.first?.text, "go ")
+    }
+
+    func test_readOfAnEarlierStateOfTheBurst_doesNotPutTheStripBack() {
+        // #given a word and its space typed in one go; the strip is the one for the text they leave
+        let harness = makeHarness(precedingText: "I ")
+        harness.note("I ")
+        for character in "want " { _ = harness.controller.observe(Self.typed(String(character), keyCode: character == " " ? 49 : 0)) }
+        let afterTheKeys = harness.panel.words
+
+        // #when a slow host's publish of the first letters arrives as if it were the text now
+        XCTAssertTrue(harness.controller.isBehindTheKeys("I wa"))
+        harness.note("I wa")
+
+        // #then the strip is not taken back to the middle of the finished word
+        XCTAssertEqual(harness.panel.words, afterTheKeys)
+        XCTAssertFalse(harness.panel.isHidden)
+    }
+
+    func test_onlyAnEarlierStateOfTheKeys_countsAsBehind() {
+        // #given the keys `want ` typed after `I `
+        let harness = makeHarness(precedingText: "I ")
+        harness.note("I ")
+        for character in "want " { _ = harness.controller.observe(Self.typed(String(character), keyCode: character == " " ? 49 : 0)) }
+
+        // #then the text those keys leave is not behind, nor is text that differs elsewhere
+        XCTAssertFalse(harness.controller.isBehindTheKeys("I want "))
+        XCTAssertFalse(harness.controller.isBehindTheKeys("I went "))
+        XCTAssertFalse(harness.controller.isBehindTheKeys("You wan"))
+        XCTAssertFalse(harness.controller.isBehindTheKeys("I want to"), "more text than the keys typed is not an earlier state")
+        XCTAssertTrue(harness.controller.isBehindTheKeys("I want"))
+        XCTAssertTrue(harness.controller.isBehindTheKeys("I "))
+    }
+
+    func test_afterBackspaces_theTextBeforeThemIsBehind() {
+        // #given two letters deleted since the last read
+        let harness = makeHarness(precedingText: "I want to go")
+        harness.note("I want to go")
+        _ = harness.controller.observe(CapturedInputEvent(kind: .textMutation, keyCode: 51, characters: "", flags: []))
+        _ = harness.controller.observe(CapturedInputEvent(kind: .textMutation, keyCode: 51, characters: "", flags: []))
+
+        // #then a field that still shows them is behind, and one that shows neither is not
+        XCTAssertTrue(harness.controller.isBehindTheKeys("I want to go"))
+        XCTAssertTrue(harness.controller.isBehindTheKeys("I want to g"))
+        XCTAssertFalse(harness.controller.isBehindTheKeys("I want to "))
+    }
+
+    func test_keyWhileAnotherPanelIsUp_drawsNoStripUnderIt() {
+        // #given the spelling bar on screen and no strip
+        var barIsUp = true
+        let harness = makeHarness(precedingText: "I want to", isAnotherPanelUp: { barIsUp })
+        harness.note("I want to")
+
+        // #when Space is typed
+        _ = harness.controller.observe(Self.typed(" ", keyCode: 49))
+
+        // #then no strip is drawn under the bar
+        XCTAssertTrue(harness.panel.isHidden)
+
+        // #when the bar is gone and the field is read
+        barIsUp = false
+        harness.focus.setPrecedingText("I want to ")
+        harness.note("I want to ")
+
+        // #then the strip is there
+        XCTAssertEqual(harness.panel.words.first, "go")
+    }
+
+    // MARK: - Left alone
+
+    func test_leftAlone_theStripGoesAway_andStaysAwayUntilAKey() {
+        // #given a strip, and a writer who typed a moment ago
+        let idle = InlinePanelIdleTimer(seconds: 0.05)
+        let harness = makeHarness(precedingText: "I want ", idle: idle)
+        idle.noteActivity()
+        harness.note("I want ")
+        XCTAssertFalse(harness.panel.isHidden)
+
+        // #when no key follows for longer than the idle time
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+
+        // #then the strip is gone
+        XCTAssertTrue(harness.panel.isHidden)
+        XCTAssertFalse(harness.controller.isCapturing)
+
+        // #when the same text is noted again without a key, as a redraw from elsewhere would
+        harness.note("I want ")
+
+        // #then it stays gone
+        XCTAssertTrue(harness.panel.isHidden)
+
+        // #when the writer types again
+        idle.noteActivity()
+        _ = harness.controller.observe(Self.typed("t"))
+
+        // #then the strip is back, for the word being typed
+        XCTAssertFalse(harness.panel.isHidden)
+        XCTAssertEqual(harness.panel.words, ["to", "the"])
+    }
+
+    func test_keysKeepTheStripUpPastTheIdleTime() {
+        // #given a strip and a short idle time
+        let idle = InlinePanelIdleTimer(seconds: 0.15)
+        let harness = makeHarness(precedingText: "I want ", idle: idle)
+        idle.noteActivity()
+        harness.note("I want ")
+
+        // #when keys keep coming, each sooner than the idle time, for longer than it in all
+        for _ in 0..<4 {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.07))
+            idle.noteActivity()
+        }
+
+        // #then the strip is still up
+        XCTAssertFalse(harness.panel.isHidden)
+    }
+
+    // MARK: - The same field under a new number
+
+    func test_fieldThatOnlyChangedItsFrame_keepsItsStrip_andAPickStillTypes() {
+        // #given a strip in a message box
+        let harness = makeHarness(precedingText: "I want ")
+        harness.note("I want ")
+
+        // #when the box grows a line: the same element, reported under a new number
+        harness.focus.publish(precedingText: "I want ", focusChangeSequence: 2, sameElement: true)
+
+        // #then the strip stays, and Tab types its first word
+        XCTAssertFalse(harness.panel.isHidden)
+        XCTAssertTrue(harness.controller.observe(Self.key(48)))
+        flushMainQueue()
+        XCTAssertEqual(harness.inserter.insertedChunks, ["to "])
+    }
+
+    func test_fieldThatOnlyChangedItsFrame_keepsTheTextTypedSoFar() {
+        // #given a word begun, then the box grows a line
+        let harness = makeHarness(precedingText: "I want ")
+        harness.note("I want ")
+        harness.focus.publish(precedingText: "I want ", focusChangeSequence: 2, sameElement: true)
+
+        // #when the next letter is typed before the field is read again
+        _ = harness.controller.observe(Self.typed("t"))
+
+        // #then the strip follows the key, which it can only do if the text was not forgotten
+        XCTAssertEqual(harness.panel.words, ["to", "the"])
     }
 
     func test_staleStrip_isRecomputedFromTheFieldOnTab() {
@@ -376,7 +597,9 @@ final class WordPredictionControllerTests: XCTestCase {
         XCTAssertEqual(harness.controller.arrowedSlot, 1)
 
         // The writer keeps typing instead: new words, highlight back at the start.
-        harness.note("I want ")
+        _ = harness.controller.observe(Self.typed("g"))
+        harness.focus.setPrecedingText("I want to g")
+        harness.note("I want to g")
 
         XCTAssertNil(harness.controller.arrowedSlot)
         XCTAssertEqual(harness.panel.selectedIndex, 0)
@@ -423,7 +646,7 @@ final class WordPredictionControllerTests: XCTestCase {
         // #given a message that ends in a full stop, with no space after it
         let harness = makeHarness(precedingText: "Sure. That works for me.")
         var settled: [String] = []
-        harness.controller.onSentenceSettled = { settled.append($0) }
+        harness.controller.onSentenceSettled = { sentence, _ in settled.append(sentence) }
         harness.note("Sure. That works for me.")
 
         // #when it is sent and the field is cleared
@@ -576,17 +799,58 @@ final class WordPredictionControllerTests: XCTestCase {
 
     // MARK: - A field that is not what the strip was drawn for
 
-    func test_pickWhileTheHostHasNotPublishedTheLastKey_typesNothing() {
+    func test_pickWhileTheHostHasNotPublishedTheLastKey_waits_andTypesOnceTheFieldShowsIt() {
         // #given a strip for `I want to g`, an `e` typed since, and a host that still reports the old text
         let harness = makeHarness(precedingText: "I want to g")
         harness.note("I want to g")
         _ = harness.controller.observe(Self.typed("e"))
+        XCTAssertEqual(harness.panel.words, ["get"])
 
         // #when Tab is pressed
+        XCTAssertTrue(harness.controller.observe(Self.key(48)))
+        flushMainQueue()
+
+        // #then no letter is deleted yet: one backspace counted against the old text would take the `e`
+        XCTAssertTrue(harness.typedNothing)
+
+        // #when the host publishes the `e`
+        harness.focus.setPrecedingText("I want to ge")
+        RunLoop.main.run(until: Date().addingTimeInterval(0.15))
+
+        // #then the pick is typed against the text the field now shows
+        XCTAssertEqual(harness.inserter.replacements.first?.deleteCount, 2)
+        XCTAssertEqual(harness.inserter.replacements.first?.text, "get ")
+    }
+
+    func test_pickWhileTheHostNeverPublishesTheLastKey_typesNothing() {
+        // #given the same, and a host that never shows the `e`
+        let harness = makeHarness(precedingText: "I want to g")
+        harness.note("I want to g")
+        _ = harness.controller.observe(Self.typed("e"))
+
+        // #when Tab is pressed and the wait runs out
+        _ = harness.controller.observe(Self.key(48))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.8))
+
+        // #then nothing was typed and the strip is gone
+        XCTAssertTrue(harness.typedNothing)
+        XCTAssertTrue(harness.panel.isHidden)
+    }
+
+    func test_pickWaitingForTheHost_isDroppedWhenTheWriterTypesOn() {
+        // #given a pick waiting for the host to show the last key
+        let harness = makeHarness(precedingText: "I want to g")
+        harness.note("I want to g")
+        _ = harness.controller.observe(Self.typed("e"))
         _ = harness.controller.observe(Self.key(48))
         flushMainQueue()
 
-        // #then no letter is deleted: one backspace counted against the old text would take the `e`
+        // #when the writer types another letter, and the host then shows both
+        _ = harness.controller.observe(Self.typed("t"))
+        harness.focus.setPrecedingText("I want to get")
+        RunLoop.main.run(until: Date().addingTimeInterval(0.15))
+
+        // #then the pick that was asked for before that letter is not typed over it
         XCTAssertTrue(harness.typedNothing)
     }
 
@@ -718,7 +982,7 @@ final class WordPredictionControllerTests: XCTestCase {
         XCTAssertEqual(harness.learned.values, [])
     }
 
-    func test_returnBeforeTheLastKeysWereRead_stillLearnsTheLineAsNoted() {
+    func test_returnBeforeTheLastKeysWereRead_learnsTheLineWithItsLastLetters() {
         // #given a line whose last letters were typed after the field was last read, as when a
         // message ends with a word followed at once by Return in a host that publishes late
         let harness = makeHarness(precedingText: "see you at the gy")
@@ -728,9 +992,43 @@ final class WordPredictionControllerTests: XCTestCase {
         // #when Return sends the line
         _ = harness.controller.observe(Self.key(36))
 
-        // #then the line is learned as it was last read; the learner vouches for each word on its
-        // own, so the cut-off last word is its concern, and the rest of the line is not lost
-        XCTAssertEqual(harness.learned.values, ["see you at the gy"])
+        // #then the line is learned whole: the key itself says which letter the field had not
+        // reported yet
+        XCTAssertEqual(harness.learned.values, ["see you at the gym"])
+    }
+
+    func test_shiftReturn_learnsTheLineItEnds() {
+        // #given the first line of a message in a chat box
+        let harness = makeHarness(precedingText: "see you at the gym")
+        harness.note("see you at the gym")
+
+        // #when Shift+Return starts the next line of the same message
+        _ = harness.controller.observe(Self.key(36, flags: .maskShift))
+
+        // #then the line it ended is learned, as one sent with Return would be
+        XCTAssertEqual(harness.learned.values, ["see you at the gym"])
+    }
+
+    func test_dotInsideAFileName_doesNotStartTheSentenceThere() {
+        // #given a line that names a file
+        let harness = makeHarness(precedingText: "please open report.txt and read it")
+        harness.note("please open report.txt and read it")
+
+        // #when it is sent
+        _ = harness.controller.observe(Self.key(36))
+
+        // #then the whole line is learned, not the part after the dot
+        XCTAssertEqual(harness.learned.values, ["please open report.txt and read it"])
+    }
+
+    func test_sentenceEndingInSeveralMarks_isLearned() {
+        // #given a sentence finished with three exclamation marks and a space
+        let harness = makeHarness(precedingText: "we finally shipped it!!! ")
+        harness.note("we finally shipped it!!! ")
+        flushMainQueue()
+
+        // #then it is learned without them
+        XCTAssertEqual(harness.learned.values, ["we finally shipped it"])
     }
 
     // MARK: - Harness
@@ -758,7 +1056,9 @@ final class WordPredictionControllerTests: XCTestCase {
         trailingText: String = "",
         isSpellingPending: @escaping () -> Bool = { false },
         languageModel: @escaping (String) -> LanguageModelScores? = { _ in nil },
-        isLanguageModelPending: @escaping (String) -> Bool = { _ in false }
+        isLanguageModelPending: @escaping (String) -> Bool = { _ in false },
+        isAnotherPanelUp: @escaping () -> Bool = { false },
+        idle: InlinePanelIdleTimer? = nil
     ) -> Harness {
         let model = NextWordModelFixture.make([
             "": (100, [("the", 30), ("to", 20)]),
@@ -787,7 +1087,9 @@ final class WordPredictionControllerTests: XCTestCase {
             isSpellingPending: isSpellingPending,
             learnDelay: 0,
             isLanguageModelPending: isLanguageModelPending,
-            languageModelWait: 0.03
+            languageModelWait: 0.03,
+            isAnotherPanelUp: isAnotherPanelUp,
+            idle: idle
         )
         controller.onCommitted = { counter.value += 1 }
         controller.start()
@@ -1043,6 +1345,8 @@ private final class RecordingStripPanel: CandidateListPanelPresenting {
     var onClickOutside: (() -> Void)?
     private(set) var isHidden = true
     private(set) var words: [String] = []
+    /// How many times a strip was drawn: a redraw is a round trip to the window server.
+    private(set) var timesShown = 0
 
     func show(offer: CandidateOffer, selectedIndex: Int, acceptKeyLabel: String) {}
     func setSelectedIndex(_ index: Int) { selectedIndex = index }
@@ -1050,6 +1354,7 @@ private final class RecordingStripPanel: CandidateListPanelPresenting {
 
     func showWordStrip(words: [String], selectedIndex: Int?, caretRect: CGRect) {
         isHidden = false
+        timesShown += 1
         self.words = words
         self.selectedIndex = selectedIndex
     }
@@ -1100,8 +1405,12 @@ private final class StripFocus: SuggestionFocusProviding {
         )
     }
 
-    func publish(precedingText: String, focusChangeSequence: UInt64) {
-        snapshot = Self.make(precedingText: precedingText, focusChangeSequence: focusChangeSequence, role: role, bundleIdentifier: bundleIdentifier)
+    /// Another field unless `sameElement` says the field only got a new number (its frame changed).
+    func publish(precedingText: String, focusChangeSequence: UInt64, sameElement: Bool = false) {
+        snapshot = Self.make(
+            precedingText: precedingText, focusChangeSequence: focusChangeSequence, role: role, bundleIdentifier: bundleIdentifier,
+            elementIdentifier: sameElement ? "field-1" : "field-\(focusChangeSequence)"
+        )
         subject.send(snapshot)
     }
 
@@ -1110,7 +1419,8 @@ private final class StripFocus: SuggestionFocusProviding {
         trailingText: String = "",
         focusChangeSequence: UInt64,
         role: String,
-        bundleIdentifier: String
+        bundleIdentifier: String,
+        elementIdentifier: String = "field-1"
     ) -> FocusSnapshot {
         FocusSnapshot(
             applicationName: "TestApp",
@@ -1118,6 +1428,7 @@ private final class StripFocus: SuggestionFocusProviding {
             capability: .supported,
             context: CotabbyTestFixtures.focusedInputSnapshot(
                 bundleIdentifier: bundleIdentifier,
+                elementIdentifier: elementIdentifier,
                 role: role,
                 precedingText: precedingText,
                 trailingText: trailingText,
