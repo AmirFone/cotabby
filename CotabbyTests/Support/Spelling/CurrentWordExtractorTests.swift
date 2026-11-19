@@ -339,4 +339,15 @@ final class CurrentWordExtractorTests: XCTestCase {
         // #then the field's form decides, and it is the one with no safe count
         XCTAssertNil(replacement)
     }
+
+    // MARK: - The part of a compound being typed
+
+    func test_partBeingTyped_isTheLettersAfterTheLastHyphen() {
+        XCTAssertEqual(CurrentWordExtractor.partBeingTyped(of: "well-kn"), "kn")
+        XCTAssertEqual(CurrentWordExtractor.partBeingTyped(of: "state-of-the-a"), "a")
+    }
+
+    func test_partBeingTyped_ofAWordWithNoHyphen_isTheWord() {
+        XCTAssertEqual(CurrentWordExtractor.partBeingTyped(of: "known"), "known")
+    }
 }

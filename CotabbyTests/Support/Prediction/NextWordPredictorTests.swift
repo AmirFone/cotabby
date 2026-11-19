@@ -83,6 +83,25 @@ final class NextWordPredictorTests: XCTestCase {
         XCTAssertNil(NextWordPredictor.predict(textBefore: "I want.", sources: sources()))
     }
 
+    func test_wordStartedRightAfterALongDash_isCompleted() {
+        // #given a word begun against an em dash and an en dash, with no space
+        for dash in ["\u{2014}", "\u{2013}"] {
+            let prediction = NextWordPredictor.predict(textBefore: "I want" + dash + "t", sources: sources())
+
+            // #then it is completed like a word after a space
+            XCTAssertEqual(prediction?.words.first, "to", dash)
+            XCTAssertEqual(prediction?.prefix, "t", dash)
+        }
+    }
+
+    func test_rightAfterALongDash_theNextWordIsSuggested_onlyAfterAWord() {
+        // A dash against a word opens the next clause; one after a number is a range (`5\u{2013}10`),
+        // and one after a space gets its suggestions when the space after it is typed.
+        XCTAssertEqual(NextWordPredictor.predict(textBefore: "I want\u{2014}", sources: sources())?.words.first, "to")
+        XCTAssertNil(NextWordPredictor.predict(textBefore: "pages 5\u{2013}", sources: sources()))
+        XCTAssertNil(NextWordPredictor.predict(textBefore: "I want \u{2014}", sources: sources()))
+    }
+
     func test_addressesAndPaths_getNoSuggestions() {
         for text in ["see example.com/g", "open ~/Desktop/g", "mail jo@example.g", "go to src/main/g", "version v1.g", "see www.g"] {
             XCTAssertNil(NextWordPredictor.predict(textBefore: text, sources: sources()), text)

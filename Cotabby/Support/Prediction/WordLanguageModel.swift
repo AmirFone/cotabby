@@ -69,10 +69,15 @@ nonisolated struct LanguageModelContext: Equatable, Sendable {
             // A word begun against a quote, a bracket or a hyphen, or one of several words joined by
             // a dot or a slash (`users.na`, `read/wr`). With no letter yet, only a slash or a hyphen
             // counts: a bare dot is the end of a sentence. The same rule as the n-gram predictor's.
-            let opensWord = prefix.isEmpty ? "/-".contains(before) : "\"(“‘-./".contains(before)
-            guard opensWord else { return nil }
-            if prefix.isEmpty || "./".contains(before) {
-                guard CurrentWordExtractor.endsInJoinedWords(textBefore) else { return nil }
+            // A long dash opens the next clause, with letters after it or (against a word) without.
+            if CurrentWordExtractor.longDashes.contains(before) {
+                guard !prefix.isEmpty || body.dropLast().last?.isLetter == true else { return nil }
+            } else {
+                let opensWord = prefix.isEmpty ? "/-".contains(before) : "\"(“‘-./".contains(before)
+                guard opensWord else { return nil }
+                if prefix.isEmpty || "./".contains(before) {
+                    guard CurrentWordExtractor.endsInJoinedWords(textBefore) else { return nil }
+                }
             }
         }
         var end = body.endIndex

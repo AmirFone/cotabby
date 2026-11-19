@@ -195,6 +195,59 @@ final class SpellingCandidateRankerTests: XCTestCase {
         XCTAssertEqual(decide("hi th", candidates: [SpellingCandidate(term: "the", score: 1)]), .proceed)
     }
 
+    // MARK: - The second half of a hyphenated word
+
+    /// The gate with a dictionary that knows which letters can still become a word.
+    private func decide(_ text: String, wordStarts: Set<String>) -> TypoGateDecision {
+        TypoGate.resolve(
+            precedingText: text,
+            settings: TypoGate.Settings(suppressCompletionsOnTypo: true, offerTypoCorrections: true, automaticallyFixTypos: true),
+            isTypo: { _ in true },
+            isWordInProgress: { wordStarts.contains($0) },
+            candidates: { word, _ in [SpellingCandidate(term: word + "x", score: 1)] }
+        )
+    }
+
+    func test_compoundBeingTyped_isJudgedByTheLettersAfterTheHyphen() {
+        // #given letters after a hyphen that can still become a word, in a token no word starts with
+        // #when the gate looks at the unfinished compound
+        let decision = decide("it is user-fac", wordStarts: ["fac"])
+
+        // #then nothing is flagged, so the word strip keeps the word
+        XCTAssertEqual(decision, .proceed)
+    }
+
+    func test_compoundBeingTyped_withTwoLettersAfterTheHyphen_isTooShortToJudge() {
+        // #given two letters after the hyphen, which no list was asked about
+        let decision = decide("it is well-kn", wordStarts: [])
+
+        // #then the gate waits, as it does for the first two letters of any word
+        XCTAssertEqual(decision, .proceed)
+    }
+
+    func test_compoundBeingTyped_withASlipAfterTheHyphen_isStillOffered() {
+        // #given letters after the hyphen that cannot become a word
+        let decision = decide("it is user-fxq", wordStarts: ["user"])
+
+        // #then the compound is offered a fix as a whole
+        XCTAssertEqual(decision, .offerCorrection(word: "user-fxq", correctedWord: "user-fxqx"))
+    }
+
+    func test_compoundFinishedWithASpace_isJudgedWhole() {
+        // #given the same compound with a space after it
+        let decision = decide("it is user-fac ", wordStarts: ["fac"])
+
+        // #then the whole token is judged: the part alone no longer excuses it
+        XCTAssertNotEqual(decision, .proceed)
+    }
+
+    func test_compoundKnownWhole_proceedsEvenWhenItsLastPartIsNoWordStart() {
+        // #given a token the dictionary can finish as a whole, whose last part starts no word
+        let decision = decide("send an e-mai", wordStarts: ["e-mai"])
+
+        XCTAssertEqual(decision, .proceed)
+    }
+
     // MARK: - Personal memory
 
     @MainActor

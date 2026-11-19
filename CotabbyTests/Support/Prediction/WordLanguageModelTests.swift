@@ -54,6 +54,19 @@ final class WordLanguageModelTests: XCTestCase {
         XCTAssertEqual(openSlash?.prefix, "")
     }
 
+    func test_context_wordAfterALongDash_isAWordBeingTyped() {
+        // #given a word begun against an em dash, and an em dash with nothing after it
+        let begun = LanguageModelContext.make(textBefore: "I am done\u{2014}th")
+        let open = LanguageModelContext.make(textBefore: "I am done\u{2014}")
+
+        // #then the model reads up to the dash and completes the letters, with no space before them
+        XCTAssertEqual(begun?.key, .init(text: "I am done\u{2014}", isSpaced: false))
+        XCTAssertEqual(begun?.prefix, "th")
+        XCTAssertEqual(open?.prefix, "")
+        // A dash after a number is a range, and there is no word to predict.
+        XCTAssertNil(LanguageModelContext.make(textBefore: "pages 5\u{2013}"))
+    }
+
     func test_context_addressesPathsAndABareDot_areStillNothingToPredict() {
         for text in ["see example.com/ab", "open ~/Desktop/fi", "mail jo@example.c", "version v1.x", "I am done.", "see www.ex"] {
             XCTAssertNil(LanguageModelContext.make(textBefore: text), text)

@@ -368,3 +368,20 @@ auto:review	please revirw |
 # Where two readings are close (the bar would show a list) it keeps quiet: see `we sayed`,
 # `I will try agen` above. A form one key from two words stays a question too.
 !auto	that is the nect |
+
+## 0.4.6: the second half of a hyphenated word
+# While the letters after the hyphen can still become a word, nothing is flagged: the strip keeps
+# the word. The whole token used to be judged on every key (`well-kn` offered `well-in`).
+proceed	it is well-kn|
+proceed	it is user-fac|
+proceed	the cost-effecti|
+proceed	a non-blo|
+proceed	the server-si|
+proceed	a data-dri|
+proceed	the so-calle|
+# A slip in those letters is still caught, mid-word and when a space finishes the compound.
+bar:well-known	it is well-knwon|
+bar:user-facing	a user-facign |
+bar:self-service	a self-servcie |
+# The half before the hyphen is judged when the hyphen finishes it, as before.
+bar:the	it is hte-|

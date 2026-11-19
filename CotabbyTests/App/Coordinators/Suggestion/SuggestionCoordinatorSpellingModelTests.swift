@@ -943,6 +943,27 @@ final class SuggestionCoordinatorSpellingModelTests: XCTestCase {
         XCTAssertTrue(bar.presented.isEmpty)
     }
 
+    func test_secondHalfOfACompound_withTheStripOn_keepsTheStripThroughAPause() async throws {
+        // #given the strip on, and a hyphenated word whose second half is not finished. No
+        // dictionary word starts with the whole token, which used to make it a misspelling.
+        let text = "this page is user-fac"
+        let rig = try makeRig(text: text)
+        let bar = SpellingOfferRecorder()
+        let strip = StripRecorder()
+        rig.coordinator.candidateOfferPresenter = bar
+        rig.coordinator.wordPredictionPresenter = strip
+        rig.coordinator.prepareTypoGate(precedingText: text, textAfter: "")
+        scheduleCycleForTypedText(in: rig)
+        await waitUntil("The strip was never told the text") { strip.noted.last == text }
+
+        // #when the writer stops for longer than a bar is held back
+        try await Task.sleep(nanoseconds: UInt64((SuggestionCoordinator.midWordBarHoldSeconds + 0.2) * 1_000_000_000))
+
+        // #then no bar came for the half-typed word, and the strip was never taken down
+        XCTAssertTrue(bar.presented.isEmpty)
+        XCTAssertEqual(strip.timesHidden, 0)
+    }
+
     func test_finishedTypo_withTheStripOn_isDecidedAtOnce() throws {
         // #given the strip on and a misspelled word finished with a space
         let text = "We met at the restarant "

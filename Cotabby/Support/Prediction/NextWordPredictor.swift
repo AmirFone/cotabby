@@ -528,8 +528,10 @@ nonisolated enum NextWordPredictor {
             // Directly after a symbol or digit (`@jo`, `3rd`) the "word" is not prose. After a dot
             // or a slash it is, when the token is plain words joined by it (`users.na`, `read/wr`).
             // After an opening quote or bracket it is too; `'` can only be one here, since one
-            // that followed a letter was taken into the word above.
-            if let before = body.last, !before.isWhitespace, !"\"'(“‘-".contains(before) {
+            // that followed a letter was taken into the word above. A long dash opens the next
+            // clause (`done—th`), and the word after it used to get no strip at all.
+            if let before = body.last, !before.isWhitespace, !"\"'(“‘-".contains(before),
+               !CurrentWordExtractor.longDashes.contains(before) {
                 guard CurrentWordExtractor.endsInJoinedWords(text) else { return nil }
                 joinsAfterDot = before == "."
             }
@@ -537,7 +539,7 @@ nonisolated enum NextWordPredictor {
             // Right after a slash or a hyphen the next word is suggested as after a space. After a
             // dot it is not: that dot is nearly always the end of a sentence, a space away from
             // the next word.
-            guard last == "/" || last == "-", CurrentWordExtractor.endsInJoinedWords(text) else { return nil }
+            guard opensTheNextWord(last, in: text) else { return nil }
         }
         if joinsAfterDot, let dot = body.indices.last {
             // The dot inside `users.na` is not the end of a sentence: the words before it are still
@@ -546,6 +548,15 @@ nonisolated enum NextWordPredictor {
         }
         let context = contextTokens(of: body[sentenceStart(of: body)...])
         return Parsed(context: Array(context.suffix(maximumContext)), prefix: prefix)
+    }
+
+    /// Whether the next word is suggested right after `mark`, the last character of `text`, with
+    /// no space typed yet: after a slash or a hyphen that joins plain words (`read/`, `follow-`),
+    /// and after a long dash typed against a word, which is followed by the next clause. Not
+    /// after a dash that follows a number (`5–`), which is a range.
+    private static func opensTheNextWord(_ mark: Character, in text: String) -> Bool {
+        if CurrentWordExtractor.longDashes.contains(mark) { return text.dropLast().last?.isLetter == true }
+        return (mark == "/" || mark == "-") && CurrentWordExtractor.endsInJoinedWords(text)
     }
 
     /// Where the sentence the caret is in begins: after the last `.`, `!`, `?` or line break that

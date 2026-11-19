@@ -64,6 +64,18 @@ enum CurrentWordExtractor {
     /// The marks that join words with no space between them.
     static let joiningMarks: Set<Character> = [".", "/", "-"]
 
+    /// The long dashes. They are typed between two clauses, with spaces or without (`done—then`),
+    /// and macOS writes one for two hyphens in a row. A word begun against one is the first word
+    /// of the next clause, not the second half of a compound.
+    static let longDashes: Set<Character> = ["—", "–"]
+
+    /// The letters after the last hyphen of `word`: what the writer is typing in a compound that
+    /// is not finished (`kn` in `well-kn`). The whole word when it has no hyphen.
+    static func partBeingTyped(of word: String) -> Substring {
+        guard let hyphen = word.lastIndex(of: "-") else { return Substring(word) }
+        return word[word.index(after: hyphen)...]
+    }
+
     /// What follows a dot in a file name or a web address. A token with one of these is not words
     /// joined by a dot, and nothing in it is a spelling mistake.
     private static let fileAndDomainEndings: Set<String> = [

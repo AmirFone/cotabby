@@ -362,6 +362,15 @@ steady_cases() {
   else echo "FAIL  slow app: after a hyphen the strip still completes the word before: [$words]"; fail=$((fail+1)); fi
   if [ -n "$words" ]; then echo "PASS  slow app: after a hyphen the next word is offered"; pass=$((pass+1))
   else echo "FAIL  slow app: no strip after a hyphen"; fail=$((fail+1)); fi
+  # 0.4.6: the second half of a compound, and then a pause longer than a spelling bar is held
+  # back. The whole token (`user-fac`) used to be flagged as a misspelling, and the bar that came
+  # at the pause took the strip down just as the writer looked at it.
+  clear_doc; type_text "This page is user-"; sleep 0.6; mark; send "$(printf 'type\t%s' "fac")"; sleep 1.5
+  words=$(strip_now)
+  if printf '%s' "$words" | tr '·' '\n' | grep -qi '^ *fac'; then
+    echo "PASS  compound: the strip completes the half after the hyphen and stays through a pause"; pass=$((pass+1))
+  else echo "FAIL  compound: no strip for the half after the hyphen once the writer pauses: [${words:-no strip}]"; fail=$((fail+1)); fi
+  check "compound: no spelling bar for the unfinished half" "0" "$(since_mark | grep -c "Offered [0-9]* spelling fix")"
   clear_doc; mark; type_text "They can read/"; sleep 1.5
   quick "slow app: the strip is redrawn at the slash" "$(strip_delay)" 60
   words=$(strip_now)
