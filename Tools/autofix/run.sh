@@ -10,6 +10,10 @@
 # folder than Cotabby/Resources: the way to try a candidate dictionary or context table (a copy of
 # the folder with one file swapped) and compare its report before shipping anything.
 # AUTOFIX_ONLY=1 skips the wrong-word rows and model (a retrain of the auto-fix judge alone).
+# AUTOFIX_OUT=<file> writes the auto-fix judge there and leaves autofix_confidence_en.json alone.
+# The second judge (autofix_keyboard_en.json, see FORK.md "Two judges") is trained this way:
+#   AUTOFIX_ONLY=1 AUTOFIX_OUT=Cotabby/Resources/autofix_keyboard_en.json TARGET_WRONG=0.04 \
+#     KEYS_WEIGHT=0.3 SHORT_TARGET_WRONG=0.02 SHORT_SWAPS_EXEMPT=1 Tools/autofix/run.sh <work-dir>
 # Needs: uv (for the Python environment), a built cotabby-spell (see FORK.md).
 set -euo pipefail
 WORK="$1"; shift
@@ -56,5 +60,5 @@ fi
 wait
 
 "$WORK/venv/bin/python" "$SCRIPTS/train.py" "$WORK/rows" "$DICTIONARY" "$WORK/birkbeck" \
-  "$RESOURCES/autofix_confidence_en.json" "$@"
+  "${AUTOFIX_OUT:-$RESOURCES/autofix_confidence_en.json}" "$@"
 [ -n "${AUTOFIX_ONLY:-}" ] || "$WORK/venv/bin/python" "$SCRIPTS/train_wrong_word.py" "$WORK/wrong" "$RESOURCES/wrong_word_en.json" "$@"

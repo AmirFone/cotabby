@@ -39,7 +39,7 @@ On a Mac with less than 16 GB of memory, install tabby-2-mini (or tabby-2-nano u
 ## How it works while you type
 
 - **Certain fixes happen by themselves** when you finish a word: `teh` → the, `becuase` → because, `enuf` → enough, `dont` → don't, typos before a comma or period too. A short green flash shows what changed; Cmd+Z undoes it.
-  A small trained model decides which fixes are certain (see "Auto-fix model" below), and the spelling work starts the moment you press Space, so the fix lands before your next key.
+  Two small trained models decide which fixes are certain (see "Auto-fix model" and "Two judges" below), and the spelling work starts the moment you press Space, so the fix lands before your next key.
 - **Two words run together are split:** `nextdoor` → next door, `infact` → in fact, when the two halves are common words that really follow each other.
 - **Shift slips are undone instantly:** `THe` → The, `kKing` → King (not `IDs`, `MHz`, or `iPhone`).
 - **Names you spelled right are capitalized, not "corrected":** `walmart` → Walmart, `monday` → Monday. When a common word is one slip away (`hungary`: Hungary or hungry?) you get the bar instead.
@@ -364,7 +364,8 @@ fixes of two- to four-letter forms were wrong 6 times in 43, where the generated
 75: a generated slip of `form` is not the `fomr` a writer types for `from`. Keeping the short words on
 a model trained without the slips removes those errors and most of the gain with them (a plain
 retrain on today's engine already gives 353 of those 359). Neither clears the bar of "more fixes, no
-more wrong ones, no more edits of untouched text", so the shipped model is unchanged. The options stay
+more wrong ones, no more edits of untouched text", so in 0.4.4 the shipped model is unchanged (0.4.5
+uses the retrained model another way, see "Two judges" below). The options stay
 in `train.py` (`KEYS_WEIGHT`, `SHORT_TARGET_WRONG`, `SHORT_PLAIN`); with none set it trains as before.
 What would help is the writer's own short-word slips as training rows, which the fuller training
 record of 0.4.4 starts to collect.
@@ -376,6 +377,54 @@ contradicted seven regression cases where the words before settle a short form (
 `she hit her hed` → head). The wrong short fixes of that day came from the certain-misspellings table
 and from habits, not from the model, and those are handled where they arise: `thay` left the table,
 and a fix the writer replaces or undoes now takes the habit down a step.
+
+### Two judges (0.4.5)
+
+The bar set for 0.4.4, "not one more wrong fix", was too strict for what the writer asked for: more
+slips fixed without a question, with a wrong fix now and then accepted as the price. Replacing the
+model failed for a narrower reason than its confidence: trained with finger slips it also *orders*
+the candidates of a few ambiguous forms worse (`sayed` as `stayed` with a dropped letter, where the
+writer meant `said`), and the first candidate is the word that gets typed.
+
+So the order stays with the first model, and the retrained one is bundled beside it as a second
+judge (`autofix_keyboard_en.json`, read by `TypoGateInputs.secondOpinion`). It is asked only about
+the candidate the first judge put first, and its confidence counts only when
+
+- it puts that same candidate first itself,
+- that candidate's score leads every other by the margin under which the bar shows a list (0.15),
+  so `agen` (again, agent) and `sayed` (said, stayed) stay questions, and
+- no other candidate sounds exactly like what was typed.
+
+Everything the first judge fixes alone is fixed as before; the second can only add fixes. It is
+trained with the slips at weight 0.3 and a stricter bar for forms of up to four letters that are not
+a plain swap (2% wrong out of fold, 4% for the rest); the command is in `Tools/autofix/run.sh`.
+
+Measured through the real gate (`cotabby-spell --accuracy`, `--clean`, `--replay --adapt`), first
+judge alone against both:
+
+| | First judge alone (0.4.4) | Two judges (0.4.5) | Of the added fixes, wrong |
+|---|---|---|---|
+| Two recorded days: slips the writer corrected, fixed unasked (663) | 342 | 375 | 0 of 33 |
+| Two recorded days: fixed to another word than the one meant | 3 | 3 | |
+| Two recorded days: words left as typed that are changed (3,398) | 91 | 108 | 15 are slips left standing, fixed right; 2 are one-word fragments nobody can judge |
+| Other writers' misspellings in held-out sentences (8,000) | 49.5% | 56.6% | 10 of about 570 |
+| Generated finger slips in held-out sentences (8,000) | 43.5% | 54.9% | 13 of about 910 |
+| Wikipedia typos, bare words (1,097) | 66.3% | 67.7% | 1 of about 15 |
+| Birkbeck misspellings, bare words (15,153) | 34.9% | 35.9% | 45 of about 150 |
+| Schoolchildren's spellings, bare words (429) | 23.8% | 25.6% | 1 of 8 |
+| 40,000 words of untouched text: edited | 24 | 26 | |
+| Engine time per key, 95% within (regression cases) | 1.85 ms | 1.86 ms | |
+
+Read it this way. In a sentence, where the app always is, about 98 of 100 added fixes are right and
+the share of wrong ones among all automatic fixes falls (6.5% to 5.9% on the misspelling sentences).
+On a bare word with nothing before it the second judge adds little and 3 in 10 of that little is
+wrong: a spelling by ear that lands one key from another word (`brigth` meant as `bridge`). The cost
+is real and small: on the held-out sentences about one more wrong fix per 800 misspelled words.
+
+The margin and sound conditions were chosen with a look at the two recorded days, so those two rows
+are not a clean test. The held-out rows were run once, afterwards, and nothing was tuned on them.
+A writer who undoes fixes raises the threshold for both judges at once
+(`adaptedAutoApplyMinimumConfidence`), and an undone fix is never made again for that word.
 
 ## Wrong-word model
 

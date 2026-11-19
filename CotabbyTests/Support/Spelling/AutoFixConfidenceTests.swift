@@ -96,6 +96,11 @@ final class AutoFixConfidenceTests: XCTestCase {
         XCTAssertNotNil(AutoFixFeatures.bundledModel(),
                         "Retrain with Tools/autofix/run.sh after changing AutoFixFeatures.names")
     }
+
+    func test_bundledKeyboardModel_matchesThisBuildsFeatureList() {
+        XCTAssertNotNil(AutoFixFeatures.bundledKeyboardModel(),
+                        "Retrain the second judge too (Tools/autofix/run.sh, AUTOFIX_OUT) after changing AutoFixFeatures.names")
+    }
 }
 
 /// With a model probability the gate applies a fix on that probability; without one it falls back to

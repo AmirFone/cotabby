@@ -575,6 +575,7 @@ final class CotabbyAppEnvironment {
         )
         suggestionCoordinator.nextWordModel = nextWordModel
         suggestionCoordinator.autoFixModel = AutoFixFeatures.bundledModel()
+        suggestionCoordinator.keyboardFixModel = AutoFixFeatures.bundledKeyboardModel()
         let americanSpellings = AmericanSpellings.preferredOnThisMac()
         suggestionCoordinator.americanSpellings = americanSpellings
         suggestionCoordinator.wrongWordModel = WrongWordDetector.bundledModel()

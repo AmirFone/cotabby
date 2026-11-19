@@ -135,7 +135,7 @@ struct ExportReplay {
         print("  (some of these are slips you never fixed, which the engine now fixes; --show lists them)")
         for (stage, words) in changedKept.sorted(by: { $0.key < $1.key }) {
             print("  \(stage): \(words.count)")
-            if showsWords { words.prefix(60).forEach { print("    \($0)") } }
+            if showsWords { words.prefix(200).forEach { print("    \($0)") } }
         }
         print("  capital only (the text before each sentence is not in this export): \(capitalOnly)")
         let asked = askedAboutKept.values.reduce(0, +)

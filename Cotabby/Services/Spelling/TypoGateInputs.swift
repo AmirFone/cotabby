@@ -27,6 +27,8 @@ struct SpellingEngineDependencies {
     var personalWords: ((_ typo: String) -> [PersonalVocabulary.Match])?
     /// The trained auto-fix judge; nil falls back to the score-and-margin rule.
     var autoFixModel: TreeEnsembleModel?
+    /// The judge trained with finger slips as well; nil leaves the first judge alone.
+    var keyboardFixModel: TreeEnsembleModel?
     /// The trained wrong-word judge for the sentence pass; nil falls back to the listed confusables.
     var wrongWordModel: TreeEnsembleModel?
     /// Set where the writer spells the American way: fixes come in that spelling (`neighbur` →
@@ -339,23 +341,60 @@ final class TypoGateInputs {
               !ranked.contains(where: { $0.signals.isProperNoun || $0.signals.personalAccepted >= SpellingCandidateRanker.habitLeadCount })
         else { return ranked }
         let capitalized = isCapitalizedMidSentence(word)
-        let scored = ranked.indices.map { index -> (candidate: RankedSpellingCandidate, probability: Double) in
-            (ranked[index], model.probability(features: AutoFixFeatures.vector(
-                typo: word,
-                ranked: ranked,
-                index: index,
-                capitalizedMidSentence: capitalized
-            )))
+        let features = ranked.indices.map {
+            AutoFixFeatures.vector(typo: word, ranked: ranked, index: $0, capitalizedMidSentence: capitalized)
         }
+        let scored = ranked.indices.map { (candidate: ranked[$0], probability: model.probability(features: features[$0])) }
         // Stable: equal probabilities keep the ranker's order.
         let ordered = scored.enumerated().sorted { lhs, rhs in
             lhs.element.probability != rhs.element.probability
                 ? lhs.element.probability > rhs.element.probability
                 : lhs.offset < rhs.offset
         }
-        confidenceByFinishedWord[word] = ordered.first?.element.probability
+        confidenceByFinishedWord[word] = ordered.first.map { first in
+            max(first.element.probability, secondOpinion(on: first.offset, ranked: ranked, features: features, from: model) ?? 0)
+        }
         return ordered.map(\.element.candidate)
     }
+
+    /// What the keyboard judge adds for the candidate the first judge put first: its own
+    /// confidence, read against the first judge's threshold, when it puts that same candidate
+    /// first too. Nil when there is no second judge or the two disagree about the word.
+    ///
+    /// Why two judges and not one better one: the first was trained on recorded misspellings,
+    /// which are mostly spelling beliefs (`sayed`, `wher`), and is cautious about finger slips: of
+    /// the slips whose first candidate was right on a recorded day it fixed four swaps in five
+    /// but one neighbouring-key slip in five. A judge trained with generated finger slips fixes
+    /// far more of those, and on its own orders the candidates of a few short, ambiguous forms
+    /// worse (`sayed` as `stayed` with a dropped letter, not `said`). So the order of the bar,
+    /// and which word may be typed for the writer, stays the first judge's. The second only
+    /// says "I am sure of that word too", and where it would have picked another word it says
+    /// nothing. Everything the first judge fixes alone is fixed as before.
+    ///
+    /// It also says nothing in two cases where the form may be a word spelled by ear and not a
+    /// finger slip at all, which is what the first judge was trained to tell apart:
+    /// - the ranker itself holds two readings about equally likely: the first candidate's score
+    ///   is within `choiceListMaximumMargin` of another's, the gate's own test for "show a list"
+    ///   (`said` beside `stayed` for `sayed`, `again` beside `agent` for `agen`);
+    /// - another candidate sounds exactly like what was typed.
+    ///
+    /// Its confidence is returned as the first judge's threshold plus its own margin, because
+    /// the gate compares one number with one threshold (raised for a writer who undoes fixes,
+    /// which then holds for both).
+    private func secondOpinion(
+        on first: Int, ranked: [RankedSpellingCandidate], features: [[Double]], from model: TreeEnsembleModel
+    ) -> Double? {
+        guard let second = dependencies.keyboardFixModel else { return nil }
+        let closest = ranked.indices.filter { $0 != first }.map { ranked[$0].candidate.score }.max() ?? -.infinity
+        guard ranked[first].candidate.score - closest >= Self.leastLeadForASecondOpinion,
+              !ranked.indices.contains(where: { $0 != first && ranked[$0].signals.soundsIdentical }) else { return nil }
+        let probabilities = features.map { second.probability(features: $0) }
+        guard let best = probabilities.indices.max(by: { probabilities[$0] < probabilities[$1] }), best == first else { return nil }
+        return model.threshold + (probabilities[best] - second.threshold)
+    }
+
+    /// The gate's own margin for "show a list", so the two can never drift apart.
+    static let leastLeadForASecondOpinion = TypoGate.Settings.baseChoiceListMaximumMargin
 
     /// A candidate that is one of the writer's own words keeps the capitals they write it with.
     private func inPersonalCasing(_ ranked: RankedSpellingCandidate) -> RankedSpellingCandidate {

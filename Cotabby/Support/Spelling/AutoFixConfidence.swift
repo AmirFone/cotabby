@@ -21,6 +21,13 @@ nonisolated enum AutoFixFeatures {
         TreeEnsembleModel.bundled(named: "autofix_confidence_en", featureNames: names, in: bundle)
     }
 
+    /// The second judge: the same inputs, trained with generated finger slips as well (a key
+    /// beside the one meant, a dropped, extra or swapped letter). It only ever adds its
+    /// confidence to a fix the first judge already put first (`TypoGateInputs.orderedByModel`).
+    static func bundledKeyboardModel(in bundle: Bundle = .main) -> TreeEnsembleModel? {
+        TreeEnsembleModel.bundled(named: "autofix_keyboard_en", featureNames: names, in: bundle)
+    }
+
     static let names: [String] = [
         "typoLength", "typoIsShort", "typoVowelRatio", "typoHasNonLetter", "capitalizedMidSentence",
         "candidateCount", "rankerPosition", "topScore", "margin", "secondScore", "nearCount",

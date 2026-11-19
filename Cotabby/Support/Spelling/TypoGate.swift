@@ -38,7 +38,7 @@ enum TypoGate {
         /// ...and at least this far ahead of the runner-up, so "wich" (which/with) never auto-fixes.
         var autoApplyMinimumMargin = 0.4
         /// Below this gap between the top two, the writer picks from a list instead of a green ghost.
-        var choiceListMaximumMargin = 0.15
+        var choiceListMaximumMargin = Settings.baseChoiceListMaximumMargin
         /// A top score under this is too unsure to present as a single suggestion.
         var singleOfferMinimumScore = 0.5
         /// With a trained model (`AutoFixConfidenceModel`), auto-apply instead needs this probability
@@ -48,6 +48,9 @@ enum TypoGate {
         var midWordMinimumLength = 3
 
         static let baseAutoApplyMinimumScore = 1.12
+        /// Also read by `TypoGateInputs.secondOpinion`: where the gate would show a list, the
+        /// second judge keeps quiet.
+        static let baseChoiceListMaximumMargin = 0.15
 
         /// The auto-fix bar, raised for a writer who undoes auto-fixes: each undone fix already stops
         /// that one word from being fixed again, and a high undo rate says the engine's confident

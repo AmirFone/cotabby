@@ -115,6 +115,11 @@ struct Harness {
         let autoFixModel = arguments.useModel
             ? (try? Data(contentsOf: modelURL)).flatMap { TreeEnsembleModel(data: $0, featureNames: AutoFixFeatures.names) }
             : nil
+        // The second judge, when the resources have it; NO_SECOND_JUDGE=1 measures without it.
+        let keyboardFixModel = arguments.useModel && ProcessInfo.processInfo.environment["NO_SECOND_JUDGE"] == nil
+            ? (try? Data(contentsOf: root.appendingPathComponent("autofix_keyboard_en.json")))
+                .flatMap { TreeEnsembleModel(data: $0, featureNames: AutoFixFeatures.names) }
+            : nil
         let wrongWordModel = arguments.useModel
             ? (try? Data(contentsOf: root.appendingPathComponent("wrong_word_en.json")))
                 .flatMap { TreeEnsembleModel(data: $0, featureNames: WrongWordDetector.featureNames) }
@@ -137,6 +142,7 @@ struct Harness {
                 },
                 personalWords: { vocabulary.matches(for: $0) },
                 autoFixModel: autoFixModel,
+                keyboardFixModel: keyboardFixModel,
                 wrongWordModel: wrongWordModel,
                 americanSpellings: arguments.americanSpellings,
                 technicalTerms: technicalTerms,
@@ -752,10 +758,11 @@ func runAccuracy(_ path: String, harness: Harness) -> Int32 {
             misses.append("\(typo) → \(intended): got \(Render.decision(decision))")
         }
     }
-    if total <= 200 || ProcessInfo.processInfo.environment["SHOW_MISSES"] != nil {
+    let showsAll = ProcessInfo.processInfo.environment["SHOW_MISSES"] != nil
+    if total <= 200 || showsAll {
         for miss in misses { print("MISS  " + miss) }
     }
-    for wrong in wrongAuto.prefix(40) { print("WRONG-AUTO  " + wrong) }
+    for wrong in wrongAuto.prefix(showsAll ? wrongAuto.count : 40) { print("WRONG-AUTO  " + wrong) }
     func pct(_ n: Int) -> String { String(format: "%.1f%%", Double(n) * 100 / Double(max(total, 1))) }
     let wrongRate = String(format: "%.1f%%", Double(wrongAutoFixes) * 100 / Double(max(autoFixes, 1)))
     print("\(total) words  top-1 \(pct(top1))  top-2 \(pct(top2))  top-3 \(pct(top3))  any suggestion \(pct(found))  " +

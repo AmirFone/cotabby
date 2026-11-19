@@ -23,6 +23,10 @@ from several common words: the lowest probability at which that share of their o
 (recorded and generated) is wrong. The model file has one threshold, so the stricter bar is written
 as one more tree that lowers the log-odds of every candidate of a short word by the difference; the
 app needs no change and the candidates keep their order.
+SHORT_SWAPS_EXEMPT=1 leaves one kind of short candidate out of that stricter bar: two neighbouring
+letters swapped (`teh` for `the`), the one short slip that has a single reading. The bar then holds
+for a short candidate that is anything else, the tree asks for the swap as well as the length, and
+a swap candidate of a short word keeps the model's own answer.
 SHORT_PLAIN=1 goes further: short typed words are judged by a second model trained without the
 keyboard slips, at the threshold that model earns by itself, so they behave exactly as they would
 with no keyboard slips at all and only longer words gain. Both models go into the one file: every
@@ -31,6 +35,7 @@ tree first asks for the typed length and then walks the short or the long model'
 Usage: train.py <rows-dir> <dictionary.txt> <birkbeck-dir> <out.json> [--report-only]
 Env: TARGET_WRONG (default 0.03), CLEAN_WEIGHT (default 3), TREES (250), LEAVES (15), SHOW_WRONG=1,
      KEYS_WEIGHT (default 0: trains without the keyboard slips), SHORT_TARGET_WRONG (default none),
+     SHORT_SWAPS_EXEMPT=1 (with SHORT_TARGET_WRONG),
      SHORT_PLAIN=1 (instead of SHORT_TARGET_WRONG),
      CHECK=<file> (sample inputs and probabilities for `cotabby-spell --check-model`)
 """
@@ -48,6 +53,7 @@ KEYS_WEIGHT = float(os.environ.get("KEYS_WEIGHT", 0))
 SHORT_TARGET_WRONG = float(os.environ["SHORT_TARGET_WRONG"]) if os.environ.get("SHORT_TARGET_WRONG") else None
 SHORT_PLAIN = bool(os.environ.get("SHORT_PLAIN"))
 SHORT_LENGTH = 4
+SHORT_SWAPS_EXEMPT = bool(os.environ.get("SHORT_SWAPS_EXEMPT"))
 
 dictionary = {line.split()[0] for line in open(dictionary_path, encoding="utf-8")}
 UK_US = [(r"isation", "ization"), (r"ise$", "ize"), (r"ised$", "ized"), (r"ising$", "izing"), (r"ises$", "izes"),
@@ -137,6 +143,15 @@ tests = {
 }
 names = list(train[0]["header"])
 LENGTH_COLUMN = names.index("typoLength")
+SWAP_COLUMN = names.index("topIsAdjacentSwap")
+
+
+def under_stricter_bar(rows):
+    """The candidate rows the stricter bar for short words applies to: every candidate of a typed word
+    of up to SHORT_LENGTH letters, or with SHORT_SWAPS_EXEMPT those that are not a swap of two
+    neighbouring letters."""
+    short = rows[:, LENGTH_COLUMN] <= SHORT_LENGTH + 0.5
+    return short & (rows[:, SWAP_COLUMN] < 0.5) if SHORT_SWAPS_EXEMPT else short
 
 
 def flatten_rows(words):
@@ -192,8 +207,16 @@ def log_odds(probability):
 # The stricter bar for short words, as the log-odds taken off every candidate of one.
 short_cut, short_shift = None, 0.0
 if SHORT_TARGET_WRONG is not None:
+    def is_held(word, choice):
+        """Whether the word's first choice is a candidate the stricter bar applies to."""
+        if len(word["typed"]) > SHORT_LENGTH:
+            return False
+        if not SHORT_SWAPS_EXEMPT:
+            return True
+        return word["xs"][word["candidates"].index(choice[2])][SWAP_COLUMN] < 0.5
+
     short = sorted((choice for choice, word in zip(oof_choices, train)
-                    if len(word["typed"]) <= SHORT_LENGTH and (word["tunes"] or word["keys"])),
+                    if (word["tunes"] or word["keys"]) and is_held(word, choice)),
                    key=lambda choice: -choice[0])
     wrong = np.cumsum([1 - choice[1] for choice in short])
     passing = np.nonzero(wrong / np.arange(1, len(short) + 1) <= SHORT_TARGET_WRONG)[0]
@@ -233,8 +256,11 @@ def probabilities_of(words):
     if is_short.any():
         if plain_final is not None:
             result[is_short] = plain_final.predict_proba(rows[is_short])[:, 1]
-        if short_shift:
-            result[is_short] = shifted(result[is_short], short_shift)
+            if short_shift:
+                result[is_short] = shifted(result[is_short], short_shift)
+        elif short_shift:
+            held = under_stricter_bar(rows)
+            result[held] = shifted(result[held], short_shift)
     return result
 
 
@@ -369,7 +395,11 @@ def by_length(short, long):
 trees = [flatten(tree) for tree in final.booster_.dump_model()["tree_info"]]
 if plain_final is not None:
     trees = [by_length(flatten(short), long) for short, long in zip(plain_final.booster_.dump_model()["tree_info"], trees, strict=True)]
-if short_shift:
+if short_shift and SHORT_SWAPS_EXEMPT and plain_final is None:
+    # Short word (node 0, left) and not a swap (node 1, left): the leaf that takes the shift off.
+    trees.append({"feature": [LENGTH_COLUMN, SWAP_COLUMN, -1, -1, -1], "threshold": [SHORT_LENGTH + 0.5, 0.5, 0, 0, 0],
+                  "left": [1, 3, 0, 0, 0], "right": [2, 4, 0, 0, 0], "value": [0, 0, 0, round(-short_shift, 6), 0]})
+elif short_shift:
     trees.append({"feature": [LENGTH_COLUMN, -1, -1], "threshold": [SHORT_LENGTH + 0.5, 0, 0], "left": [1, 0, 0],
                   "right": [2, 0, 0], "value": [0, round(-short_shift, 6), 0]})
 with open(out_path, "w") as f:

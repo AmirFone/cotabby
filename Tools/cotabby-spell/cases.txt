@@ -139,7 +139,7 @@ proceed	we need an upsert |
 proceed	update the backend |
 bar:frontend	the frontned |
 bar:json	parse the josn |
-bar:kubernetes	check the kuberntes |
+auto:kubernetes	check the kuberntes |
 bar:config	edit the confg |
 bar:webhook	add a webhok |
 auto:endpoint	add an endpiont |
@@ -360,3 +360,11 @@ proceed	ask about the proto |
 proceed	we need a signoff |
 proceed	the workstream |
 proceed	then resync |
+
+## 0.4.5: the second judge (finger slips)
+# A slip the first judge only offers is fixed when the keyboard-trained judge agrees on the word.
+auto:and	we met amd talked amd |
+auto:review	please revirw |
+# Where two readings are close (the bar would show a list) it keeps quiet: see `we sayed`,
+# `I will try agen` above. A form one key from two words stays a question too.
+!auto	that is the nect |

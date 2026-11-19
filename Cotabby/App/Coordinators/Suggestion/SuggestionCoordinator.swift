@@ -108,6 +108,8 @@ final class SuggestionCoordinator: ObservableObject {
     /// The trained judge of which spelling fix to put first and whether to apply it unasked; set by
     /// the app environment, nil in tests and when the bundled file does not match this build.
     var autoFixModel: TreeEnsembleModel?
+    /// The second judge, trained with finger slips as well; see `TypoGateInputs.secondOpinion`.
+    var keyboardFixModel: TreeEnsembleModel?
     /// The American spelling of words written two ways, when this Mac's region uses it.
     var americanSpellings: AmericanSpellings?
     /// What the spelling engine decided about a word, with its candidates and confidence, at the

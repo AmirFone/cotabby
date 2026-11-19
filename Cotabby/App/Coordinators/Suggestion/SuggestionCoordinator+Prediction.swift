@@ -926,6 +926,7 @@ extension SuggestionCoordinator {
             },
             personalWords: personalVocabulary.map { vocabulary in { vocabulary.matches(for: $0) } },
             autoFixModel: autoFixModel,
+            keyboardFixModel: keyboardFixModel,
             wrongWordModel: wrongWordModel,
             americanSpellings: americanSpellings,
             technicalTerms: technicalTerms,

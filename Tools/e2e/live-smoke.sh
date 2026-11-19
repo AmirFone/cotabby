@@ -781,6 +781,10 @@ fi
 
 case_type "auto-fix transposition" "I think teh " "I think the "
 case_type "auto-fix mid-sentence" "it broke becuase " "It broke because "
+# 0.4.5: a finger slip the first model only offers is fixed when the keyboard-trained model agrees
+# on the word, and left a question where two readings are close.
+case_type "auto-fix: finger slip, two models agree" "please revirw " "Please review "
+case_type "auto-fix: two close readings stay a question" "we sayed " "We sayed "
 case_type "apostrophe repair" "I dont " "I don't "
 case_type "correct text untouched" "over there " "Over there "
 case_type "case preserved" "Teh " "The "

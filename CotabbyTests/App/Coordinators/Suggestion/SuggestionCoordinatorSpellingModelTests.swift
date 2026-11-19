@@ -123,6 +123,71 @@ final class SuggestionCoordinatorSpellingModelTests: XCTestCase {
         XCTAssertTrue(rig.engine.requests.isEmpty, "A fixed word must not also start a completion")
     }
 
+    // MARK: - The second judge
+
+    func test_fingerSlipTheFirstJudgeOnlyOffers_isFixedWithTheSecondJudge() throws {
+        // #given a swapped pair of letters in a long word, which the first judge alone offers
+        let text = "please revirw "
+        let rig = try makeRig(text: text)
+        let (alone, _) = engineDecision(for: text, in: rig, word: "revirw")
+        if case .applyCorrection = alone {
+            return XCTFail("The first judge fixes this alone now; pick a slip it only offers")
+        }
+
+        // #when the second judge is there as well
+        rig.coordinator.keyboardFixModel = try XCTUnwrap(AutoFixFeatures.bundledKeyboardModel())
+        let (together, confidence) = engineDecision(for: text, in: rig, word: "revirw")
+
+        // #then the fix is made, with a confidence the gate's one threshold accepts
+        XCTAssertEqual(together, .applyCorrection(word: "revirw", correctedWord: "review"))
+        XCTAssertGreaterThanOrEqual(try XCTUnwrap(confidence), try XCTUnwrap(rig.coordinator.autoFixModel).threshold)
+    }
+
+    func test_formWithTwoCloseReadings_staysOnTheBarWithTheSecondJudge() throws {
+        // #given a word spelled by ear that is also one dropped letter from another word
+        let text = "we sayed "
+        let rig = try makeRig(text: text)
+        rig.coordinator.keyboardFixModel = try XCTUnwrap(AutoFixFeatures.bundledKeyboardModel())
+
+        // #when the engine decides
+        let (decision, _) = engineDecision(for: text, in: rig, word: "sayed")
+
+        // #then both readings are offered and nothing is typed for the writer
+        guard case let .offerChoices(_, items) = decision else {
+            return XCTFail("Expected a list, got \(decision)")
+        }
+        XCTAssertTrue(items.map(\.term).contains("said"))
+    }
+
+    func test_secondJudge_leavesTheOrderOfTheBarAlone() throws {
+        // #given a slip whose candidates the two judges could order differently
+        let text = "I will try agen "
+        let rig = try makeRig(text: text)
+        let (alone, _) = engineDecision(for: text, in: rig, word: "agen")
+
+        // #when the second judge is added
+        rig.coordinator.keyboardFixModel = try XCTUnwrap(AutoFixFeatures.bundledKeyboardModel())
+        let (together, _) = engineDecision(for: text, in: rig, word: "agen")
+
+        // #then the decision, and the order in it, is the first judge's
+        XCTAssertEqual(together, alone)
+    }
+
+    func test_fixTheFirstJudgeMakesAlone_isStillMadeWithTheSecondJudge() throws {
+        // #given a misspelling the first judge fixes unasked
+        let text = "We met at the restarant "
+        let rig = try makeRig(text: text)
+        let (alone, _) = engineDecision(for: text, in: rig, word: "restarant")
+
+        // #when the second judge is added
+        rig.coordinator.keyboardFixModel = try XCTUnwrap(AutoFixFeatures.bundledKeyboardModel())
+        let (together, _) = engineDecision(for: text, in: rig, word: "restarant")
+
+        // #then nothing changes
+        XCTAssertEqual(alone, .applyCorrection(word: "restarant", correctedWord: "restaurant"))
+        XCTAssertEqual(together, alone)
+    }
+
     func test_misspellingAfterADot_isOfferedAndNeverTypedUnasked() async throws {
         // #given a table name with a slip in its second word, finished with a space; the same slip
         // as a word of its own is one the engine fixes without asking

@@ -520,6 +520,7 @@
 		7DE4F91CADF4E65BCCF4DB17 /* SettingsRowLabel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44768629365FAD1A66DA3A51 /* SettingsRowLabel.swift */; };
 		7E11BEAD32E9FF170C92000A /* HuggingFaceModelBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C696204AAEBA357129F77646 /* HuggingFaceModelBrowserView.swift */; };
 		7E1DF586726D646A79E9718A /* KnownMisspellings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B4A3CB58EB75C080009D472 /* KnownMisspellings.swift */; };
+		7F2FFADD519455416326B3B1 /* autofix_keyboard_en.json in Resources */ = {isa = PBXBuildFile; fileRef = A71F7539E7098E5ABE636E60 /* autofix_keyboard_en.json */; };
 		7F5DD6592FAA0BC2866634AB /* AboutPaneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2559228BB102022DC48193D9 /* AboutPaneView.swift */; };
 		7FC103944F4EF39DB965F469 /* InMemoryLogging in Frameworks */ = {isa = PBXBuildFile; productRef = 88921938DC814625ED57D605 /* InMemoryLogging */; };
 		800D96A3889A915779826D11 /* MidWordContinuationPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3F56B79BF030507CC7FAE4D /* MidWordContinuationPolicy.swift */; };
@@ -621,6 +622,7 @@
 		98F1A634B603C61759C84486 /* AutoFixConfidence.swift in Sources */ = {isa = PBXBuildFile; fileRef = D548937A4D9E6A4A1724BECE /* AutoFixConfidence.swift */; };
 		992D34699B695EFE0EBA8A1C /* KeybindRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5F6D44A9B4EC51505A0A363 /* KeybindRow.swift */; };
 		99334CDC1399D03019202E85 /* CurrentWordExtractorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9331B12568E717FCF9A5086 /* CurrentWordExtractorTests.swift */; };
+		993FF181E3BD5A0F37DB8062 /* autofix_keyboard_en.json in Resources */ = {isa = PBXBuildFile; fileRef = A71F7539E7098E5ABE636E60 /* autofix_keyboard_en.json */; };
 		996786038E31C671B650DFE4 /* SuggestionOverlayViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9720913FECB22A9A28C96333 /* SuggestionOverlayViews.swift */; };
 		9973763A9F4EA4D8B4AE59EB /* SuggestionEngineRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 384FBCF5D7A3A446C5BE2B8D /* SuggestionEngineRouter.swift */; };
 		998168DC04A6A13D7D1F3165 /* ModelDownloadManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03CA4BBA3C54F840546033E0 /* ModelDownloadManagerTests.swift */; };
@@ -1407,6 +1409,7 @@
 		A54B1EDFEFB148F563A90A00 /* PersonalCorrectionMemoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalCorrectionMemoryTests.swift; sourceTree = "<group>"; };
 		A66389B78743ABACE7CD4D82 /* SuggestionWorkController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionWorkController.swift; sourceTree = "<group>"; };
 		A6B0048AAD1B2A4EA09DCEE0 /* UnitConversionEvaluator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnitConversionEvaluator.swift; sourceTree = "<group>"; };
+		A71F7539E7098E5ABE636E60 /* autofix_keyboard_en.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = autofix_keyboard_en.json; sourceTree = "<group>"; };
 		A73D95F2BF5CA59705653931 /* PromptSectionBudgetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptSectionBudgetTests.swift; sourceTree = "<group>"; };
 		A7FBE9101AF744A4D205B32D /* EmojiSynonymCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiSynonymCatalog.swift; sourceTree = "<group>"; };
 		A854CAFB1F557BC4CAED8819 /* VisualContextCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualContextCoordinator.swift; sourceTree = "<group>"; };
@@ -2963,6 +2966,7 @@
 				8F23C3E04749987B57590914 /* SpellingDictionaries */,
 				C74A7BEFA1AEE538F84598E1 /* american_spellings_en.txt */,
 				9BD4EF3BD88195CDB3740336 /* autofix_confidence_en.json */,
+				A71F7539E7098E5ABE636E60 /* autofix_keyboard_en.json */,
 				B3641A041EA59D6EFFE95658 /* commonly_misspelled_en.txt */,
 				9524E1E37969A4637F7C702E /* frequency_bigramdictionary_en_243_342.txt */,
 				99FBB636008490B66CF26772 /* frequency_dictionary_en_82_765.txt */,
@@ -3747,6 +3751,7 @@
 				1D5389E9562AF6315BFCDCE1 /* NOTICE.md in Resources */,
 				1A0F9DFA356777AB809B5EC2 /* american_spellings_en.txt in Resources */,
 				0701FC16306250B2AF076C45 /* autofix_confidence_en.json in Resources */,
+				7F2FFADD519455416326B3B1 /* autofix_keyboard_en.json in Resources */,
 				2C58DC2DD6112044E520C311 /* commonly_misspelled_en.txt in Resources */,
 				C63F95C324C29940FAC6B973 /* de-100k.txt in Resources */,
 				95B1C40207F57D7E059B9965 /* de.txt in Resources */,
@@ -3792,6 +3797,7 @@
 				DC0394C83D334B92A512A775 /* NOTICE.md in Resources */,
 				3C2C8800067D0B75824248D2 /* american_spellings_en.txt in Resources */,
 				D13BC9BEC0BE600A0B6DF3CE /* autofix_confidence_en.json in Resources */,
+				993FF181E3BD5A0F37DB8062 /* autofix_keyboard_en.json in Resources */,
 				66F66B2B10A6D43EEBF92C00 /* commonly_misspelled_en.txt in Resources */,
 				83B25F54B74EE35787D5DBD4 /* de-100k.txt in Resources */,
 				469626C2EFEDFD6C188941F5 /* de.txt in Resources */,
