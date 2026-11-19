@@ -31,6 +31,33 @@ final class SelfCorrectionDetectorTests: XCTestCase {
         XCTAssertEqual(detector.observe("the monkey ", isPlausible: { _, _ in true }), .init(typed: "monkee", corrected: "monkey"))
     }
 
+    func test_deletingOneCharacterPastTheWord_thenRetyping_isReported() {
+        // #given a finished misspelled word
+        var detector = SelfCorrectionDetector()
+        _ = detector.observe("I saw becuase ", isPlausible: plausible)
+
+        // #when the writer deletes it and the space before it too, then types the space and the word
+        XCTAssertNil(detector.observe("I saw", isPlausible: plausible))
+        XCTAssertNil(detector.observe("I saw ", isPlausible: plausible))
+        let correction = detector.observe("I saw because ", isPlausible: plausible)
+
+        // #then it is still their fix of that word
+        XCTAssertEqual(correction, .init(typed: "becuase", corrected: "because"))
+    }
+
+    func test_deletingIntoTheWordBefore_andWritingSomethingElse_isNotAFix() {
+        // #given a finished misspelled word
+        var detector = SelfCorrectionDetector()
+        _ = detector.observe("I saw becuase ", isPlausible: plausible)
+
+        // #when the writer deletes back into the word before it and goes another way
+        _ = detector.observe("I sa", isPlausible: plausible)
+        let correction = detector.observe("I sat because ", isPlausible: plausible)
+
+        // #then nothing is learned: the text before the word is not what it was
+        XCTAssertNil(correction)
+    }
+
     func test_changeOfMind_isNotAFix() {
         var detector = SelfCorrectionDetector()
         _ = detector.observe("I saw the cat ", isPlausible: plausible)

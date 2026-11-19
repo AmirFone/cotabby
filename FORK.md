@@ -369,6 +369,14 @@ in `train.py` (`KEYS_WEIGHT`, `SHORT_TARGET_WRONG`, `SHORT_PLAIN`); with none se
 What would help is the writer's own short-word slips as training rows, which the fuller training
 record of 0.4.4 starts to collect.
 
+A rule was tried on top of it and rejected as well: offer every form of up to four letters on the
+bar and fix only a clean swap of two neighbouring letters (`teh`, `taht`). With the shipped model it
+took away about ten right fixes on one recorded day (`tht`, `rght`, `clen`) and no wrong one, and it
+contradicted seven regression cases where the words before settle a short form (`they wher` → were,
+`she hit her hed` → head). The wrong short fixes of that day came from the certain-misspellings table
+and from habits, not from the model, and those are handled where they arise: `thay` left the table,
+and a fix the writer replaces or undoes now takes the habit down a step.
+
 ## Wrong-word model
 
 `WrongWordDetector.swift` gives every real word in a finished sentence its alternatives (a listed confusable, a same-sounding word, or a common word one edit away, never a plain plural or past tense) and asks a tree model whether one of them fits the sentence much better. Trained on real-word errors from the Birkbeck corpora and the listed confusables, swapped into held-out sentences; every other word of every sentence is a negative. The threshold is set by how many *correct* sentences get a flag.
@@ -735,6 +743,9 @@ what 0.4.4 does about it:
 | 305 of 1,067 bundled software terms were flagged one letter before they were complete (`debounc`), because "could still become a word" only asked the 30,000 commonest words | The check also asks the software terms and the words the writer keeps |
 | 8 of 10 wrong automatic fixes left no trace: the writer replaced the fix with a third word, which is not an undo | Recorded as `autoFixReplaced`, counted as a wrong fix, and the right word is learned |
 | The strip and the bar had clocks of 8 and 10 s that restarted whenever the panel was drawn, also with nobody typing | One clock, five seconds from the last key, and a panel that went away stays away until the next key |
+| One undo marked a slip as "meant as typed", also when the fix was a habit made dozens of times: the commonest slip of the day stood unflagged after one stray undo | An undo takes a habit down a step (it leads the bar and is automatic again after one more use) instead of switching it off |
+| A word retyped from one character further back than it began (the space before it deleted too) taught nothing | The watch on that word holds while the writer deletes back past it |
+| Before any letter, the strip sometimes offered the word just written again (after `read/`, `read`) | The word just written is not offered as the next word |
 | The record lost lines, last words, and most strip steps | See "Training data" |
 
 Looked at and not changed, because the day's numbers argue against it:

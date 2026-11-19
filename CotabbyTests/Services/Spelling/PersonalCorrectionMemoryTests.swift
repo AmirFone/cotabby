@@ -106,4 +106,41 @@ final class PersonalCorrectionMemoryTests: XCTestCase {
         XCTAssertFalse(memory.recordLeftStanding("zorvex"))
         XCTAssertFalse(makeMemory().recordLeftStanding("zorvex"))
     }
+
+    // MARK: - An undo against a habit
+
+    func test_undoOfAHabit_takesItDownAStep_andDoesNotKeepTheWord() {
+        // #given a fix the writer has made five times, so it is made for them
+        let memory = makeMemory()
+        (0..<5).forEach { _ in memory.recordAccepted(typo: "wich", replacement: "which") }
+
+        // #when it is undone once
+        let wasHabit = memory.demoteHabit(typo: "wich", fix: "which")
+
+        // #then it still leads (two uses on record), is not automatic, and the slip is still a slip
+        XCTAssertTrue(wasHabit)
+        XCTAssertEqual(memory.acceptedReplacements(for: "wich"), ["which": SpellingCandidateRanker.habitLeadCount])
+        XCTAssertFalse(memory.isKept("wich"))
+    }
+
+    func test_habitUndoneOnce_isAutomaticAgainAfterOneMoreUse() {
+        let memory = makeMemory()
+        (0..<5).forEach { _ in memory.recordAccepted(typo: "wich", replacement: "which") }
+        memory.demoteHabit(typo: "wich", fix: "which")
+
+        memory.recordAccepted(typo: "wich", replacement: "which")
+
+        XCTAssertEqual(memory.acceptedReplacements(for: "wich")["which"], SpellingCandidateRanker.habitAutoCount)
+    }
+
+    func test_undoOfAFixThatIsNoHabit_isLeftToTheCaller() {
+        // #given a fix made once
+        let memory = makeMemory()
+        memory.recordAccepted(typo: "wich", replacement: "which")
+
+        // #then there is no habit to take down, and nothing changes
+        XCTAssertFalse(memory.demoteHabit(typo: "wich", fix: "which"))
+        XCTAssertFalse(memory.demoteHabit(typo: "wich", fix: "with"))
+        XCTAssertEqual(memory.acceptedReplacements(for: "wich"), ["which": 1])
+    }
 }

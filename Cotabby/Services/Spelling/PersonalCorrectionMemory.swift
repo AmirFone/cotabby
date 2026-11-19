@@ -71,6 +71,24 @@ final class PersonalCorrectionMemory {
         userDefaults.set(entries, forKey: Self.defaultsKey)
     }
 
+    /// The writer undid an automatic fix, or changed it into another word. Returns true when that
+    /// fix was a habit of theirs (made often enough to be automatic), in which case it is only
+    /// taken down a step: it still leads the bar, and is automatic again once they make it again.
+    ///
+    /// Why not simply "keep the word as typed", as for any other undone fix: a kept word is never
+    /// flagged again, and one undo then switched off a fix the writer had made dozens of times.
+    /// In a recorded day the commonest slip of all (a ninth of every slip made) was undone once,
+    /// possibly by a stray key, and from then on stood in the text unflagged. One undo against a
+    /// habit is a doubt, not a verdict.
+    @discardableResult
+    func demoteHabit(typo: String, fix: String) -> Bool {
+        let key = typo.lowercased(), value = fix.lowercased()
+        guard let count = entries[key]?[value], count >= SpellingCandidateRanker.habitAutoCount else { return false }
+        entries[key]?[value] = SpellingCandidateRanker.habitLeadCount
+        userDefaults.set(entries, forKey: Self.defaultsKey)
+        return true
+    }
+
     /// Picking the quoted "as typed" slot means "stop flagging this", so the bar does not come back
     /// for the same word a moment later.
     func recordKept(_ key: String) {

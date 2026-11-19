@@ -25,9 +25,9 @@ final class WordPredictionControllerTests: XCTestCase {
         XCTAssertEqual(harness.controller.decideCaptureKey(InputMonitorKeyEvent(keyCode: 48)), .consume)
         flushMainQueue()
 
-        // #then the top word is typed and the next strip shows
+        // #then the top word is typed and the next strip shows, without the word just typed
         XCTAssertEqual(harness.inserter.insertedChunks, ["to "])
-        XCTAssertEqual(harness.panel.words, ["go", "be", "get", "the", "to"])
+        XCTAssertEqual(harness.panel.words, ["go", "be", "get", "the"])
         XCTAssertEqual(harness.commits, 1)
     }
 

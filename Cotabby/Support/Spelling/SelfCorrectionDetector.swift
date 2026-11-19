@@ -28,6 +28,10 @@ nonisolated struct SelfCorrectionDetector {
     mutating func observe(_ text: String, isPlausible: (_ typed: String, _ corrected: String) -> Bool) -> Correction? {
         var result: Correction?
         if let watched = finished {
+            // Deleting back past the start of the watched word (the space before it too) is still
+            // the writer going back over it. This used to end the watch, so a word retyped from one
+            // character further back than it began taught nothing.
+            let isDeletingBack = (watched.textBefore + watched.word + " ").hasPrefix(text)
             if text.hasPrefix(watched.textBefore) {
                 let rest = text.dropFirst(watched.textBefore.count)
                 let word = rest.prefix(while: Self.isWordCharacter)
@@ -37,7 +41,7 @@ nonisolated struct SelfCorrectionDetector {
                         result = Correction(typed: watched.word, corrected: String(word))
                     }
                 }
-            } else {
+            } else if !isDeletingBack {
                 finished = nil
             }
         }

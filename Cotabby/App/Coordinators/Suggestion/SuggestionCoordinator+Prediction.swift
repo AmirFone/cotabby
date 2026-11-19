@@ -877,7 +877,10 @@ extension SuggestionCoordinator {
                 personalCorrectionMemory?.recordAccepted(typo: outcome.typo, replacement: outcome.fix)
                 correctionJournal?.record(.autoFixKept, typed: outcome.typo, final: outcome.fix)
             case .reverted:
-                personalCorrectionMemory?.recordKept(outcome.typo)
+                // A habit is taken down a step; anything else was a guess, and the word is kept.
+                if personalCorrectionMemory?.demoteHabit(typo: outcome.typo, fix: outcome.fix) != true {
+                    personalCorrectionMemory?.recordKept(outcome.typo)
+                }
                 qualityMetricsStore.recordCorrectionReverted()
                 correctionJournal?.record(.autoFixUndone, typed: outcome.typo, final: outcome.typo, offered: outcome.fix)
             case .replaced:
@@ -894,6 +897,7 @@ extension SuggestionCoordinator {
     private func noteReplacedAutoFix(_ outcome: AutoFixOutcome) {
         guard let meant = outcome.replacement else { return }
         qualityMetricsStore.recordCorrectionReverted()
+        personalCorrectionMemory?.demoteHabit(typo: outcome.typo, fix: outcome.fix)
         let corrector = symSpellCorrector
         let isCorrection = SelfCorrectionDetector.isPlausibleFix(typed: outcome.typo, corrected: meant) {
             corrector.isDictionaryWord($0)

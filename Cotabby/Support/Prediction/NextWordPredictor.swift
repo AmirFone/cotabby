@@ -260,6 +260,14 @@ nonisolated enum NextWordPredictor {
         _ words: [String], parsed: Parsed, textBefore: String, usualCapitals: (String) -> String?,
         display: (String) -> String? = { _ in nil }
     ) -> NextWordPrediction? {
+        // Before any letter of a new word, the word just written is not offered again. A language
+        // model likes to repeat it, most of all after a slash (`read/` got `read` back as its
+        // second suggestion), and a writer who does mean `had had` types three letters.
+        var words = words
+        if parsed.prefix.isEmpty, let justWritten = lastWords(of: Substring(textBefore), count: 1).last {
+            let written = justWritten.lowercased().trimmingCharacters(in: .punctuationCharacters.union(.symbols))
+            words.removeAll { $0.lowercased() == written }
+        }
         guard !words.isEmpty else { return nil }
         let atSentenceStart = parsed.context.last == NextWordModel.sentenceStart
         let shouting = isShouting(textBefore, typedPrefix: parsed.prefix, usualCapitals: usualCapitals)

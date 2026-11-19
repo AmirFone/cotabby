@@ -179,6 +179,29 @@ final class NextWordPredictorTests: XCTestCase {
         XCTAssertEqual(prediction?.words.contains("with"), false)
     }
 
+    func test_wordJustWritten_isNotOfferedAgainAsTheNextWord() {
+        // #given a model that likes to repeat the word before the caret, after a space and after a slash
+        for text in ["I want to go ", "I want to go/"] {
+            let model = LanguageModelFixture.scores(textBefore: text, ["be": 0.3, "go": 0.25, "see": 0.1])
+
+            // #when predicting the next word
+            let prediction = NextWordPredictor.predict(textBefore: text, sources: sources(languageModel: model))
+
+            // #then the word just written is left out and the others stand
+            XCTAssertEqual(prediction?.words.contains("go"), false, text)
+            XCTAssertEqual(prediction?.words.isEmpty, false, text)
+        }
+    }
+
+    func test_wordJustWritten_isStillCompletedWhileItsLettersAreTyped() {
+        // #given the same word being typed a second time
+        let text = "I want to go to g"
+        let model = LanguageModelFixture.scores(textBefore: text, ["go": 0.4, "great": 0.2])
+
+        // #then it is offered: only the moment before any letter leaves it out
+        XCTAssertEqual(NextWordPredictor.predict(textBefore: text, sources: sources(languageModel: model))?.words.first, "go")
+    }
+
     func test_languageModel_nearMissLeads_evenWhenManyWordsStartWithTheSlippedLetters() {
         // #given `hab` typed for `have`: plenty of words start with those letters, all unlikely here
         let text = "we hab"
