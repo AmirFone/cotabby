@@ -366,6 +366,11 @@ protocol WordPredictionPresenting: AnyObject {
     /// so it is the one that can tell; the coordinator asks before it takes a read of the field
     /// for the text those keys left.
     func isBehindTheKeys(_ precedingText: String) -> Bool
+    /// Whether `precedingText` already ends with a key whose callback is only now running: the
+    /// host was told about the key before Cotabby was. Asked before the presenter is given that
+    /// key. Nil when the presenter does not know what the keys before it left (after an arrow, a
+    /// shortcut or a move to another field).
+    func alreadyShows(typed: String, in precedingText: String) -> Bool?
 }
 
 /// The suggestion coordinator's handle on the per-sentence proofreading card.

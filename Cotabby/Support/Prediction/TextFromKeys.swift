@@ -77,6 +77,18 @@ nonisolated struct TextFromKeys: Equatable, Sendable {
         return earlier.contains(end)
     }
 
+    /// Whether `read` is the text now with `typed` after it: a field that shows a key this model
+    /// has not been told about yet. Nil when the text is not known, and the caller has to judge
+    /// the field some other way.
+    ///
+    /// A host can be told about a key a few milliseconds before Cotabby is. Whoever then waits
+    /// for the field to change waits for a change that has already happened. Asked of the keys,
+    /// the answer is exact through a burst, and a doubled letter does not fool it: after `al`
+    /// and a second `l`, a field that reads `al` is one key behind, not one ahead.
+    func isAhead(_ read: String, by typed: String) -> Bool? {
+        text.map { Self.end(of: $0 + typed) == Self.end(of: read) }
+    }
+
     static func isSameText(_ one: String, _ other: String) -> Bool {
         end(of: one) == end(of: other)
     }

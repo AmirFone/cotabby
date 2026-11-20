@@ -198,10 +198,18 @@ extension SuggestionCoordinator {
         lastTypingKeystrokeUptimeNanoseconds = keystrokeUptimeNanoseconds
         // The observer tap only listens, so the host gets the key without waiting for this
         // callback. When the main thread was busy, the host has often published the key already and
-        // the snapshot read here is the text *with* it. Recognized by the field being exactly one
-        // typed character ahead of what the gate last saw; waiting for "the text to change" would
-        // then wait for a change that already happened, all the way to the 400 ms ceiling.
-        fieldAlreadyShowsLastKey = lastGatedPrecedingText.map { baseline.precedingText == $0 + suffix } ?? false
+        // the snapshot read here is the text *with* it. Waiting for "the text to change" would
+        // then wait for a change that already happened, all the way to the 400 ms ceiling, and a
+        // key that ran to the ceiling gets no spelling check: a finished word went unfixed.
+        //
+        // The word strip follows every key, so it is asked first: the field is ahead when it reads
+        // as the text the keys before this one left, plus this key. Only when the strip does not
+        // know that text is the older test used, one typed character ahead of what the gate last
+        // looked at. In a word typed in one go the gate looks at few of the letters, so on its
+        // own that test missed most keys the host was quick about.
+        fieldAlreadyShowsLastKey = wordPredictionPresenter?.alreadyShows(typed: suffix, in: baseline.precedingText)
+            ?? lastGatedPrecedingText.map { baseline.precedingText == $0 + suffix }
+            ?? false
         prepareTypoGate(
             precedingText: fieldAlreadyShowsLastKey ? baseline.precedingText : baseline.precedingText + suffix,
             textAfter: baseline.trailingText

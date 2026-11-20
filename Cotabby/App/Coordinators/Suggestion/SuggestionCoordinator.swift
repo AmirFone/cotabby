@@ -97,7 +97,8 @@ final class SuggestionCoordinator: ObservableObject {
     var pendingKeystrokeUptimeNanoseconds: UInt64?
     /// The text before the caret the last time the spelling gate looked at the field. A key whose
     /// character is already at the end of the field *beyond* this text was published by the host
-    /// before Cotabby's key callback ran (see `prepareSpellingAtKeystroke`).
+    /// before Cotabby's key callback ran (see `prepareSpellingAtKeystroke`). The fallback for when
+    /// the word strip, which follows every key, cannot say.
     var lastGatedPrecedingText: String?
     /// The field already showed the last typed key when its callback ran. Consumed by the publish wait.
     var fieldAlreadyShowsLastKey = false

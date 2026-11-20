@@ -1044,6 +1044,43 @@ final class SuggestionCoordinatorSpellingModelTests: XCTestCase {
         XCTAssertLessThan(ContinuousClock.now - started, .milliseconds(250))
     }
 
+    func test_keyTheFieldAlreadyShows_inAWordTheGateNeverLookedAt_isFixedWithoutWaiting() async throws {
+        // #given `teh` typed in one go, so the gate last looked at the text before the word, and a
+        // host that published the space before Cotabby's key callback ran. The strip followed
+        // every key and knows the field is one key ahead.
+        let rig = try makeRig(text: "I saw teh ")
+        let strip = StripRecorder()
+        strip.showsTheKeyAlready = true
+        rig.coordinator.wordPredictionPresenter = strip
+        rig.coordinator.lastGatedPrecedingText = "I saw "
+        let started = ContinuousClock.now
+
+        // #when the space key's callback arrives
+        _ = rig.coordinator.handleInputEvent(CapturedInputEvent(kind: .textMutation, keyCode: 49, characters: " ", flags: []))
+        await waitUntil("The fix never reached the field") { !rig.inserter.replacements.isEmpty }
+
+        // #then the finished word is fixed, and not after the 400 ms "text never changed" ceiling
+        XCTAssertEqual(rig.inserter.replacements.first?.text, "the ")
+        XCTAssertLessThan(ContinuousClock.now - started, .milliseconds(250))
+    }
+
+    func test_stripThatSaysTheFieldIsNotAhead_isBelievedOverTheGatesLastLook() throws {
+        // #given a doubled letter: the gate last saw `a`, the field reads `al`, and a second `l`
+        // arrives. One typed character ahead of the gate's last look, yet the strip knows the
+        // field is the text before this key.
+        let rig = try makeRig(text: "al")
+        let strip = StripRecorder()
+        strip.showsTheKeyAlready = false
+        rig.coordinator.wordPredictionPresenter = strip
+        rig.coordinator.lastGatedPrecedingText = "a"
+
+        // #when the second `l` arrives
+        _ = rig.coordinator.handleInputEvent(CapturedInputEvent(kind: .textMutation, keyCode: 37, characters: "l", flags: []))
+
+        // #then the spelling work is prepared for the text the key will leave
+        XCTAssertEqual(rig.coordinator.preparedTypoGate?.precedingText, "all")
+    }
+
     func test_workPreparedForOtherText_isIgnored() async throws {
         let rig = try makeRig(text: "See you tomorow ")
 
@@ -1122,6 +1159,9 @@ private final class StripRecorder: WordPredictionPresenting {
     func noteTypedText(_ precedingText: String, caretRect: CGRect, focusChangeSequence: UInt64) { noted.append(precedingText) }
     func hidePredictions() { timesHidden += 1 }
     func isBehindTheKeys(_ precedingText: String) -> Bool { false }
+    /// What the strip says about a field that may already show the key; nil is "cannot say".
+    var showsTheKeyAlready: Bool?
+    func alreadyShows(typed: String, in precedingText: String) -> Bool? { showsTheKeyAlready }
 }
 
 @MainActor

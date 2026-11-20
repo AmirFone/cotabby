@@ -308,6 +308,24 @@ final class WordPredictionControllerTests: XCTestCase {
         XCTAssertFalse(harness.panel.isHidden)
     }
 
+    func test_fieldAheadOfAKeyNotYetSeen_isRecognizedThroughABurst() {
+        // #given `we` typed in one go after a read of an empty field, with no read in between
+        let harness = makeHarness(precedingText: "")
+        harness.note("")
+        for character in "we" { _ = harness.controller.observe(Self.typed(String(character))) }
+
+        // #then a field that already reads `we ` when the space key arrives shows that key
+        XCTAssertEqual(harness.controller.alreadyShows(typed: " ", in: "we "), true)
+    }
+
+    func test_fieldStillBeforeTheKey_doesNotShowIt() {
+        let harness = makeHarness(precedingText: "")
+        harness.note("")
+        for character in "we" { _ = harness.controller.observe(Self.typed(String(character))) }
+
+        XCTAssertEqual(harness.controller.alreadyShows(typed: " ", in: "we"), false)
+    }
+
     func test_onlyAnEarlierStateOfTheKeys_countsAsBehind() {
         // #given the keys `want ` typed after `I `
         let harness = makeHarness(precedingText: "I ")

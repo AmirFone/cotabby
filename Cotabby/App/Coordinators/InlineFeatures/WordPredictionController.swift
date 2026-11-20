@@ -241,6 +241,10 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
         return sinceKey < Self.longestHostLagNanoseconds && keys.isEarlierState(precedingText)
     }
 
+    func alreadyShows(typed: String, in precedingText: String) -> Bool? {
+        keys.isAhead(precedingText, by: typed)
+    }
+
     /// The slowest a host is believed to be about a key. Publishing has been measured at up to
     /// 400 ms; three times that leaves room for a busy moment.
     private static let longestHostLagNanoseconds: UInt64 = 1_200_000_000

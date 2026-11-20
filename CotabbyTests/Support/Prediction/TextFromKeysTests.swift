@@ -30,6 +30,36 @@ final class TextFromKeysTests: XCTestCase {
         }
     }
 
+    func test_fieldThatShowsTheNextKeyAlready_isAhead() {
+        // #given `we` typed, and a host that was told about the space before this model was
+        let keys = typed("we", after: "")
+
+        // #then the field with the space is one key ahead
+        XCTAssertEqual(keys.isAhead("we ", by: " "), true)
+    }
+
+    func test_fieldThatDoesNotShowTheNextKeyYet_isNotAhead() {
+        let keys = typed("we", after: "")
+
+        XCTAssertEqual(keys.isAhead("we", by: " "), false)
+    }
+
+    func test_doubledLetter_aFieldOneKeyBehind_isNotAhead() {
+        // #given `al` typed and a second `l` on its way: the field still reads `al`
+        let keys = typed("l", after: "a")
+
+        // #then that is the field before the key, although it ends with the key's letter
+        XCTAssertEqual(keys.isAhead("al", by: "l"), false)
+    }
+
+    func test_whenTheTextIsNotKnown_aheadIsNotKnownEither() {
+        // #given a key whose effect the key alone does not tell
+        var keys = typed("we", after: "")
+        keys.apply { _ in nil }
+
+        XCTAssertNil(keys.isAhead("we ", by: " "))
+    }
+
     func test_theTextNow_isNotAnEarlierState() {
         let keys = typed("want ", after: "I ")
 
