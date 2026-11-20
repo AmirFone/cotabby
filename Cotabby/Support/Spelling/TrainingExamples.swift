@@ -66,6 +66,7 @@ nonisolated enum TrainingLogEvent: Equatable, Sendable {
             ]
             if let slot = use.pickedSlot { object["picked"] = slot }
             if !use.draws.isEmpty { object["draws"] = use.draws.map { ["t": $0.typed, "w": $0.shown] as [String: Any] } }
+            if let timing = use.timing { object["lag"] = ["key": timing.key, "strip": timing.strip, "read": timing.read] }
             return object
         case let .sentencePass(sentence, words):
             return [
@@ -134,10 +135,14 @@ nonisolated enum TrainingLogEvent: Equatable, Sendable {
             guard let typed = entry["t"] as? String, let shown = entry["w"] as? [String] else { return nil }
             return .init(typed: typed, shown: shown)
         }
+        let timing = (json["lag"] as? [String: Int]).map {
+            StripUse.Timing(key: $0["key"] ?? 0, strip: $0["strip"] ?? 0, read: $0["read"] ?? 0)
+        }
         return StripUse(
             before: json["before"] as? String ?? "", word: word,
             shownFirst: json["first"] as? [String] ?? [], shownLast: json["last"] as? [String] ?? [],
-            lettersTyped: json["letters"] as? Int ?? 0, pickedSlot: json["picked"] as? Int, draws: draws
+            lettersTyped: json["letters"] as? Int ?? 0, pickedSlot: json["picked"] as? Int, draws: draws,
+            timing: timing
         )
     }
 
@@ -280,6 +285,9 @@ nonisolated struct TrainingExample: Codable, Equatable, Sendable {
         /// the strip, and in which slot (0 is first). Nil when no strip drawn for it listed it.
         var listedAt: Int?
         var listedSlot: Int?
+        /// `strip`: the slowest moments while the word was typed, in milliseconds: a key reaching
+        /// Cotabby, a strip appearing after its key, a read of the field (`StripUse.Timing`).
+        var lag: StripUse.Timing?
         /// `sentencePass`: each word the model would change, its probability, and whether it was
         /// `fixed`, `asked` about, or `left`.
         var changes: [SentencePassWord]?
@@ -726,6 +734,7 @@ nonisolated enum TrainingExampleBuilder {
                     step.shownLast = use.shownLast
                     step.lettersTyped = use.lettersTyped
                     step.pickedSlot = use.pickedSlot
+                    step.lag = use.timing
                     let meant = becameByTyped[use.word.lowercased()] ?? use.word.lowercased()
                     step.rank = use.shownLast.firstIndex { $0.lowercased() == meant }
                     if !use.draws.isEmpty {

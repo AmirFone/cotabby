@@ -103,4 +103,12 @@ extension FocusTrackingModel: SuggestionFocusProviding {
     var millisecondsSinceLastCapture: Int? {
         tracker.millisecondsSinceLastCapture
     }
+
+    var isRestingAfterSlowRead: Bool {
+        tracker.isRestingAfterSlowRead
+    }
+
+    var lastReadMilliseconds: Int {
+        tracker.lastReadMilliseconds
+    }
 }

@@ -65,6 +65,9 @@ struct CapturedInputEvent: Equatable {
     let keyCode: CGKeyCode
     let characters: String
     let flags: CGEventFlags
+    /// How long after the key was pressed Cotabby was handed it, in milliseconds. Near zero on a
+    /// quiet Mac; tens or hundreds when Cotabby's main thread was waiting on the app in front.
+    var heardAfterMilliseconds = 0
 
     var shouldSchedulePrediction: Bool {
         switch kind {

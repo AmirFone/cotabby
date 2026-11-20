@@ -51,6 +51,19 @@ def main():
     # Since 0.4.4 every strip drawn for a word is kept, so "was the word ever in the strip, and
     # from which letter" can be answered. `rank` above only looks at the last strip, which is
     # usually drawn for the complete word and never lists it.
+    # Since 0.4.7 each word carries its slowest moments in milliseconds (`lag`): a key reaching
+    # Cotabby, a strip appearing after its key, a read of the field. Slow reads are what make
+    # the strip late and Tab unreliable in a busy chat app.
+    timed = [step["lag"] for step in strips if step.get("lag")]
+    if timed:
+        def spread(key):
+            values = sorted(lag.get(key, 0) for lag in timed)
+            return f"median {values[len(values) // 2]} ms, 9 in 10 within {values[int(len(values) * 0.9)]} ms, slowest {values[-1]} ms"
+        print(f"  speed, per word ({len(timed)} words with timing):")
+        print("    a key waited before Cotabby heard it: ", spread("key"))
+        print("    strip appeared after its key:         ", spread("strip"))
+        print("    one read of the field took:           ", spread("read"))
+        print("    words with a read of 30 ms or more:   ", share(sum(lag.get("read", 0) >= 30 for lag in timed), len(timed)))
     drawn = [step for step in strips if step.get("draws")]
     if drawn:
         listed = [step for step in drawn if "listedAt" in step]

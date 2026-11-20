@@ -133,6 +133,27 @@ final class PersonalCorrectionMemoryTests: XCTestCase {
         XCTAssertEqual(memory.acceptedReplacements(for: "wich")["which"], SpellingCandidateRanker.habitAutoCount)
     }
 
+    func test_oneUndoOfALongStandingHabit_leavesItAutomatic() {
+        // #given a fix the writer has made fifty times
+        let memory = makeMemory()
+        (0..<50).forEach { _ in memory.recordAccepted(typo: "wich", replacement: "which") }
+
+        // #when it is undone once
+        memory.demoteHabit(typo: "wich", fix: "which")
+
+        // #then half its uses stand, far more than a habit needs
+        XCTAssertEqual(memory.acceptedReplacements(for: "wich")["which"], 25)
+    }
+
+    func test_threeUndosInARow_takeALongStandingHabitDown() {
+        let memory = makeMemory()
+        (0..<50).forEach { _ in memory.recordAccepted(typo: "wich", replacement: "which") }
+
+        (0..<3).forEach { _ in memory.demoteHabit(typo: "wich", fix: "which") }
+
+        XCTAssertEqual(memory.acceptedReplacements(for: "wich")["which"], SpellingCandidateRanker.habitLeadCount)
+    }
+
     func test_undoOfAFixThatIsNoHabit_isLeftToTheCaller() {
         // #given a fix made once
         let memory = makeMemory()

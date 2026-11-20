@@ -80,11 +80,20 @@ final class PersonalCorrectionMemory {
     /// In a recorded day the commonest slip of all (a ninth of every slip made) was undone once,
     /// possibly by a stray key, and from then on stood in the text unflagged. One undo against a
     /// habit is a doubt, not a verdict.
+    ///
+    /// How far down depends on how long the habit has stood. A fix made a few times goes back
+    /// to leading the bar. A fix made twenty times or more loses half its uses and stays
+    /// automatic: on a later recorded day a fix made over fifty times was set back to two by
+    /// one replacement, the slip's other reading then had as many uses, neither led, and the
+    /// dictionary's choice was typed for the writer for hours. Three rejections in a row still
+    /// take any habit down.
+    static let longStandingHabitCount = 20
+
     @discardableResult
     func demoteHabit(typo: String, fix: String) -> Bool {
         let key = typo.lowercased(), value = fix.lowercased()
         guard let count = entries[key]?[value], count >= SpellingCandidateRanker.habitAutoCount else { return false }
-        entries[key]?[value] = SpellingCandidateRanker.habitLeadCount
+        entries[key]?[value] = count >= Self.longStandingHabitCount ? count / 2 : SpellingCandidateRanker.habitLeadCount
         userDefaults.set(entries, forKey: Self.defaultsKey)
         return true
     }

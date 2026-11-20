@@ -207,17 +207,68 @@ nonisolated enum SpellingCandidateRanker {
     /// the list, and before it is made for them.
     static let habitLeadCount = 2
     static let habitAutoCount = 3
+    /// A habit is only made for the writer while it has at least this many uses for every use of
+    /// their other fix for the same slip: right four times in five or better. `fro` made into
+    /// `from` four times and `for` twice still leads with `from`, and asks.
+    static let habitAutoDominance = 4
+    /// How far apart the two words are scored for a slip the writer takes both ways: inside the
+    /// gate's margin for showing a list (`TypoGate.Settings.baseChoiceListMaximumMargin`).
+    static let bothWaysGap = 0.05
     /// The lead a twice-made fix gets: enough to be the one fix shown, not enough to be applied.
     static let habitLead = 0.2
 
     /// The fix this writer keeps making for this exact slip, when they have made it at least twice
     /// and at least twice as often as any other fix for it (`fro` retyped as both `from` and `for`
     /// has no habit). Nil otherwise.
-    static func habitualFix(in personal: [String: Int]) -> (term: String, count: Int)? {
+    static func habitualFix(in personal: [String: Int]) -> HabitualFix? {
         let ordered = personal.sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }
         guard let best = ordered.first, best.value >= habitLeadCount else { return nil }
         let rival = ordered.dropFirst().first?.value ?? 0
-        return best.value >= 2 * rival ? (best.key, best.value) : nil
+        return best.value >= 2 * rival ? HabitualFix(term: best.key, count: best.value, rival: rival) : nil
+    }
+
+    /// The fix a writer keeps making for one slip: the word, how often they made it, and how
+    /// often they made their next most frequent fix for the same slip (0 when there is none).
+    struct HabitualFix: Equatable {
+        let term: String
+        let count: Int
+        let rival: Int
+    }
+
+    /// A slip the writer has corrected to two different words, with neither a habit, is theirs
+    /// to settle each time: their two words lead, close enough together that the gate shows a
+    /// list and applies nothing.
+    ///
+    /// Without this the dictionary's order decided, and its first word could be applied unasked.
+    /// On a recorded day a short slip the writer makes for two common words lost its habit to one
+    /// rejection (see `PersonalCorrectionMemory.demoteHabit`), and for the next hours the
+    /// commoner of the two was typed for them 8 times, with 19 bars and 4 retypes before the
+    /// habit was back, while their own history said the slip goes both ways.
+    private static func leadingWithBothOfTheWritersWords(
+        _ ranked: [RankedSpellingCandidate], word: String, personal: [String: Int]
+    ) -> [RankedSpellingCandidate] {
+        let own = personal.filter { $0.value > 0 }
+            .sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }
+            .prefix(2)
+        guard own.count == 2 else { return ranked }
+        let top = max(ranked.first?.candidate.score ?? 0, 1.0)
+        let leading = own.enumerated().map { place, entry -> RankedSpellingCandidate in
+            let listed = ranked.first { $0.candidate.term.lowercased() == entry.key }
+            return RankedSpellingCandidate(
+                candidate: SpellingCandidate(
+                    term: listed?.candidate.term ?? TypoCaseTransfer.applying(caseOf: word, to: entry.key),
+                    score: top - Double(place) * bothWaysGap
+                ),
+                signals: listed?.signals ?? SpellingCandidateSignals(personalAccepted: entry.value)
+            )
+        }
+        return leading + ranked.filter { candidate in !own.contains { $0.key == candidate.candidate.term.lowercased() } }
+    }
+
+    /// True when the writer has made two different fixes for the slip these candidates are for.
+    /// The order is then theirs (`leadingWithBothOfTheWritersWords`), and no model reorders it.
+    static func holdsTwoOfTheWritersFixes(_ ranked: [RankedSpellingCandidate]) -> Bool {
+        ranked.filter { $0.signals.personalAccepted > 0 }.count >= 2
     }
 
     /// Puts the writer's habitual fix first, whatever the dictionary thinks is likelier.
@@ -231,10 +282,12 @@ nonisolated enum SpellingCandidateRanker {
     private static func leadingWithHabitualFix(
         _ ranked: [RankedSpellingCandidate], word: String, personal: [String: Int]
     ) -> [RankedSpellingCandidate] {
-        guard let habit = habitualFix(in: personal) else { return ranked }
+        guard let habit = habitualFix(in: personal) else {
+            return leadingWithBothOfTheWritersWords(ranked, word: word, personal: personal)
+        }
         let rest = ranked.filter { $0.candidate.term.lowercased() != habit.term }
         let own = ranked.first { $0.candidate.term.lowercased() == habit.term }
-        let isMadeForThem = habit.count >= habitAutoCount
+        let isMadeForThem = habit.count >= habitAutoCount && habit.count >= habitAutoDominance * habit.rival
         let runnerUp = rest.first?.candidate.score ?? 0
         // Until the fix is made for them it leads by `habitLead` and no more. Its own score is left
         // out on purpose: that score already holds the history nudge, which with a favourable

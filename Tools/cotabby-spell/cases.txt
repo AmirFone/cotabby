@@ -139,7 +139,7 @@ proceed	we need an upsert |
 proceed	update the backend |
 bar:frontend	the frontned |
 bar:json	parse the josn |
-auto:kubernetes	check the kuberntes |
+bar:kubernetes	check the kuberntes |
 bar:config	edit the confg |
 bar:webhook	add a webhok |
 auto:endpoint	add an endpiont |
@@ -361,12 +361,11 @@ proceed	we need a signoff |
 proceed	the workstream |
 proceed	then resync |
 
-## 0.4.5: the second judge (finger slips)
-# A slip the first judge only offers is fixed when the keyboard-trained judge agrees on the word.
-auto:and	we met amd talked amd |
-auto:review	please revirw |
-# Where two readings are close (the bar would show a list) it keeps quiet: see `we sayed`,
-# `I will try agen` above. A form one key from two words stays a question too.
+## 0.4.7: the second judge is off unless turned on
+# A slip the first judge only offers stays an offer. With the second judge on these two are
+# fixed unasked: Tools/cotabby-spell/cases-second-judge.txt, run with SECOND_JUDGE=1.
+bar:and	we met amd talked amd |
+bar:review	please revirw |
 !auto	that is the nect |
 
 ## 0.4.6: the second half of a hyphenated word

@@ -22,6 +22,40 @@ final class StripUseTrackerTests: XCTestCase {
         ))
     }
 
+    func test_slowestMomentsOfAWord_areKeptWithIt() {
+        // #given a word whose second key waited 120 ms, whose strips took 3 and 40 ms, and a
+        // field read of 95 ms on the way
+        var tracker = StripUseTracker()
+        _ = tracker.typed("We met ")
+        tracker.note(keyHeardAfter: 2)
+        _ = tracker.shown(["yes", "you"], for: "We met y")
+        tracker.note(stripShownAfter: 3)
+        tracker.note(keyHeardAfter: 120)
+        tracker.note(readTook: 95)
+        _ = tracker.shown(["yesterday", "yes"], for: "We met ye")
+        tracker.note(stripShownAfter: 40)
+
+        // #when the word is finished
+        let use = tracker.typed("We met yesterday ")
+
+        // #then the record holds the slowest of each
+        XCTAssertEqual(use?.timing, StripUse.Timing(key: 120, strip: 40, read: 95))
+    }
+
+    func test_timingOfOneWord_doesNotCarryOverToTheNext() {
+        var tracker = StripUseTracker()
+        _ = tracker.typed("We met ")
+        _ = tracker.shown(["yes"], for: "We met y")
+        tracker.note(keyHeardAfter: 300)
+        _ = tracker.typed("We met yesterday ")
+
+        // #when the next word is typed with nothing timed
+        _ = tracker.shown(["and"], for: "We met yesterday a")
+        let use = tracker.typed("We met yesterday and ")
+
+        XCTAssertNil(use?.timing)
+    }
+
     func test_pick_reportsTheSlotAndTheLettersTyped() {
         var tracker = StripUseTracker()
         _ = tracker.typed("We met ")

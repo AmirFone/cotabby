@@ -89,6 +89,30 @@ nonisolated struct TextFromKeys: Equatable, Sendable {
         text.map { Self.end(of: $0 + typed) == Self.end(of: read) }
     }
 
+    /// True when a read that says `after` follows the caret is a read taken while keys were
+    /// landing: the caret is from before the last keys and the text from after them, so the
+    /// letters "after the caret" are the ones just typed. `before` and the first letters of
+    /// `after` together are then the text the keys left.
+    ///
+    /// A field is asked for its text and for its caret in separate requests. A native view
+    /// answers both within a millisecond. An app that takes 30 ms or more per answer is often
+    /// typed into between the two, and the read then looked like a caret in the middle of a
+    /// word, where the strip offers nothing: it came down while the writer was typing, and Tab
+    /// went to the app.
+    func isCaretBehindItsText(before: String, after: String) -> Bool {
+        guard let text, !after.isEmpty else { return false }
+        let now = Self.end(of: text)
+        var joined = before
+        for character in after.prefix(Self.mostKeysDuringOneRead) {
+            joined.append(character)
+            if Self.end(of: joined) == now { return true }
+        }
+        return false
+    }
+
+    /// More keys than a writer types while one read of the field is answered.
+    static let mostKeysDuringOneRead = 8
+
     static func isSameText(_ one: String, _ other: String) -> Bool {
         end(of: one) == end(of: other)
     }

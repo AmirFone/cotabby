@@ -296,6 +296,37 @@ final class InputMonitorTests: XCTestCase {
         }
     }
 
+    func test_decisionTakenWhenTheKeyWasHeard_isUsed_evenIfThePanelHasForgottenSince() {
+        runOnMainActor {
+            // #given a panel that claimed Tab when it heard the key and has come down since, so
+            // asked again it would say the key is not its own
+            let monitor = makeMonitor()
+            monitor.emojiCaptureKeyDecider = { _ in .notHandled }
+            monitor.shouldConsumeAcceptKeyProvider = { false }
+
+            // #when the consuming tap resolves the key with the answer taken at the time
+            let decision = monitor.resolveAcceptKeyDown(InputMonitorKeyEvent(keyCode: 48), captureDecision: .consume)
+
+            // #then Tab is taken from the app
+            XCTAssertEqual(decision, .consume)
+        }
+    }
+
+    func test_keyWaitingTime_isMeasuredFromTheEventsOwnTimestamp() {
+        // #given an event made 250 ms ago
+        let now: UInt64 = 5_000_000_000
+
+        XCTAssertEqual(InputMonitor.millisecondsWaited(since: now - 250_000_000, now: now), 250)
+    }
+
+    func test_timestampFromAnotherClock_countsAsNoWait() {
+        let now: UInt64 = 5_000_000_000
+
+        XCTAssertEqual(InputMonitor.millisecondsWaited(since: 0, now: now), 0)
+        XCTAssertEqual(InputMonitor.millisecondsWaited(since: now + 1_000, now: now), 0)
+        XCTAssertEqual(InputMonitor.millisecondsWaited(since: 1, now: 60_000_000_000), 0)
+    }
+
     func test_emojiDecider_passThroughTakesPrecedenceOverAcceptKey() {
         runOnMainActor {
             let monitor = makeMonitor()

@@ -261,6 +261,7 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
         lastNotedText = precedingText
         keys.settle(on: precedingText)
         lastCaretRect = caretRect
+        stripUse.note(readTook: focusModel.lastReadMilliseconds)
         if let use = stripUse.typed(precedingText) { onStripUse?(use) }
         learnFinishedSentence(in: precedingText)
         // `idle.hasRunOut`: this is also called when no key was pressed (screen text became ready,
@@ -417,6 +418,7 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
     // MARK: - Keys
 
     func observe(_ event: CapturedInputEvent) -> Bool {
+        stripUse.note(keyHeardAfter: event.heardAfterMilliseconds)
         guard !claims(event) else { return true }
         // The key goes on to the app. A strip held back for the language model was predicted for
         // the text before it, so it is stale like one on screen, and the text the field is
@@ -635,9 +637,13 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
     }
 
     /// How long a pick waits for a host that has not published the last keys, and how often it
-    /// looks. Half a second covers the slowest publish measured (400 ms, the same ceiling the
-    /// suggestion pipeline waits for); a host slower than that gets no pick, as before.
-    private static let longestWaitForHost: TimeInterval = 0.5
+    /// looks. As long as a host is believed to be behind at all (`longestHostLagNanoseconds`).
+    /// It was half a second, enough for the slowest publish measured (400 ms) when a read of the
+    /// field is free. In an app that also answers each read slowly there is time for one or two
+    /// reads in half a second, the pick gave up, and Tab, already taken from the app, did
+    /// nothing: 4 picks in 12 against a test app answering in 100 ms. A later key still ends
+    /// the wait at once.
+    private static let longestWaitForHost: TimeInterval = 1.2
     private static let hostPollSeconds: TimeInterval = 0.02
 
     /// What a read of the field says about the strip, asked before a pick.
@@ -675,12 +681,18 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
         // or give its field a new number (`enterField`).
         guard let current = showing, let context = focusModel.snapshot.context,
               context.focusChangeSequence == current.focusChangeSequence else {
+            CotabbyLogger.suggestion.debug("Pick: the strip is gone or the field is another one")
             return .changed
         }
         guard keys.holds(context.precedingText) else {
-            return keys.isEarlierState(context.precedingText) ? .behind : .changed
+            if keys.isEarlierState(context.precedingText) { return .behind }
+            CotabbyLogger.suggestion.debug("Pick: the field holds text the keys did not leave (keys known: \(self.keys.text != nil))")
+            return .changed
         }
-        guard let prediction = predict(context.precedingText) else { return .changed }
+        guard let prediction = predict(context.precedingText) else {
+            CotabbyLogger.suggestion.debug("Pick: nothing to complete in the text the field holds")
+            return .changed
+        }
         show(
             Showing(prediction: prediction, caretRect: context.caretRect, focusChangeSequence: current.focusChangeSequence),
             for: context.precedingText
@@ -777,7 +789,11 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
     /// complete the left half and leave the rest standing (`Please wr|old` → `Please wrong old`).
     /// An apostrophe counts when a letter follows it (`don|'t`), not as a closing quote.
     private var caretIsInsideAWord: Bool {
-        guard let trailing = focusModel.snapshot.context?.trailingText, let next = trailing.first else { return false }
+        guard let context = focusModel.snapshot.context, let next = context.trailingText.first else { return false }
+        let trailing = context.trailingText
+        // The letters after the caret are the ones just typed: the read caught the caret from
+        // before them (`TextFromKeys.isCaretBehindItsText`).
+        if keys.isCaretBehindItsText(before: context.precedingText, after: trailing) { return false }
         if next.isLetter || next.isNumber { return true }
         return (next == "'" || next == "’") && trailing.dropFirst().first?.isLetter == true
     }
@@ -955,6 +971,7 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
             lastKeyUptimeNanoseconds = nil
             let elapsed = Double(DispatchTime.now().uptimeNanoseconds - keyTime) / 1_000_000
             CotabbyLogger.suggestion.debug("Word strip shown \(String(format: "%.1f", elapsed)) ms after the key")
+            stripUse.note(stripShownAfter: Int(elapsed))
         }
         if !wasCapturing {
             onCaptureStateChanged?()

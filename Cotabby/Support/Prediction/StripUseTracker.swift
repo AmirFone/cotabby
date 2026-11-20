@@ -37,6 +37,23 @@ nonisolated struct StripUse: Equatable, Sendable {
     /// Each strip drawn for this word, in order: the letters typed at that moment and the words
     /// shown. Empty in records from before this was kept.
     var draws: [Draw] = []
+    /// How quick Cotabby was while this word was typed. Nil in records from before this was kept.
+    var timing: Timing?
+
+    /// The slowest moments of one word, in milliseconds. Durations only, no time of day.
+    ///
+    /// Why it is kept: the strip can be right and still be of no use when it comes late, and
+    /// what makes it late (an app in front that answers Accessibility slowly, a busy Mac) is on
+    /// the writer's machine and in none of the tests. A recorded day used to say what the strip
+    /// showed and nothing about when.
+    struct Timing: Equatable, Sendable, Codable {
+        /// The longest a key of the word waited before Cotabby was handed it.
+        var key = 0
+        /// The longest a strip took to appear after the key it was drawn for.
+        var strip = 0
+        /// The longest read of the field while the word was typed.
+        var read = 0
+    }
 
     struct Draw: Equatable, Sendable, Codable {
         /// The letters of the word typed when the strip was drawn ("" before the first).
@@ -52,6 +69,29 @@ nonisolated struct StripUseTracker {
     private var last: [String] = []
     private var lastLetters = 0
     private var draws: [StripUse.Draw] = []
+    /// Nil until something was timed for the current word.
+    private var timing: StripUse.Timing?
+
+    /// A key of the current word reached Cotabby `milliseconds` after it was pressed.
+    mutating func note(keyHeardAfter milliseconds: Int) {
+        var slowest = timing ?? .init()
+        slowest.key = max(slowest.key, milliseconds)
+        timing = slowest
+    }
+
+    /// A strip for the current word appeared `milliseconds` after its key.
+    mutating func note(stripShownAfter milliseconds: Int) {
+        var slowest = timing ?? .init()
+        slowest.strip = max(slowest.strip, milliseconds)
+        timing = slowest
+    }
+
+    /// A read of the field took `milliseconds` while the current word was typed.
+    mutating func note(readTook milliseconds: Int) {
+        var slowest = timing ?? .init()
+        slowest.read = max(slowest.read, milliseconds)
+        timing = slowest
+    }
 
     /// How much of the sentence so far is kept with a use.
     static let maximumBefore = 300
@@ -96,6 +136,7 @@ nonisolated struct StripUseTracker {
             last = []
             lastLetters = 0
             draws = []
+            timing = nil
         }
         guard textBase.hasPrefix(previous) else { return nil }
         let added = textBase.dropFirst(previous.count)
@@ -104,7 +145,8 @@ nonisolated struct StripUseTracker {
               !first.isEmpty || !last.isEmpty else { return nil }
         return StripUse(
             before: Self.sentenceSoFar(previous), word: String(word),
-            shownFirst: first, shownLast: last, lettersTyped: lastLetters, pickedSlot: nil, draws: draws
+            shownFirst: first, shownLast: last, lettersTyped: lastLetters, pickedSlot: nil, draws: draws,
+            timing: timing
         )
     }
 
@@ -115,7 +157,8 @@ nonisolated struct StripUseTracker {
         let use = StripUse(
             before: Self.sentenceSoFar(textBase), word: word,
             shownFirst: base == textBase ? first : [], shownLast: shown,
-            lettersTyped: prefix.count, pickedSlot: slot, draws: base == textBase ? draws : []
+            lettersTyped: prefix.count, pickedSlot: slot, draws: base == textBase ? draws : [],
+            timing: timing
         )
         reset()
         return use
@@ -127,6 +170,7 @@ nonisolated struct StripUseTracker {
         last = []
         lastLetters = 0
         draws = []
+        timing = nil
     }
 
     /// The text before the word in progress, and the letters of that word.

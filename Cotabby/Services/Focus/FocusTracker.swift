@@ -52,6 +52,21 @@ final class FocusTracker {
     // pure `FocusPollBackoff` so they can be unit-tested without a live timer.
     private var backoff = FocusPollBackoff()
 
+    /// Leaves the field unread for a while after a read that was slow, so a busy app in front
+    /// cannot keep the main thread, and the key taps served on it, waiting on reads
+    /// (`FieldReadPacing`).
+    private var pacing = FieldReadPacing()
+
+    /// How long the last read of the field took, in milliseconds.
+    var lastReadMilliseconds: Int {
+        Int(pacing.lastReadNanoseconds / 1_000_000)
+    }
+
+    /// True while a request for a read is answered with the snapshot already published.
+    var isRestingAfterSlowRead: Bool {
+        pacing.isResting(at: DispatchTime.now().uptimeNanoseconds)
+    }
+
     // Cached element resolved via cursor hit-testing for Chromium OOPIF editors (e.g. Gmail
     // compose) that the system-wide focused-element query cannot see. Re-validated each tick via
     // AXFocused and dropped the instant it loses focus or the frontmost app changes, so it never
@@ -210,9 +225,17 @@ final class FocusTracker {
     /// backoff uses this to decide whether to stay fast or stretch the poll stride.
     @discardableResult
     private func performCaptureAndPublish() -> Bool {
+        // Resting after a slow read: the caller gets the snapshot already published, which reads
+        // to it as a field that has not changed yet, and asks again.
+        let started = DispatchTime.now().uptimeNanoseconds
+        guard !pacing.isResting(at: started) else {
+            return false
+        }
         pollSequence += 1
         let capture = captureSnapshot()
-        lastCaptureUptimeNanoseconds = DispatchTime.now().uptimeNanoseconds
+        let ended = DispatchTime.now().uptimeNanoseconds
+        pacing.noteRead(started: started, ended: ended)
+        lastCaptureUptimeNanoseconds = ended
 
         let snapshotChanged = capture.snapshot != snapshot
         if snapshotChanged {

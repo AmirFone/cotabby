@@ -327,6 +327,44 @@ final class SpellingCandidateRankerTests: XCTestCase {
         XCTAssertNil(SpellingCandidateRanker.habitualFix(in: ["from": 1]))
     }
 
+    func test_habitWithARivalUsedHalfAsOften_leads_andIsNotMadeForTheWriter() {
+        // #given a slip fixed to one word four times and to another twice
+        let ranked = rank("wich", sources: slipNearACommonerWord, personal: ["which": 4, "with": 2])
+        let settings = TypoGate.Settings(suppressCompletionsOnTypo: true, offerTypoCorrections: true, automaticallyFixTypos: true)
+
+        // #then the commoner fix leads the bar and is not applied: it would be wrong one time in three
+        XCTAssertEqual(ranked.first?.term, "which")
+        XCTAssertFalse(TypoGate.isCertain(top: ranked[0], margin: ranked[0].score - ranked[1].score, confidence: nil, settings: settings))
+    }
+
+    func test_habitWithARareRival_isStillMadeForTheWriter() {
+        // #given the same slip fixed to one word twenty times and to the other once
+        let ranked = rank("wich", sources: slipNearACommonerWord, personal: ["which": 20, "with": 1])
+        let settings = TypoGate.Settings(suppressCompletionsOnTypo: true, offerTypoCorrections: true, automaticallyFixTypos: true)
+
+        XCTAssertTrue(TypoGate.isCertain(top: ranked[0], margin: ranked[0].score - ranked[1].score, confidence: nil, settings: settings))
+    }
+
+    func test_slipTheWriterTakesBothWays_offersTheirTwoWordsAsAChoice() {
+        // #given a slip fixed to two words about as often, so neither is a habit
+        let ranked = rank("wich", sources: slipNearACommonerWord, personal: ["which": 3, "with": 2])
+        let settings = TypoGate.Settings(suppressCompletionsOnTypo: true, offerTypoCorrections: true, automaticallyFixTypos: true)
+
+        // #then their two words lead, the commoner of the two first, too close to apply either
+        XCTAssertEqual(ranked.prefix(2).map(\.term), ["which", "with"])
+        XCTAssertLessThan(ranked[0].score - ranked[1].score, settings.choiceListMaximumMargin)
+    }
+
+    func test_slipFixedToOneWordOnly_isRankedAsBefore() {
+        // #given one fix on record and no other
+        let learned = rank("wich", sources: slipNearACommonerWord, personal: ["which": 1])
+        let fresh = rank("wich", sources: slipNearACommonerWord, personal: [:])
+
+        // #then nothing is held to a choice: the order is the one the scores give
+        XCTAssertEqual(learned.map(\.term).sorted(), fresh.map(\.term).sorted())
+        XCTAssertGreaterThanOrEqual(learned[0].score, learned[1].score)
+    }
+
     func test_habitualFixTheDictionaryDidNotFind_isOfferedAnyway() {
         // #given a slip too far from its word for the dictionary sources to connect them
         let ranked = rank("restrnt", sources: slipNearACommonerWord, personal: ["restaurant": 2])

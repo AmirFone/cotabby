@@ -418,6 +418,15 @@ extension SuggestionCoordinator {
             return
         }
 
+        // The field is being left alone after a slow read (`FieldReadPacing`). A look now would
+        // only return the text already known, so it is not taken and not counted: the wait below
+        // is a number of looks at the field, and a look that reads nothing must not use one up.
+        guard !focusModel.isRestingAfterSlowRead else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(Self.hostPublishFirstPollIntervalMs)) { [weak self] in
+                self?.pollForHostPublish(baseline: baseline, pollGeneration: pollGeneration, elapsedMs: elapsedMs)
+            }
+            return
+        }
         traceTyping("poll")
         focusModel.refreshNow()
         traceTyping("poll read")
@@ -508,7 +517,9 @@ extension SuggestionCoordinator {
         let interval = elapsedMs < Self.hostPublishFastPollWindowMs
             ? Self.hostPublishFirstPollIntervalMs
             : Self.hostPublishPollIntervalMs
-        let nextElapsed = elapsedMs + interval
+        // A slow read counts for the time it took. Without that, the wait in an app that takes
+        // 100 ms per read would be thirteen such reads long.
+        let nextElapsed = elapsedMs + max(interval, focusModel.lastReadMilliseconds)
         let ceilingMs = isBehindTheKeys ? max(baseline.ceilingMs, Self.hostPublishBehindCeilingMs) : baseline.ceilingMs
         guard nextElapsed < ceilingMs else {
             if baseline.generatesAtCeiling {

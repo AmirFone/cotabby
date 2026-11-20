@@ -338,7 +338,8 @@ final class TypoGateInputs {
     private func orderedByModel(_ ranked: [RankedSpellingCandidate], word: String) -> [RankedSpellingCandidate] {
         confidenceByFinishedWord[word] = nil
         guard let model = dependencies.autoFixModel, let top = ranked.first, !top.signals.isKnownFix,
-              !ranked.contains(where: { $0.signals.isProperNoun || $0.signals.personalAccepted >= SpellingCandidateRanker.habitLeadCount })
+              !ranked.contains(where: { $0.signals.isProperNoun || $0.signals.personalAccepted >= SpellingCandidateRanker.habitLeadCount }),
+              !SpellingCandidateRanker.holdsTwoOfTheWritersFixes(ranked)
         else { return ranked }
         let capitalized = isCapitalizedMidSentence(word)
         let features = ranked.indices.map {

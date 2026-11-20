@@ -64,6 +64,7 @@ tool_suites() {
     || { grep -E "error:" "$OUT/tool-build.log" | head -20; echo "the tool did not build"; return 1; }
   local cli="$TOOL_DERIVED/Build/Products/Release/cotabby-spell" failed=0
   "$cli" --suite Tools/cotabby-spell/cases.txt > "$OUT/cases.log" 2>&1 || failed=1
+  SECOND_JUDGE=1 "$cli" --suite Tools/cotabby-spell/cases-second-judge.txt > "$OUT/cases-second-judge.log" 2>&1 || failed=1
   tail -n 1 "$OUT/cases.log"; grep -E "^FAIL" "$OUT/cases.log" | head -20
   "$cli" --sentences Tools/cotabby-spell/sentences.txt > "$OUT/sentences.log" 2>&1 || failed=1
   tail -n 1 "$OUT/sentences.log"; grep -E "^FAIL" "$OUT/sentences.log" | head -20

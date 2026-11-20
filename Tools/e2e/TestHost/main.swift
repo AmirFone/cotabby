@@ -9,7 +9,7 @@ import AppKit
 /// Accessibility grant of its own: `doc.txt` and `field.txt` mirror the two texts (rewritten within
 /// 30 ms of any change, whoever made it), and each line appended to `host-commands.txt` is one of
 /// `focus-text`, `focus-field`, `clear-field`, `light`, `dark`, `busy`, `tear-read`, `late <ms>`,
-/// `nudge-frame`.
+/// `slow <ms>`, `nudge-frame`.
 final class HostDelegate: NSObject, NSApplicationDelegate {
     var window: NSWindow!
     private var textView: NSTextView!
@@ -57,6 +57,10 @@ final class HostDelegate: NSObject, NSApplicationDelegate {
             case let line where line.hasPrefix("late "):
                 TearingTextView.publishDelay = (Double(line.dropFirst(5)) ?? 0) / 1000
                 TearingTextView.noteText(of: textView)
+            // `slow 8`: every Accessibility read of the text view takes 8 ms to answer, like an
+            // app whose main thread is busy; `slow 0` ends it.
+            case let line where line.hasPrefix("slow "):
+                TearingTextView.readDelay = (Double(line.dropFirst(5)) ?? 0) / 1000
             default: break
             }
         }
@@ -200,6 +204,13 @@ final class HostDelegate: NSObject, NSApplicationDelegate {
 /// while the view itself, and `doc.txt`, are up to date. That is the one condition under which a
 /// strip that waits for the field falls behind the writer, and no native view shows it.
 ///
+/// And it can answer slowly. Accessibility reads are answered on the app's main thread, and a
+/// client waits for each one. A chat app that is drawing a long reply takes 5 to 40 ms per read
+/// where a native view takes a fraction of one, and Cotabby makes several reads per key on its own
+/// main thread, the thread its key taps are served on. With `readDelay` set, each read here
+/// waits that long before it answers. Keys then queue up in Cotabby while it waits, which is the
+/// condition under which a key reached its two taps in the wrong order.
+///
 /// The state is static because the view is made by `NSTextView.scrollableTextView()` and only given
 /// this class afterwards, so it can hold nothing of its own.
 final class TearingTextView: NSTextView {
@@ -211,6 +222,12 @@ final class TearingTextView: NSTextView {
     static var publishDelay: TimeInterval = 0
     /// What the view held and when, oldest first; only kept while `publishDelay` is set.
     private static var held: [(time: TimeInterval, text: String, selection: NSRange)] = []
+
+    /// How long each Accessibility read takes to answer, in seconds; 0 answers at once.
+    static var readDelay: TimeInterval = 0
+    private static func dawdle() {
+        if readDelay > 0 { Thread.sleep(forTimeInterval: readDelay) }
+    }
 
     static func noteText(of view: NSTextView) {
         guard publishDelay > 0 else {
@@ -233,6 +250,7 @@ final class TearingTextView: NSTextView {
     }
 
     override func accessibilitySelectedTextRange() -> NSRange {
+        Self.dawdle()
         Self.countIsFromBeforeTheKey = Self.tornSelectionReads > 0
         guard Self.tornSelectionReads > 0 else { return Self.published?.selection ?? super.accessibilitySelectedTextRange() }
         Self.tornSelectionReads -= 1
@@ -240,15 +258,18 @@ final class TearingTextView: NSTextView {
     }
 
     override func accessibilityNumberOfCharacters() -> Int {
+        Self.dawdle()
         let count = Self.published.map { ($0.text as NSString).length } ?? super.accessibilityNumberOfCharacters()
         return count + (Self.countIsFromBeforeTheKey ? Self.charactersDeleted : 0)
     }
 
     override func accessibilityValue() -> String? {
-        Self.published?.text ?? super.accessibilityValue()
+        Self.dawdle()
+        return Self.published?.text ?? super.accessibilityValue()
     }
 
     override func accessibilityString(for range: NSRange) -> String? {
+        Self.dawdle()
         guard let text = Self.published?.text as NSString? else { return super.accessibilityString(for: range) }
         guard range.location >= 0, NSMaxRange(range) <= text.length else { return nil }
         return text.substring(with: range)

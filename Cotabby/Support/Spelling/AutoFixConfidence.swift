@@ -28,6 +28,20 @@ nonisolated enum AutoFixFeatures {
         TreeEnsembleModel.bundled(named: "autofix_keyboard_en", featureNames: names, in: bundle)
     }
 
+    /// The second judge, when the writer has asked for it. Off unless turned on
+    /// (`defaults write <app> cotabbySecondAutoFixJudgeEnabled -bool true`, then restart).
+    ///
+    /// It was on for everyone in 0.4.5 and 0.4.6. On a recorded working day it did what it was
+    /// built to do, half again as many automatic fixes (21 per 100 words typed against 14), and
+    /// the writer it was built for found that more trouble than help and went back to the build
+    /// without it: a word changed unasked costs more attention than a bar that can be ignored.
+    /// The model and its code stay in the app, so it can be tried again without a new build.
+    static let secondJudgeDefaultsKey = "cotabbySecondAutoFixJudgeEnabled"
+
+    static func keyboardModelIfTurnedOn(defaults: UserDefaults = .standard, in bundle: Bundle = .main) -> TreeEnsembleModel? {
+        defaults.bool(forKey: secondJudgeDefaultsKey) ? bundledKeyboardModel(in: bundle) : nil
+    }
+
     static let names: [String] = [
         "typoLength", "typoIsShort", "typoVowelRatio", "typoHasNonLetter", "capitalizedMidSentence",
         "candidateCount", "rankerPosition", "topScore", "margin", "secondScore", "nearCount",

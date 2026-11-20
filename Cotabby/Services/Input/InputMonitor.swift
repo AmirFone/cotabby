@@ -19,6 +19,9 @@ struct InputMonitorKeyEvent {
     let keyCode: CGKeyCode
     let characters: String
     let flags: CGEventFlags
+    /// How long the key had been waiting when Cotabby was handed it (see
+    /// `CapturedInputEvent.heardAfterMilliseconds`).
+    var heardAfterMilliseconds = 0
 
     init(keyCode: CGKeyCode, characters: String = "", flags: CGEventFlags = []) {
         self.keyCode = keyCode
@@ -150,6 +153,18 @@ final class InputMonitor {
     /// The last key-down the observer acted on. If a hold starts before the active tap sees that
     /// same key, the key is let through: replaying it would make the app see it twice.
     private var lastActedOnKeyDownTimestamp: UInt64?
+    /// The key-downs the listening tap was handed lately, whatever it did with them. A key-down
+    /// that reaches the consuming tap and is not among them has not been through the listening
+    /// tap yet (see `observeKeyDown`).
+    private var keyDownsSeenByObserver = RecentKeyDowns()
+    /// Key-downs the consuming tap handled on the listening tap's behalf, each of which that tap
+    /// must skip when its own turn for the key comes. More than one can be waiting: with the run
+    /// loop behind, the consuming tap is handed the next key before the listening tap has had
+    /// its turn for the one before, and a single remembered key made the earlier one count twice.
+    private var keyDownsObservedByConsumingTap = RecentKeyDowns()
+    /// Whether an inline panel takes the last key-down from the app, decided when the panels
+    /// heard the key (`observeKeyDown`) and used by the consuming tap for that same key.
+    private var captureDecision: (timestamp: UInt64, decision: InputMonitorAcceptTapDecision)?
     /// Marks a replayed key-down. Unlike the synthetic marker this one means "the writer typed this":
     /// both taps treat a replayed key exactly like a fresh one, except that it is never held again.
     nonisolated static let replayedEventUserData: Int64 = 0x436F_7461_6262_7A
@@ -602,46 +617,12 @@ final class InputMonitor {
             return Unmanaged.passUnretained(event)
 
         case .keyDown:
-            lastKeyDownUptime = ProcessInfo.processInfo.systemUptime
-            // Identity first: every event the inserter posts carries the synthetic marker, which
-            // survives any counter race. The countdown alone proved leaky under rapid accept
-            // bursts (async tap delivery interleaves chunks), and one leaked synthetic keydown
-            // classified as typing is enough to invalidate the very suggestion being accepted. This
-            // also subsumes the #668 paste-path concern: the synthetic Cmd-V carries the marker, so
-            // identity suppresses it even if a racing real keystroke consumed its countdown token
-            // first. The countdown check below remains as the secondary gate for unmarked events.
-            if suppressionController.isSynthetic(event) {
-                _ = suppressionController.consumeIfNeeded()
-                onSuppressedSyntheticInput?()
+            // The consuming tap was handed this key first and has done the work already.
+            if keyDownsObservedByConsumingTap.remove(event.timestamp) {
                 return Unmanaged.passUnretained(event)
             }
-
-            // A key the active tap is holding back has not been typed yet as far as the app is
-            // concerned; it is acted on when it comes through again as a replayed key.
-            if isLeftForHolding(event) {
-                return Unmanaged.passUnretained(event)
-            }
-            lastActedOnKeyDownTimestamp = event.timestamp
-
-            if suppressionController.consumeIfNeeded() {
-                onSuppressedSyntheticInput?()
-                return Unmanaged.passUnretained(event)
-            }
-
-            // Short-circuit before classification when Cotabby won't act on events for the
-            // current app. Even though this tap is listen-only, classification still does work
-            // on the main actor that we should skip when nothing will use the result.
-            guard shouldProcessEventsProvider() else {
-                return Unmanaged.passUnretained(event)
-            }
-
-            _ = routeObserverKeyDown(
-                InputMonitorKeyEvent(
-                    keyCode: keyCode(from: event),
-                    characters: event.unicodeString,
-                    flags: event.flags
-                )
-            )
+            keyDownsSeenByObserver.insert(event.timestamp)
+            observeKeyDown(event)
             return Unmanaged.passUnretained(event)
 
         case .leftMouseDown, .rightMouseDown:
@@ -651,6 +632,76 @@ final class InputMonitor {
         default:
             return Unmanaged.passUnretained(event)
         }
+    }
+
+    /// Everything Cotabby does on hearing a key: the spelling work, the strip, and the decision
+    /// whether an inline panel takes the key from the app (`pendingDecision` in the panels).
+    ///
+    /// Runs once per key, from whichever tap is handed the key first. The listening tap is ahead
+    /// of the consuming tap in the system's chain, but both are served from one run loop, and when
+    /// that run loop was busy and both taps have the key waiting, the consuming tap's turn can
+    /// come first. It would then ask the panels about a key they had not heard of, be told "not
+    /// ours", and pass it on: Tab on the word strip would go to the app. So the consuming tap
+    /// calls this itself before it decides (`handleAcceptTap`), and the listening tap's later
+    /// turn for the same key is skipped. A key is recognized by its timestamp, which is the
+    /// event's own and the same in both taps.
+    private func observeKeyDown(_ event: CGEvent) {
+        lastKeyDownUptime = ProcessInfo.processInfo.systemUptime
+        // Identity first: every event the inserter posts carries the synthetic marker, which
+        // survives any counter race. The countdown alone proved leaky under rapid accept
+        // bursts (async tap delivery interleaves chunks), and one leaked synthetic keydown
+        // classified as typing is enough to invalidate the very suggestion being accepted. This
+        // also subsumes the #668 paste-path concern: the synthetic Cmd-V carries the marker, so
+        // identity suppresses it even if a racing real keystroke consumed its countdown token
+        // first. The countdown check below remains as the secondary gate for unmarked events.
+        if suppressionController.isSynthetic(event) {
+            _ = suppressionController.consumeIfNeeded()
+            onSuppressedSyntheticInput?()
+            return
+        }
+
+        // A key the active tap is holding back has not been typed yet as far as the app is
+        // concerned; it is acted on when it comes through again as a replayed key.
+        if isLeftForHolding(event) {
+            return
+        }
+        lastActedOnKeyDownTimestamp = event.timestamp
+
+        if suppressionController.consumeIfNeeded() {
+            onSuppressedSyntheticInput?()
+            return
+        }
+
+        // Short-circuit before classification when Cotabby won't act on events for the
+        // current app. Even though this tap is listen-only, classification still does work
+        // on the main actor that we should skip when nothing will use the result.
+        guard shouldProcessEventsProvider() else {
+            return
+        }
+
+        var keyEvent = InputMonitorKeyEvent(
+            keyCode: keyCode(from: event),
+            characters: event.unicodeString,
+            flags: event.flags
+        )
+        keyEvent.heardAfterMilliseconds = Self.millisecondsWaited(since: event.timestamp)
+        guard routeObserverKeyDown(keyEvent) != nil, let emojiCaptureKeyDecider else { return }
+        // The panels have just heard the key, so whether one of them takes it from the app is
+        // asked now, in the same turn, and kept for the consuming tap. Asked later, at that
+        // tap's own turn, the answer could be gone: a panel that claimed Tab and then came down
+        // in between (its pick ran, or the field changed) forgot the claim, and Tab went to the
+        // app as well.
+        captureDecision = (event.timestamp, emojiCaptureKeyDecider(keyEvent))
+    }
+
+    /// How long ago an event was made, in milliseconds: the time a key spent waiting for this
+    /// run loop. An event's timestamp is on the uptime clock. Anything outside zero to ten
+    /// seconds is a timestamp from another clock (an event built by a tool) and counts as none.
+    nonisolated static func millisecondsWaited(
+        since timestamp: CGEventTimestamp, now: UInt64 = DispatchTime.now().uptimeNanoseconds
+    ) -> Int {
+        guard timestamp > 0, now >= timestamp, now - timestamp < 10_000_000_000 else { return 0 }
+        return Int((now - timestamp) / 1_000_000)
     }
 
     /// Testable pointer path for the listen-only observer tap.
@@ -702,12 +753,22 @@ final class InputMonitor {
                 return nil
             }
 
+            // The panels must have heard of this key before they are asked whether it is theirs
+            // (see `observeKeyDown`).
+            if !keyDownsSeenByObserver.remove(event.timestamp) {
+                CotabbyLogger.app.debug("A key reached the consuming tap first; handled there")
+                keyDownsObservedByConsumingTap.insert(event.timestamp)
+                observeKeyDown(event)
+            }
+
             guard shouldProcessEventsProvider() else {
                 return Unmanaged.passUnretained(event)
             }
 
             let keyEvent = InputMonitorKeyEvent(keyCode: keyCode(from: event), flags: event.flags)
-            switch resolveAcceptKeyDown(keyEvent) {
+            let decided = captureDecision.flatMap { $0.timestamp == event.timestamp ? $0.decision : nil }
+            captureDecision = nil
+            switch resolveAcceptKeyDown(keyEvent, captureDecision: decided) {
             case .consume:
                 return nil
             case .notHandled, .passThrough:
@@ -723,12 +784,15 @@ final class InputMonitor {
     /// open, otherwise the suggestion accept-key logic decides. `.notHandled` from the emoji decider
     /// means no capture is active, so the accept-key path takes over. Mirrors `handleAcceptTap`'s
     /// keydown branch without CoreGraphics event allocation.
-    func resolveAcceptKeyDown(_ keyEvent: InputMonitorKeyEvent) -> InputMonitorAcceptTapDecision {
-        if let emojiCaptureKeyDecider {
-            let decision = emojiCaptureKeyDecider(keyEvent)
-            if decision != .notHandled {
-                return decision
-            }
+    ///
+    /// `captureDecision` is the panels' answer when it was already taken for this key (see
+    /// `observeKeyDown`); without one the panels are asked here.
+    func resolveAcceptKeyDown(
+        _ keyEvent: InputMonitorKeyEvent, captureDecision: InputMonitorAcceptTapDecision? = nil
+    ) -> InputMonitorAcceptTapDecision {
+        let decision = captureDecision ?? emojiCaptureKeyDecider?(keyEvent) ?? .notHandled
+        if decision != .notHandled {
+            return decision
         }
         return handleAcceptKeyDown(keyEvent)
     }
@@ -790,7 +854,8 @@ final class InputMonitor {
         // accept path instead. Excluding capture from acceptance recognition keeps the emoji picker's
         // "first look at every keystroke" invariant intact even when a suggestion overlay is showing.
         let recognizesAcceptance = isAcceptTapOwningAcceptKeys && !captureInterceptionActive
-        let capturedEvent = classify(keyEvent: keyEvent, recognizesAcceptance: recognizesAcceptance)
+        var capturedEvent = classify(keyEvent: keyEvent, recognizesAcceptance: recognizesAcceptance)
+        capturedEvent.heardAfterMilliseconds = keyEvent.heardAfterMilliseconds
         guard !capturedEvent.kind.isAcceptance else {
             // Acceptance is handled by the active default tap, because only that callback can
             // make insertion and "consume the original key" one atomic decision. If the active

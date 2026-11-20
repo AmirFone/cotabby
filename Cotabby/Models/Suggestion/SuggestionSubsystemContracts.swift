@@ -38,6 +38,12 @@ protocol SuggestionFocusProviding: AnyObject {
     /// to skip a redundant capture that another caller performed moments earlier.
     var millisecondsSinceLastCapture: Int? { get }
 
+    /// True while the provider is leaving the field unread after a slow read (`FieldReadPacing`):
+    /// `refreshNow()` then answers with the snapshot it already has.
+    var isRestingAfterSlowRead: Bool { get }
+    /// How long the last read of the field took, in milliseconds.
+    var lastReadMilliseconds: Int { get }
+
     func refreshNow()
 
     /// Hint that Cotabby just mutated the focused field itself (synthetic insert or replace), so
@@ -50,6 +56,10 @@ extension SuggestionFocusProviding {
     /// Conservative default: age unknown, so `refreshIfStale` always refreshes. Production
     /// providers report a real age; test fakes can ignore freshness entirely.
     var millisecondsSinceLastCapture: Int? { nil }
+
+    /// Default: a provider that reads at once and for free.
+    var isRestingAfterSlowRead: Bool { false }
+    var lastReadMilliseconds: Int { 0 }
 
     /// Default: nothing cached, nothing to invalidate.
     func invalidateTransientCaretCaches() {}

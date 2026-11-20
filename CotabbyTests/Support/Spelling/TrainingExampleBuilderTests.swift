@@ -442,6 +442,25 @@ final class TrainingExampleBuilderTests: XCTestCase {
         XCTAssertEqual(step.draws?.count, 4)
     }
 
+    func test_stripStep_carriesTheWordsSlowestMoments_throughTheLogAndIntoTheExport() throws {
+        // #given a word typed while a key waited 120 ms, a strip took 40 ms and a read 95 ms
+        var use = StripUse(
+            before: "I saw the", word: "report", shownFirst: ["cat"], shownLast: ["report"], lettersTyped: 2, pickedSlot: 0
+        )
+        use.timing = .init(key: 120, strip: 40, read: 95)
+        let written = line(.strip(use), 1, ms: 0)
+
+        // #when the line goes through the log file and the example is built from it
+        let data = try JSONSerialization.data(withJSONObject: written.json)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let read = try XCTUnwrap(TrainingLogLine(json: object))
+        let lines = [read, line(.sentence(text: "I saw the report today.", day: day), 2, ms: 900)]
+        let step = try XCTUnwrap(TrainingExampleBuilder.examples(fromLines: lines).first?.steps?.first)
+
+        // #then the timing is in the step, in milliseconds
+        XCTAssertEqual(step.lag, StripUse.Timing(key: 120, strip: 40, read: 95))
+    }
+
     func test_fixTheWriterReplacedWithAThirdWord_isARejectedFixAndAnAcceptedOne() throws {
         // #given `thay` fixed to `they`, which the writer changed to `that`
         let lines = [

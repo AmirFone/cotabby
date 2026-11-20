@@ -60,6 +60,28 @@ final class TextFromKeysTests: XCTestCase {
         XCTAssertNil(keys.isAhead("we ", by: " "))
     }
 
+    func test_readWithTheCaretFromBeforeTheLastKeys_isNotACaretInsideAWord() {
+        // #given `re` typed after `the `, and a read with the caret from before the `e`
+        let keys = typed("re", after: "the ")
+
+        // #then the `e` after that caret is the key just typed
+        XCTAssertTrue(keys.isCaretBehindItsText(before: "the r", after: "e"))
+    }
+
+    func test_caretReallyInsideAWord_staysOne() {
+        // #given the same keys, and a caret with other letters after it
+        let keys = typed("re", after: "the ")
+
+        XCTAssertFalse(keys.isCaretBehindItsText(before: "the re", after: "port"))
+        XCTAssertFalse(keys.isCaretBehindItsText(before: "the r", after: "x"))
+    }
+
+    func test_nothingAfterTheCaret_isNoSuchRead() {
+        let keys = typed("re", after: "the ")
+
+        XCTAssertFalse(keys.isCaretBehindItsText(before: "the r", after: ""))
+    }
+
     func test_theTextNow_isNotAnEarlierState() {
         let keys = typed("want ", after: "I ")
 

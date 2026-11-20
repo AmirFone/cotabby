@@ -21,6 +21,9 @@
 #   E2E_ONLY=speed          only time fixes: misspelled words typed at E2E_PACE ms per key (default 45)
 #   E2E_ONLY=tornread       Backspace through long lines and count torn reads of the field (E2E_ROUNDS, default 4)
 #   E2E_ONLY=steady         the strip in a slow app, after a hyphen or slash, left alone, and in a field that changes its frame
+#   E2E_ONLY=busy           Tab on the strip in an app that answers Accessibility slowly (E2E_ROUNDS, default 12;
+#                           E2E_SLOW_MS per query, default 30, about 100 ms per read of the field): counts Tabs
+#                           that reached the app and reports strip timing
 set -uo pipefail
 DOMAIN=com.jacobfu.tabby.dev
 # Synthesized keys go nowhere on a locked screen; every check would fail as empty text. Checked at
@@ -343,6 +346,38 @@ quick() { # label, milliseconds (may be empty), limit
   else
     echo "FAIL  $1: expected under $3 ms, got [${2:-no strip}]"; fail=$((fail+1))
   fi
+}
+
+# Tab on the strip while the app in front is busy: it publishes keys late and takes several
+# milliseconds to answer each Accessibility read, as a chat app does while it draws a reply.
+# Cotabby waits for those reads on the thread its key taps are served on, so keys queue up, and a
+# queued key is not always handed to the listening tap before the consuming one. Tab must still
+# pick the word and never reach the app. The test view types a tab character when it does, so a
+# Tab that got through shows in the text.
+busy_cases() {
+  local rounds="${E2E_ROUNDS:-12}" round picked=0 leaked=0 dropped=0 text delays
+  host_command "late 150"; host_command "slow ${E2E_SLOW_MS:-30}"; sleep 0.3
+  mark
+  for round in $(seq 1 "$rounds"); do
+    # Odd rounds press Tab straight after the last letter, even rounds after a look at the strip.
+    clear_doc; type_text "Can you send me the "; sleep 0.8
+    send "$(printf 'type\t%s' "rep")"
+    if [ $((round % 2)) -eq 0 ]; then sleep 0.5; fi
+    press 48; sleep 1.6
+    text=$(doc)
+    case "$text" in
+      *$'\t'*) leaked=$((leaked + 1)) ;;
+      "Can you send me the rep") dropped=$((dropped + 1)) ;;
+      *) picked=$((picked + 1)) ;;
+    esac
+  done
+  delays=$(since_mark | grep -F "Word strip shown " | sed -E 's/.*Word strip shown ([0-9.]+) ms.*/\1/' | sort -n)
+  echo "TIME  busy app: Tab picked the word $picked of $rounds, reached the app $leaked, did nothing $dropped"
+  echo "TIME  busy app: strip shown after the key, median $(printf '%s\n' "$delays" | awk '{ v[NR] = $1 } END { if (NR) print v[int((NR + 1) / 2)] }') ms, 90% within $(printf '%s\n' "$delays" | awk '{ v[NR] = $1 } END { if (NR) print v[int(NR * 0.9 + 0.5)] }') ms ($(printf '%s\n' "$delays" | grep -c .) strips)"
+  echo "TIME  busy app: keys the consuming tap saw first: $(since_mark | grep -c "reached the consuming tap first")"
+  check "busy app: no Tab reached the app" "0" "$leaked"
+  check "busy app: Tab picked the word every time" "$rounds" "$picked"
+  host_command "slow 0"; host_command "late 0"; sleep 0.3
 }
 
 # Where the strip used to fall behind or go missing while typing. Most of it only shows in an app
@@ -774,6 +809,11 @@ if [ "${E2E_ONLY:-}" = predict ]; then
   echo "$pass passed, $fail failed  (log: $LOG)"; [ $fail -eq 0 ]; exit
 fi
 
+if [ "${E2E_ONLY:-}" = busy ]; then
+  busy_cases
+  echo "$pass passed, $fail failed  (log: $LOG)"; [ $fail -eq 0 ]; exit
+fi
+
 if [ "${E2E_ONLY:-}" = steady ]; then
   steady_cases
   echo "$pass passed, $fail failed  (log: $LOG)"; [ $fail -eq 0 ]; exit
@@ -790,9 +830,9 @@ fi
 
 case_type "auto-fix transposition" "I think teh " "I think the "
 case_type "auto-fix mid-sentence" "it broke becuase " "It broke because "
-# 0.4.5: a finger slip the first model only offers is fixed when the keyboard-trained model agrees
-# on the word, and left a question where two readings are close.
-case_type "auto-fix: finger slip, two models agree" "please revirw " "Please review "
+# The second judge is off unless turned on (0.4.7): a finger slip the first model only offers
+# is left a question, and so is a form with two close readings.
+case_type "auto-fix: a slip the first model only offers stays a question" "please revirw " "Please revirw "
 case_type "auto-fix: two close readings stay a question" "we sayed " "We sayed "
 case_type "apostrophe repair" "I dont " "I don't "
 case_type "correct text untouched" "over there " "Over there "
@@ -865,6 +905,8 @@ esac
 learn_cases
 predict_cases
 steady_cases
+# Six rounds in the full run; E2E_ONLY=busy runs twelve.
+E2E_ROUNDS="${E2E_ROUNDS:-6}" E2E_SLOW_MS="${E2E_SLOW_MS:-30}" busy_cases
 tense_cases
 model_cases
 toggle_cases

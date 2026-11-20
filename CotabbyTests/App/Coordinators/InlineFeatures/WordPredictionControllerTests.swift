@@ -846,9 +846,9 @@ final class WordPredictionControllerTests: XCTestCase {
         harness.note("I want to g")
         _ = harness.controller.observe(Self.typed("e"))
 
-        // #when Tab is pressed and the wait runs out
+        // #when Tab is pressed and the wait (1.2 s) runs out
         _ = harness.controller.observe(Self.key(48))
-        RunLoop.main.run(until: Date().addingTimeInterval(0.8))
+        RunLoop.main.run(until: Date().addingTimeInterval(1.6))
 
         // #then nothing was typed and the strip is gone
         XCTAssertTrue(harness.typedNothing)

@@ -115,8 +115,9 @@ struct Harness {
         let autoFixModel = arguments.useModel
             ? (try? Data(contentsOf: modelURL)).flatMap { TreeEnsembleModel(data: $0, featureNames: AutoFixFeatures.names) }
             : nil
-        // The second judge, when the resources have it; NO_SECOND_JUDGE=1 measures without it.
-        let keyboardFixModel = arguments.useModel && ProcessInfo.processInfo.environment["NO_SECOND_JUDGE"] == nil
+        // The second judge is off in the app unless the writer turns it on, so it is off here
+        // too; SECOND_JUDGE=1 measures with it.
+        let keyboardFixModel = arguments.useModel && ProcessInfo.processInfo.environment["SECOND_JUDGE"] != nil
             ? (try? Data(contentsOf: root.appendingPathComponent("autofix_keyboard_en.json")))
                 .flatMap { TreeEnsembleModel(data: $0, featureNames: AutoFixFeatures.names) }
             : nil

@@ -1,0 +1,14 @@
+# Cases for the second auto-fix judge (finger slips), which is off unless the writer turns it on
+# (`defaults write <app> cotabbySecondAutoFixJudgeEnabled -bool true`). Run with SECOND_JUDGE=1:
+#   SECOND_JUDGE=1 cotabby-spell --suite Tools/cotabby-spell/cases-second-judge.txt
+# Same format as cases.txt.
+
+# A slip the first judge only offers is fixed when the keyboard-trained judge agrees on the word.
+auto:and	we met amd talked amd |
+auto:review	please revirw |
+auto:kubernetes	check the kuberntes |
+# Where two readings are close (the bar would show a list) it keeps quiet. A form one key from
+# two words stays a question too.
+bar-has:said	we sayed |
+!auto	I will try agen |
+!auto	that is the nect |

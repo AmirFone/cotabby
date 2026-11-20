@@ -97,6 +97,23 @@ final class AutoFixConfidenceTests: XCTestCase {
                         "Retrain with Tools/autofix/run.sh after changing AutoFixFeatures.names")
     }
 
+    func test_secondJudge_isOffUntilTurnedOn() throws {
+        // #given a Mac where nobody has touched the setting
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: "second-judge-off-\(UUID().uuidString)"))
+
+        // #then the second judge takes no part
+        XCTAssertNil(AutoFixFeatures.keyboardModelIfTurnedOn(defaults: defaults))
+    }
+
+    func test_secondJudge_turnedOn_isLoaded() throws {
+        // #given the writer turned it on
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: "second-judge-on-\(UUID().uuidString)"))
+        defaults.set(true, forKey: AutoFixFeatures.secondJudgeDefaultsKey)
+
+        // #then the bundled model is used
+        XCTAssertNotNil(AutoFixFeatures.keyboardModelIfTurnedOn(defaults: defaults))
+    }
+
     func test_bundledKeyboardModel_matchesThisBuildsFeatureList() {
         XCTAssertNotNil(AutoFixFeatures.bundledKeyboardModel(),
                         "Retrain the second judge too (Tools/autofix/run.sh, AUTOFIX_OUT) after changing AutoFixFeatures.names")
