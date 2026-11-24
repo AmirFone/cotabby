@@ -111,4 +111,8 @@ extension FocusTrackingModel: SuggestionFocusProviding {
     var lastReadMilliseconds: Int {
         tracker.lastReadMilliseconds
     }
+
+    var fieldKeptThroughUnansweredReadCount: Int {
+        tracker.fieldKeptThroughUnansweredReadCount
+    }
 }

@@ -326,6 +326,38 @@ final class WordPredictionControllerTests: XCTestCase {
         XCTAssertEqual(harness.controller.alreadyShows(typed: " ", in: "we"), false)
     }
 
+    func test_textAfterKeys_isTheLastReadWithEveryKeySince_whileTheFieldIsOnlyBehind() {
+        // #given three letters typed since a read, and a field that still shows the read
+        let harness = makeHarness(precedingText: "I saw ")
+        harness.note("I saw ")
+        for character in "teh" { _ = harness.controller.observe(Self.typed(String(character))) }
+
+        // #then the keys vouch for the text a space would leave
+        XCTAssertEqual(harness.controller.textAfterKeys(typing: " "), "I saw teh ")
+    }
+
+    func test_textAfterKeys_isNotVouchedFor_whenTheFieldHoldsOtherText() {
+        // #given the same keys, and a field that now reads something they did not leave
+        let harness = makeHarness(precedingText: "I saw ")
+        harness.note("I saw ")
+        for character in "teh" { _ = harness.controller.observe(Self.typed(String(character))) }
+        harness.focus.setPrecedingText("I saw the cat")
+
+        XCTAssertNil(harness.controller.textAfterKeys(typing: " "))
+    }
+
+    func test_afterAFixIsNoted_theWordFromBeforeItIsTheFieldBeingBehind() {
+        // #given `teh ` typed and fixed from the keys
+        let harness = makeHarness(precedingText: "I saw ")
+        harness.note("I saw ")
+        for character in "teh " { _ = harness.controller.observe(Self.typed(String(character), keyCode: character == " " ? 49 : 0)) }
+        harness.controller.noteFixTyped(leaving: "I saw the ")
+
+        // #then a late report of the unfixed word is an earlier state, not new text
+        XCTAssertTrue(harness.controller.isBehindTheKeys("I saw teh "))
+        XCTAssertFalse(harness.controller.isBehindTheKeys("I saw the "))
+    }
+
     func test_onlyAnEarlierStateOfTheKeys_countsAsBehind() {
         // #given the keys `want ` typed after `I `
         let harness = makeHarness(precedingText: "I ")

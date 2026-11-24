@@ -94,6 +94,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             .store(in: &cancellables)
 
+        NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification, object: UserDefaults.standard)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.followWordStripSetting()
+            }
+            .store(in: &cancellables)
+
         focusModel.$snapshot
             .sink { [weak self] snapshot in
                 self?.updateActivationIndicator(for: snapshot)
@@ -268,14 +275,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Warm the local runtime only when the user is actually on a local engine path.
     /// This avoids noisy startup failures and wasted work for Apple Intelligence users.
     private func startRuntimeIfPreferredEngineRequiresIt() {
+        let stripReplacesGhostText = WordPredictionController.isEnabledInDefaults
+        ghostTextModelIsHeldForStripSetting = stripReplacesGhostText
         switch suggestionSettings.selectedEngine {
-        case .llamaOpenSource:
+        // While the word strip is on, ghost text is never generated (the strip owns Tab), so
+        // the ghost-text model would be loaded for nothing: 3.8 to 5 GB of memory held next to
+        // the strip's own model, on a Mac that is also running the writer's apps. Measured in
+        // the running app, the ghost-text model was 5.0 of the 9.2 GB it had mapped.
+        case .llamaOpenSource where !stripReplacesGhostText:
             runtimeModel.startIfNeeded()
-        case .appleIntelligence, .openAICompatible:
+        case .llamaOpenSource, .appleIntelligence, .openAICompatible:
             // Switching away must release Metal buffers and the mapped GGUF. Otherwise an Ollama
             // user still pays the duplicate memory cost the external endpoint is meant to avoid.
             runtimeModel.stop()
         }
+    }
+
+    /// The word strip's switch as it stood when the ghost-text model was last started or
+    /// stopped for it; the model follows the switch when it is changed in Settings.
+    private var ghostTextModelIsHeldForStripSetting: Bool?
+
+    /// Settings → Writing → Show Next-Word Predictions was switched: with the strip off ghost
+    /// text is back, and its model is loaded again. The switch is a plain defaults key, and
+    /// defaults change for many reasons, so nothing happens unless that key did.
+    private func followWordStripSetting() {
+        guard let held = ghostTextModelIsHeldForStripSetting,
+              held != WordPredictionController.isEnabledInDefaults else { return }
+        startRuntimeIfPreferredEngineRequiresIt()
     }
 
     /// Model availability can change after downloads or manual file drops. Re-scan first, then

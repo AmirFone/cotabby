@@ -46,6 +46,25 @@ enum AXHelper {
         return element
     }
 
+    // MARK: - Unanswered Reads
+
+    /// How many reads an app has left unanswered since launch: the request went out and no reply
+    /// came within `pollMessagingTimeout` (`AXError.cannotComplete`).
+    ///
+    /// Why it is counted: an unanswered read and "there is no such thing" both come back to the
+    /// caller as nil, and they mean opposite things. A text field that is not there is gone. A
+    /// text field the app was too busy to describe for 50 ms is still there. `FocusTracker`
+    /// compares this count before and after a capture to tell the two apart
+    /// (`UnansweredReadGrace`), and the training record keeps how often it happened per word.
+    /// Only ever read and written on the main actor, like every call in this file.
+    private(set) static var unansweredReadCount = 0
+
+    /// Passes an Accessibility result through, counting it when the app did not answer.
+    private static func noting(_ result: AXError) -> AXError {
+        if result == .cannotComplete { unansweredReadCount &+= 1 }
+        return result
+    }
+
     // MARK: - Attribute Reading
 
     /// Returns the AX attribute names exposed by an element.
@@ -173,7 +192,7 @@ enum AXHelper {
         }
 
         var value: CFTypeRef?
-        let result = AXUIElementCopyParameterizedAttributeValue(element, attribute, parameter, &value)
+        let result = noting(AXUIElementCopyParameterizedAttributeValue(element, attribute, parameter, &value))
         guard result == .success, let axValue = axValue(from: value) else { return nil }
         guard AXValueGetType(axValue) == .cgRect else {
             return nil
@@ -205,7 +224,7 @@ enum AXHelper {
         }
 
         var value: CFTypeRef?
-        let result = AXUIElementCopyParameterizedAttributeValue(element, attribute, parameter, &value)
+        let result = noting(AXUIElementCopyParameterizedAttributeValue(element, attribute, parameter, &value))
         guard result == .success, let value else { return nil }
 
         if let string = value as? String {
@@ -233,7 +252,7 @@ enum AXHelper {
         }
 
         var value: CFTypeRef?
-        let result = AXUIElementCopyParameterizedAttributeValue(element, attribute, parameter, &value)
+        let result = noting(AXUIElementCopyParameterizedAttributeValue(element, attribute, parameter, &value))
         guard result == .success, let value else { return nil }
 
         return value as? NSAttributedString
@@ -328,7 +347,7 @@ enum AXHelper {
         let selectedMarkerRangeAttribute = "AXSelectedTextMarkerRange" as CFString
         var markerRangeValue: CFTypeRef?
 
-        var result = AXUIElementCopyAttributeValue(element, selectedMarkerRangeAttribute, &markerRangeValue)
+        var result = noting(AXUIElementCopyAttributeValue(element, selectedMarkerRangeAttribute, &markerRangeValue))
         guard result == .success, let markerRange = markerRangeValue else {
             return nil
         }
@@ -337,7 +356,7 @@ enum AXHelper {
         let boundsForMarkerRangeAttribute = "AXBoundsForTextMarkerRange" as CFString
         var boundsValue: CFTypeRef?
 
-        result = AXUIElementCopyParameterizedAttributeValue(element, boundsForMarkerRangeAttribute, markerRange, &boundsValue)
+        result = noting(AXUIElementCopyParameterizedAttributeValue(element, boundsForMarkerRangeAttribute, markerRange, &boundsValue))
         guard result == .success, let axBounds = axValue(from: boundsValue) else { return nil }
         guard AXValueGetType(axBounds) == .cgRect else {
             return nil
@@ -438,7 +457,7 @@ enum AXHelper {
     /// serialization that must only be passed back to other marker APIs.
     private static func copyOpaqueAttribute(_ attribute: CFString, on element: AXUIElement) -> CFTypeRef? {
         var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, attribute, &value) == .success else {
+        guard noting(AXUIElementCopyAttributeValue(element, attribute, &value)) == .success else {
             return nil
         }
         return value
@@ -449,7 +468,7 @@ enum AXHelper {
         _ attribute: CFString, parameter: CFTypeRef, on element: AXUIElement
     ) -> CFTypeRef? {
         var value: CFTypeRef?
-        guard AXUIElementCopyParameterizedAttributeValue(element, attribute, parameter, &value) == .success else {
+        guard noting(AXUIElementCopyParameterizedAttributeValue(element, attribute, parameter, &value)) == .success else {
             return nil
         }
         return value
@@ -459,7 +478,7 @@ enum AXHelper {
     /// This is the lowest-level helper in the file; the typed helpers above build on top of it.
     static func copyAttributeValue(_ attribute: CFString, on element: AXUIElement) -> AnyObject? {
         var value: CFTypeRef?
-        let result = AXUIElementCopyAttributeValue(element, attribute, &value)
+        let result = noting(AXUIElementCopyAttributeValue(element, attribute, &value))
         guard result == .success else {
             return nil
         }
@@ -473,7 +492,7 @@ enum AXHelper {
     static func focusedElement() -> AXUIElement? {
         let systemWideElement = systemWideElement()
         var value: CFTypeRef?
-        let result = AXUIElementCopyAttributeValue(systemWideElement, kAXFocusedUIElementAttribute as CFString, &value)
+        let result = noting(AXUIElementCopyAttributeValue(systemWideElement, kAXFocusedUIElementAttribute as CFString, &value))
         guard result == .success, let element = value else {
             return nil
         }
@@ -509,8 +528,8 @@ enum AXHelper {
         let appElement = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(appElement, pollMessagingTimeout)
         var value: CFTypeRef?
-        let result = AXUIElementCopyAttributeValue(
-            appElement, kAXFocusedUIElementAttribute as CFString, &value)
+        let result = noting(AXUIElementCopyAttributeValue(
+            appElement, kAXFocusedUIElementAttribute as CFString, &value))
         guard result == .success, let element = value,
             CFGetTypeID(element) == AXUIElementGetTypeID()
         else {

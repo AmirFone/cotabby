@@ -102,6 +102,14 @@ final class SuggestionCoordinator: ObservableObject {
     var lastGatedPrecedingText: String?
     /// The field already showed the last typed key when its callback ran. Consumed by the publish wait.
     var fieldAlreadyShowsLastKey = false
+    /// The text the last key leaves before the caret, when the word strip's record of the keys
+    /// vouched for it (`WordPredictionPresenting.textAfterKeys`). The spelling work is prepared
+    /// for this text and not for "the last read plus one character", which in an app that is
+    /// behind is the text of several keys ago. Consumed by the publish wait.
+    var textFromKeysAtLastKey: String?
+    /// How long the app in front has been taking to show a typed key, smoothed over its last
+    /// few keys, and which app that was (`HostLateness`).
+    var hostLateness = HostLateness()
     /// The word the writer closed the spelling bar on with Escape; left alone until the caret moves on.
     var dismissedTypo: DismissedTypo?
     /// When the last typing key was seen, for the "fixed N ms after the key" debug log.

@@ -41,6 +41,55 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         XCTAssertFalse(data.showIndicator)
     }
 
+    func test_load_switchesTheFieldIconOffOnce_forAnInstallThatHadItShown() async {
+        // #given an install from before 0.4.7 with the icon stored as shown
+        let defaults = makeIsolatedDefaults()
+        defaults.set(ActivationIndicatorMode.fieldEdgeIcon.rawValue, forKey: "cotabbySelectedIndicatorMode")
+        defaults.set(true, forKey: "cotabbyShowCaretIndicator")
+
+        // #when the settings are loaded for the first time by this build
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        // #then the icon is off
+        XCTAssertFalse(data.showIndicator)
+    }
+
+    func test_load_switchesTheSentenceCheckOffOnce_forAnInstallThatHadItOn() async {
+        // #given an install from before 0.4.7, where every save had stored the check as on
+        let defaults = makeIsolatedDefaults()
+        defaults.set(true, forKey: "cotabbySentenceCheckEnabled")
+
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        XCTAssertFalse(data.isSentenceCheckEnabled)
+    }
+
+    func test_load_keepsTheSentenceCheckOn_whenTheWriterTurnsItBackOn() async {
+        // #given the one-time switch-off has happened and the writer turned the check on again
+        let defaults = makeIsolatedDefaults()
+        let store = SuggestionSettingsStore(userDefaults: defaults)
+        _ = store.load(configuration: .standard)
+        store.saveSentenceCheckEnabled(true)
+
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        XCTAssertTrue(data.isSentenceCheckEnabled)
+    }
+
+    func test_load_keepsTheFieldIconOn_whenTheWriterTurnsItBackOn() async {
+        // #given the one-time switch-off has happened and the writer turned the icon on again
+        let defaults = makeIsolatedDefaults()
+        let store = SuggestionSettingsStore(userDefaults: defaults)
+        _ = store.load(configuration: .standard)
+        store.saveShowIndicator(true)
+
+        // #when the app starts again
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        // #then their choice stands
+        XCTAssertTrue(data.showIndicator)
+    }
+
     func test_load_fallsBackToLegacyBoolWhenModeAbsent() async {
         let defaults = makeIsolatedDefaults()
         defaults.set(false, forKey: "cotabbyShowCaretIndicator")
@@ -208,13 +257,13 @@ final class SuggestionSettingsStoreTests: XCTestCase {
 
     // MARK: - Save / load round-trips
 
-    func test_load_confidentTypoFixingAndSentenceCheckDefaultOn() async {
+    func test_load_confidentTypoFixingDefaultsOn_andSentenceCheckOff() async {
         let defaults = makeIsolatedDefaults()
 
         let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
 
         XCTAssertTrue(data.automaticallyFixTypos)
-        XCTAssertTrue(data.isSentenceCheckEnabled)
+        XCTAssertFalse(data.isSentenceCheckEnabled)
         XCTAssertTrue(data.isLargeEndpointContextEnabled)
         XCTAssertEqual(data.endpointTokensPerMinuteBudget, 250_000)
     }

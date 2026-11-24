@@ -53,6 +53,12 @@ nonisolated struct StripUse: Equatable, Sendable {
         var strip = 0
         /// The longest read of the field while the word was typed.
         var read = 0
+        /// The longest pass of the strip's language model while the word was typed.
+        var model = 0
+        /// Not a duration: how many times, while the word was typed, the app in front failed to
+        /// answer a read in time and the field was kept all the same (`UnansweredReadGrace`).
+        /// Each one used to take the strip down.
+        var missed = 0
     }
 
     struct Draw: Equatable, Sendable, Codable {
@@ -90,6 +96,21 @@ nonisolated struct StripUseTracker {
     mutating func note(readTook milliseconds: Int) {
         var slowest = timing ?? .init()
         slowest.read = max(slowest.read, milliseconds)
+        timing = slowest
+    }
+
+    /// The app in front left `count` more reads unanswered while the current word was typed.
+    mutating func note(readsLeftUnanswered count: Int) {
+        guard count > 0 else { return }
+        var slowest = timing ?? .init()
+        slowest.missed += count
+        timing = slowest
+    }
+
+    /// A pass of the strip's language model took `milliseconds` while the current word was typed.
+    mutating func note(modelPassTook milliseconds: Int) {
+        var slowest = timing ?? .init()
+        slowest.model = max(slowest.model, milliseconds)
         timing = slowest
     }
 

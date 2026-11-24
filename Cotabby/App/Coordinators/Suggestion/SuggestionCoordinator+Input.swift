@@ -91,7 +91,7 @@ extension SuggestionCoordinator {
                focusSnapshot: snapshot,
                isFastModeEnabled: settingsSnapshot.isFastModeEnabled
            ) {
-            visualContextCoordinator.startSessionIfNeeded(for: context)
+            startVisualContextSessionIfUsed(for: context)
         }
 
         if let disabledReason = currentDisabledReason(focusSnapshot: snapshot) {
@@ -123,7 +123,7 @@ extension SuggestionCoordinator {
             focusSnapshot: snapshot,
             isFastModeEnabled: settingsSnapshot.isFastModeEnabled
         ) {
-            visualContextCoordinator.startSessionIfNeeded(for: focusedContext)
+            startVisualContextSessionIfUsed(for: focusedContext)
         }
 
         if case .disabled = state {
@@ -158,6 +158,7 @@ extension SuggestionCoordinator {
     /// the routed engine to prime itself. Generation 0 is intentional — prewarm requests must not
     /// burn real generation numbers, because those drive the stale-result drop logic.
     private func prewarmEngineForCurrentField(rawContext: FocusedInputSnapshot) {
+        guard !isGhostTextPaused else { return }
         let settings = settingsSnapshot
         let configuration = configuration
         let suggestionEngine = suggestionEngine
@@ -190,6 +191,7 @@ extension SuggestionCoordinator {
         isSpellingPendingForLastKey = false
         pendingKeystrokeUptimeNanoseconds = nil
         fieldAlreadyShowsLastKey = false
+        textFromKeysAtLastKey = nil
         guard event.shouldSchedulePrediction, interactionState.activeSession == nil,
               let suffix = Self.publishedSuffix(for: event), let baseline = focusModel.snapshot.context,
               currentDisabledReason(focusSnapshot: focusModel.snapshot) == nil else { return }
@@ -210,10 +212,28 @@ extension SuggestionCoordinator {
         fieldAlreadyShowsLastKey = wordPredictionPresenter?.alreadyShows(typed: suffix, in: baseline.precedingText)
             ?? lastGatedPrecedingText.map { baseline.precedingText == $0 + suffix }
             ?? false
-        prepareTypoGate(
-            precedingText: fieldAlreadyShowsLastKey ? baseline.precedingText : baseline.precedingText + suffix,
+        // In an app that is behind, the last read is the text of a few keys ago, and "that read
+        // plus this character" is no text the field will ever hold. The strip knows what the keys
+        // have left, so the work is prepared for that.
+        let fromKeys = fieldAlreadyShowsLastKey ? nil : wordPredictionPresenter?.textAfterKeys(typing: suffix)
+        textFromKeysAtLastKey = fromKeys
+        let decision = prepareTypoGate(
+            precedingText: fieldAlreadyShowsLastKey ? baseline.precedingText : fromKeys ?? baseline.precedingText + suffix,
             textAfter: baseline.trailingText
         )
+        // An automatic fix in an app that has been slow to show keys is typed from the keys, on
+        // the next turn of the run loop (posting keys from inside this tap callback is
+        // unreliable), and not when the app gets round to showing the word. A fix is one more
+        // key event behind the writer's own, so it lands on the word they typed whether the app
+        // has reported that word yet or not. In an app that shows keys promptly the fix still
+        // waits for the read, which is also where a host's own autocorrect would be seen.
+        let isLate = hostLateness.isLate(inApp: baseline.bundleIdentifier, lastReadMilliseconds: focusModel.lastReadMilliseconds)
+        if let fromKeys, isLate, case .applyCorrection? = decision {
+            let field = baseline.focusChangeSequence
+            DispatchQueue.main.async { [weak self] in
+                self?.typeFixFromKeys(for: fromKeys, field: field)
+            }
+        }
     }
 
     func handleInputEvent(_ event: CapturedInputEvent) -> Bool {
@@ -349,8 +369,9 @@ extension SuggestionCoordinator {
         // gap before the host publishes it.
         let alreadyShowsKey = fieldAlreadyShowsLastKey && expectingSuffix != nil
         fieldAlreadyShowsLastKey = false
+        defer { textFromKeysAtLastKey = nil }
         if let suffix = expectingSuffix, let baseline, !alreadyShowsKey {
-            let predictedText = baseline.precedingText + suffix
+            let predictedText = textFromKeysAtLastKey ?? baseline.precedingText + suffix
             let textAfter = baseline.trailingText
             if preparedTypoGate?.precedingText != predictedText || preparedTypoGate?.textAfter != textAfter {
                 DispatchQueue.main.async { [weak self] in
@@ -470,6 +491,7 @@ extension SuggestionCoordinator {
             }
             pendingSpeculativeSignature = nil
             traceTyping(isPublished ? "host published" : "host had published")
+            noteHostDelay(since: baseline.keystrokeUptimeNanoseconds, in: currentContext, counts: isPublished)
             // The field shows what the key did: this is the one place where the spelling stages
             // are handed text to look at. The ceiling below schedules a prediction too, but for a
             // field that never showed the key, and that one gets ghost text only.
@@ -522,6 +544,7 @@ extension SuggestionCoordinator {
         let nextElapsed = elapsedMs + max(interval, focusModel.lastReadMilliseconds)
         let ceilingMs = isBehindTheKeys ? max(baseline.ceilingMs, Self.hostPublishBehindCeilingMs) : baseline.ceilingMs
         guard nextElapsed < ceilingMs else {
+            noteHostDelay(since: baseline.keystrokeUptimeNanoseconds, in: currentContext, counts: baseline.expectedSuffix != nil)
             if baseline.generatesAtCeiling {
                 schedulePrediction(
                     consumedDelayMilliseconds: Self.elapsedMilliseconds(since: baseline.keystrokeUptimeNanoseconds)
@@ -537,6 +560,16 @@ extension SuggestionCoordinator {
                 elapsedMs: nextElapsed
             )
         }
+    }
+
+    /// Feeds `hostLateness` with how long the app took to show a key: at the read that showed it
+    /// (`counts` is false for a key the field already showed, which says nothing), and at the end
+    /// of a wait that a typed character never ended.
+    private func noteHostDelay(since keystrokeUptimeNanoseconds: UInt64, in context: FocusedInputSnapshot?, counts: Bool) {
+        guard counts, let context else { return }
+        hostLateness.note(
+            publishedAfter: Self.elapsedMilliseconds(since: keystrokeUptimeNanoseconds), inApp: context.bundleIdentifier
+        )
     }
 
     /// The published field's `focusChangeSequence` when it is the field the key was pressed in,

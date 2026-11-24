@@ -57,10 +57,19 @@ final class FocusTracker {
     /// (`FieldReadPacing`).
     private var pacing = FieldReadPacing()
 
+    /// Keeps the field through a read the app in front did not answer in time, which is not the
+    /// same as an answer that the field is gone (`UnansweredReadGrace`).
+    private var unansweredGrace = UnansweredReadGrace()
+
     /// How long the last read of the field took, in milliseconds.
     var lastReadMilliseconds: Int {
         Int(pacing.lastReadNanoseconds / 1_000_000)
     }
+
+    /// How many captures found no field only because the app did not answer in time, and were
+    /// not believed. Counted for the training record: it says how often the app in front is too
+    /// busy to answer, on the writer's own Mac.
+    private(set) var fieldKeptThroughUnansweredReadCount = 0
 
     /// True while a request for a read is answered with the snapshot already published.
     var isRestingAfterSlowRead: Bool {
@@ -232,10 +241,30 @@ final class FocusTracker {
             return false
         }
         pollSequence += 1
+        let unansweredBefore = AXHelper.unansweredReadCount
+        // A capture that finds no field forgets the field's signature and gives the next one a
+        // new number. Both are put back when that capture is not believed.
+        let fieldBefore = (signature: lastFocusedInputSignature, sequence: focusChangeSequence)
         let capture = captureSnapshot()
         let ended = DispatchTime.now().uptimeNanoseconds
         pacing.noteRead(started: started, ended: ended)
         lastCaptureUptimeNanoseconds = ended
+
+        if capture.snapshot.context != nil {
+            unansweredGrace.noteFieldSeen(at: ended)
+        } else if snapshot.context != nil, unansweredGrace.keepsField(
+            leftUnanswered: AXHelper.unansweredReadCount != unansweredBefore,
+            sameApplication: Self.isSameApplicationInFront(as: snapshot),
+            at: ended
+        ) {
+            lastFocusedInputSignature = fieldBefore.signature
+            focusChangeSequence = fieldBefore.sequence
+            fieldKeptThroughUnansweredReadCount &+= 1
+            CotabbyLogger.focus.debug("Field kept: the app left a read unanswered")
+            return false
+        } else {
+            unansweredGrace.noteFieldGone()
+        }
 
         let snapshotChanged = capture.snapshot != snapshot
         if snapshotChanged {
@@ -254,6 +283,14 @@ final class FocusTracker {
         )
 
         return snapshotChanged || capture.didChangeFocusedInput
+    }
+
+    /// Whether the app that owned the published snapshot's field is still the one in front. Asked
+    /// of the workspace, which answers from Cotabby's own process: the app that just failed to
+    /// answer is not asked again.
+    private static func isSameApplicationInFront(as snapshot: FocusSnapshot) -> Bool {
+        guard let published = snapshot.bundleIdentifier else { return false }
+        return NSWorkspace.shared.frontmostApplication?.bundleIdentifier == published
     }
 
     /// Captures the current frontmost application's focused element and reduces it into a snapshot.

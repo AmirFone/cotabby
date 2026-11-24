@@ -193,8 +193,9 @@ struct WritingPaneView: View {
                     Toggle(isOn: sentenceCheckBinding) {
                         SettingsRowLabel(
                             title: "Check Finished Sentences",
-                            description: "With Groq selected, proofreads each sentence after you finish it (their/there, " +
-                                "missing words, grammar) and offers the fix as one card you can apply with your accept key.",
+                            description: "Rereads each sentence when you finish it or pause in it, and fixes or offers what " +
+                                "the word-by-word check cannot see (a doubled word, their/there, a misspelled name). " +
+                                "Off by default: it runs a second model.",
                             systemImage: "text.badge.checkmark"
                         )
                     }

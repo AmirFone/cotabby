@@ -42,6 +42,22 @@ final class StripUseTrackerTests: XCTestCase {
         XCTAssertEqual(use?.timing, StripUse.Timing(key: 120, strip: 40, read: 95))
     }
 
+    func test_readsTheAppLeftUnanswered_areCountedForTheWord() {
+        // #given a word during which the app in front missed two reads, then one more
+        var tracker = StripUseTracker()
+        _ = tracker.typed("We met ")
+        _ = tracker.shown(["yes", "you"], for: "We met y")
+        tracker.note(readsLeftUnanswered: 2)
+        tracker.note(readsLeftUnanswered: 0)
+        tracker.note(readsLeftUnanswered: 1)
+
+        // #when the word is finished
+        let use = tracker.typed("We met yesterday ")
+
+        // #then the record holds how many
+        XCTAssertEqual(use?.timing, StripUse.Timing(missed: 3))
+    }
+
     func test_timingOfOneWord_doesNotCarryOverToTheNext() {
         var tracker = StripUseTracker()
         _ = tracker.typed("We met ")

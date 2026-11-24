@@ -81,7 +81,7 @@ extension SuggestionCoordinator {
                focusSnapshot: focusModel.snapshot,
                isFastModeEnabled: settingsSnapshot.isFastModeEnabled
            ) {
-            visualContextCoordinator.startSessionIfNeeded(for: focusedSnapshot)
+            startVisualContextSessionIfUsed(for: focusedSnapshot)
         }
 
         if SuggestionAvailabilityEvaluator.shouldSchedulePrediction(

@@ -21,6 +21,12 @@ import Logging
 final class WordLanguageModelService {
     /// Called on the main thread when a requested answer is ready, so the strip can be redrawn.
     var onReady: (() -> Void)?
+    /// Called on the main thread with how long one pass of the model took, in milliseconds. The
+    /// opt-in training record keeps the slowest per word: on a Mac short of memory a pass that
+    /// takes 12 ms elsewhere takes many times that, and nothing in a recorded day used to say so.
+    var onPassTimed: ((Int) -> Void)? {
+        didSet { worker.onPassTimed = onPassTimed }
+    }
 
     private let worker: Worker
     private var latest: LanguageModelScores?
@@ -218,6 +224,8 @@ final class WordLanguageModelService {
         private var wantedRefinement: (job: Job, deliver: Delivery)?
         private var wantedLookAhead: (key: LanguageModelContext.Key, deliver: Delivery)?
         private var isRunning = false
+        /// Set and read on the main thread only (it is called there).
+        var onPassTimed: ((Int) -> Void)?
         /// Touched only on `queue`.
         private var core: WordLanguageModelCore?
         private var didTryLoading = false
@@ -279,7 +287,10 @@ final class WordLanguageModelService {
                 }
                 let milliseconds = Double(DispatchTime.now().uptimeNanoseconds - started) / 1_000_000
                 CotabbyLogger.suggestion.debug("Word language model: \(kind) in \(String(format: "%.1f", milliseconds)) ms")
-                DispatchQueue.main.async { deliver(scores) }
+                DispatchQueue.main.async { [weak self] in
+                    self?.onPassTimed?(Int(milliseconds))
+                    deliver(scores)
+                }
             }
         }
 

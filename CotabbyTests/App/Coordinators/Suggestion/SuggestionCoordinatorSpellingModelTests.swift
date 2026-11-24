@@ -1081,6 +1081,89 @@ final class SuggestionCoordinatorSpellingModelTests: XCTestCase {
         XCTAssertEqual(rig.coordinator.preparedTypoGate?.precedingText, "all")
     }
 
+    // MARK: - An app that is slow to show keys
+
+    /// A field that still reads `I saw t` while the keys have left `I saw teh`, in an app that
+    /// has been showing keys 200 ms late; the strip vouches for the keys' text.
+    private func makeLateRig() throws -> (rig: CoordinatorRig, strip: StripRecorder) {
+        let rig = try makeRig(text: "I saw t")
+        let strip = StripRecorder()
+        strip.textTheKeysLeft = "I saw teh"
+        rig.coordinator.wordPredictionPresenter = strip
+        let app = try XCTUnwrap(rig.focusProvider.snapshot.context?.bundleIdentifier)
+        (0..<3).forEach { _ in rig.coordinator.hostLateness.note(publishedAfter: 200, inApp: app) }
+        return (rig, strip)
+    }
+
+    private func pressSpace(in rig: CoordinatorRig, strip: StripRecorder) {
+        _ = rig.coordinator.handleInputEvent(CapturedInputEvent(kind: .textMutation, keyCode: 49, characters: " ", flags: []))
+        // The strip hears the key right after the coordinator has prepared for it.
+        strip.textTheKeysLeft = strip.textTheKeysLeft.map { $0 + " " }
+    }
+
+    func test_lateApp_finishedSlipIsFixedFromTheKeys_beforeTheFieldShowsTheWord() async throws {
+        // #given a late app whose field is three keys behind
+        let (rig, strip) = try makeLateRig()
+
+        // #when the space that finishes `teh` is pressed, and the field never catches up
+        pressSpace(in: rig, strip: strip)
+        await waitUntil("The fix never reached the field") { !rig.inserter.replacements.isEmpty }
+
+        // #then the word the keys left is fixed: four backspaces and the right word
+        XCTAssertEqual(rig.inserter.replacements.first?.deleteCount, 4)
+        XCTAssertEqual(rig.inserter.replacements.first?.text, "the ")
+    }
+
+    func test_lateApp_theStripIsToldTheTextTheFixLeaves() async throws {
+        let (rig, strip) = try makeLateRig()
+
+        pressSpace(in: rig, strip: strip)
+        await waitUntil("The fix never reached the field") { !rig.inserter.replacements.isEmpty }
+
+        XCTAssertEqual(strip.fixesNoted, ["I saw the "])
+    }
+
+    func test_lateApp_theUnfixedWordReportedAfterwards_isNotFixedASecondTime() async throws {
+        // #given a slip fixed from the keys
+        let (rig, strip) = try makeLateRig()
+        pressSpace(in: rig, strip: strip)
+        await waitUntil("The fix never reached the field") { !rig.inserter.replacements.isEmpty }
+
+        // #when the app at last reports the word as it was typed, and that read is acted on
+        setText("I saw teh ", in: rig)
+        scheduleCycleForTypedText(in: rig)
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        // #then no second set of backspaces goes out over the word that is already right
+        XCTAssertEqual(rig.inserter.replacements.count, 1)
+    }
+
+    func test_promptApp_fixWaitsForTheFieldToShowTheWord() async throws {
+        // #given the same field and keys in an app that shows keys promptly
+        let rig = try makeRig(text: "I saw t")
+        let strip = StripRecorder()
+        strip.textTheKeysLeft = "I saw teh"
+        rig.coordinator.wordPredictionPresenter = strip
+
+        // #when the space is pressed and the field has not shown the word yet
+        pressSpace(in: rig, strip: strip)
+        try await Task.sleep(nanoseconds: 150_000_000)
+
+        // #then nothing is typed blind: the read is waited for, as before
+        XCTAssertTrue(rig.inserter.replacements.isEmpty)
+    }
+
+    func test_lateApp_keysTheStripCannotVouchFor_typeNoFix() async throws {
+        // #given a late app, and a key since the last read whose effect is not known
+        let (rig, strip) = try makeLateRig()
+        strip.textTheKeysLeft = nil
+
+        pressSpace(in: rig, strip: strip)
+        try await Task.sleep(nanoseconds: 150_000_000)
+
+        XCTAssertTrue(rig.inserter.replacements.isEmpty)
+    }
+
     func test_workPreparedForOtherText_isIgnored() async throws {
         let rig = try makeRig(text: "See you tomorow ")
 
@@ -1162,6 +1245,14 @@ private final class StripRecorder: WordPredictionPresenting {
     /// What the strip says about a field that may already show the key; nil is "cannot say".
     var showsTheKeyAlready: Bool?
     func alreadyShows(typed: String, in precedingText: String) -> Bool? { showsTheKeyAlready }
+    /// The text the keys have left, when the strip vouches for it; nil is "cannot say".
+    var textTheKeysLeft: String?
+    private(set) var fixesNoted: [String] = []
+    func textAfterKeys(typing typed: String) -> String? { textTheKeysLeft.map { $0 + typed } }
+    func noteFixTyped(leaving text: String) {
+        fixesNoted.append(text)
+        textTheKeysLeft = text
+    }
 }
 
 @MainActor

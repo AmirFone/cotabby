@@ -189,4 +189,33 @@ final class SentenceFixOutcomeTrackerTests: XCTestCase {
         XCTAssertEqual(tracker.observe(""), [])
         XCTAssertEqual(tracker.observe("I saw the cat. and much more text"), [])
     }
+
+    // MARK: - A fix on its way
+
+    func test_wordWhoseFixIsOnItsWay_isAwaitingIt() {
+        // #given a fix typed for `wich`, which no read of the field has shown yet
+        var tracker = AutoFixOutcomeTracker()
+        tracker.noteAutoFix(typo: "wich", fix: "which", precedingText: "I know wich ", field: 7)
+
+        // #then the app's late report of the unfixed word is recognized
+        XCTAssertTrue(tracker.isAwaitingFix(in: "I know wich ", field: 7))
+    }
+
+    func test_fixThatWasSeen_isNoLongerAwaited() {
+        // #given the same fix, seen in the field, and then undone by the writer
+        var tracker = AutoFixOutcomeTracker()
+        tracker.noteAutoFix(typo: "wich", fix: "which", precedingText: "I know wich ", field: 7)
+        _ = tracker.observe("I know which ", field: 7)
+
+        // #then the typo standing there again is the writer's doing
+        XCTAssertFalse(tracker.isAwaitingFix(in: "I know wich ", field: 7))
+    }
+
+    func test_sameSlipSomewhereElse_isNotAwaitingThatFix() {
+        var tracker = AutoFixOutcomeTracker()
+        tracker.noteAutoFix(typo: "wich", fix: "which", precedingText: "I know wich ", field: 7)
+
+        XCTAssertFalse(tracker.isAwaitingFix(in: "I know which one and wich ", field: 7))
+        XCTAssertFalse(tracker.isAwaitingFix(in: "I know wich ", field: 8))
+    }
 }

@@ -447,7 +447,7 @@ final class TrainingExampleBuilderTests: XCTestCase {
         var use = StripUse(
             before: "I saw the", word: "report", shownFirst: ["cat"], shownLast: ["report"], lettersTyped: 2, pickedSlot: 0
         )
-        use.timing = .init(key: 120, strip: 40, read: 95)
+        use.timing = .init(key: 120, strip: 40, read: 95, model: 60, missed: 2)
         let written = line(.strip(use), 1, ms: 0)
 
         // #when the line goes through the log file and the example is built from it
@@ -458,7 +458,7 @@ final class TrainingExampleBuilderTests: XCTestCase {
         let step = try XCTUnwrap(TrainingExampleBuilder.examples(fromLines: lines).first?.steps?.first)
 
         // #then the timing is in the step, in milliseconds
-        XCTAssertEqual(step.lag, StripUse.Timing(key: 120, strip: 40, read: 95))
+        XCTAssertEqual(step.lag, StripUse.Timing(key: 120, strip: 40, read: 95, model: 60, missed: 2))
     }
 
     func test_fixTheWriterReplacedWithAThirdWord_isARejectedFixAndAnAcceptedOne() throws {

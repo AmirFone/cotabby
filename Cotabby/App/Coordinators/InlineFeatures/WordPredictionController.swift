@@ -124,6 +124,9 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
     /// as soon as the strip shows different words.
     private(set) var arrowedSlot: Int?
     private var pendingDecision: PendingDecision?
+    /// The focus provider's count of reads the app left unanswered, as last carried into the
+    /// record of a word (`StripUse.Timing.missed`).
+    private var unansweredReadsNoted = 0
     /// Escape hides the strip until the next word starts.
     private var isSuppressed = false
     private var lastLearnedSentence: String?
@@ -245,6 +248,18 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
         keys.isAhead(precedingText, by: typed)
     }
 
+    func textAfterKeys(typing typed: String) -> String? {
+        guard let text = keys.text, let context = focusModel.snapshot.context, !context.isSecure,
+              context.focusChangeSequence == field?.sequence,
+              keys.holds(context.precedingText) || keys.isEarlierState(context.precedingText) else { return nil }
+        return text + typed
+    }
+
+    func noteFixTyped(leaving text: String) {
+        guard !text.isEmpty else { return }
+        keys.jump(to: text)
+    }
+
     /// The slowest a host is believed to be about a key. Publishing has been measured at up to
     /// 400 ms; three times that leaves room for a busy moment.
     private static let longestHostLagNanoseconds: UInt64 = 1_200_000_000
@@ -262,6 +277,9 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
         keys.settle(on: precedingText)
         lastCaretRect = caretRect
         stripUse.note(readTook: focusModel.lastReadMilliseconds)
+        let unanswered = focusModel.fieldKeptThroughUnansweredReadCount
+        stripUse.note(readsLeftUnanswered: unanswered - unansweredReadsNoted)
+        unansweredReadsNoted = unanswered
         if let use = stripUse.typed(precedingText) { onStripUse?(use) }
         learnFinishedSentence(in: precedingText)
         // `idle.hasRunOut`: this is also called when no key was pressed (screen text became ready,
@@ -381,6 +399,11 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
     /// The language model has a new answer (`WordLanguageModelService.onReady`). A strip that was
     /// waiting for it is drawn. One already on screen is drawn again if the order changed, unless
     /// the writer has moved the highlight: the words must not change under it.
+    /// One pass of the language model took this long; kept with the word being typed.
+    func noteLanguageModelPass(milliseconds: Int) {
+        stripUse.note(modelPassTook: milliseconds)
+    }
+
     func redrawWithLanguageModel() {
         if awaited != nil {
             showAwaited()

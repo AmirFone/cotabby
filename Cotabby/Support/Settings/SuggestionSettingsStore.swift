@@ -93,6 +93,9 @@ struct SuggestionSettingsStore {
     private static let suggestInIntegratedTerminalsDefaultsKey = "cotabbySuggestInIntegratedTerminals"
     private static let showCaretIndicatorDefaultsKey = "cotabbyShowCaretIndicator"
     private static let selectedIndicatorModeDefaultsKey = "cotabbySelectedIndicatorMode"
+    /// Set once this install has been given the lighter defaults of 0.4.7 (see
+    /// `applyLighterDefaultsOnce`).
+    private static let lighterDefaultsAppliedDefaultsKey = "cotabbyLighterDefaultsApplied"
     private static let showAcceptanceHintDefaultsKey = "cotabbyShowAcceptanceHint"
     private static let customSuggestionTextColorHexDefaultsKey = "cotabbyCustomSuggestionTextColorHex"
     private static let ghostTextOpacityDefaultsKey = "cotabbyGhostTextOpacity"
@@ -334,12 +337,13 @@ struct SuggestionSettingsStore {
         let resolvedPauseState = persistedPauseState?.activeState()
         let resolvedDisabledAppRules = loadDisabledAppRules()
         let resolvedPerAppShortcutOverrides = loadPerAppShortcutOverrides()
+        applyLighterDefaultsOnce()
         let resolvedShowIndicator: Bool = if let modeString = userDefaults.string(
             forKey: Self.selectedIndicatorModeDefaultsKey
         ) {
             modeString != ActivationIndicatorMode.hidden.rawValue
         } else {
-            userDefaults.object(forKey: Self.showCaretIndicatorDefaultsKey) as? Bool ?? true
+            userDefaults.object(forKey: Self.showCaretIndicatorDefaultsKey) as? Bool ?? false
         }
         let resolvedShowAcceptanceHint = userDefaults.object(forKey: Self.showAcceptanceHintDefaultsKey) as? Bool ?? true
         // Defaults to false so ghost text stays out of terminals out of the box, matching how
@@ -437,7 +441,7 @@ struct SuggestionSettingsStore {
         let resolvedAutomaticallyFixTypos =
             userDefaults.object(forKey: Self.automaticallyFixTyposDefaultsKey) as? Bool ?? true
         let resolvedSentenceCheckEnabled =
-            userDefaults.object(forKey: Self.sentenceCheckEnabledDefaultsKey) as? Bool ?? true
+            userDefaults.object(forKey: Self.sentenceCheckEnabledDefaultsKey) as? Bool ?? false
         // Defaults to false so the metrics ring buffer stays empty until the user explicitly opts
         // in from the Performance pane.
         let resolvedPerformanceTrackingEnabled =
@@ -852,6 +856,22 @@ struct SuggestionSettingsStore {
         if let data = try? JSONEncoder().encode(overrides) {
             userDefaults.set(data, forKey: Self.perAppShortcutOverridesDefaultsKey)
         }
+    }
+
+    /// From 0.4.7 this fork does one thing by default, spelling fixes and the word strip, and
+    /// leaves the rest off until asked for:
+    /// - the small icon at the edge of the field (the strip and the bar already say Cotabby is
+    ///   there, and the icon sat in the writer's message box all day);
+    /// - the second look at finished sentences, which runs another model.
+    ///
+    /// Every save writes all settings, so an install that never touched these switches still has
+    /// "on" stored for both. They are switched off once here, and the toggles in Settings work
+    /// as before from then on.
+    private func applyLighterDefaultsOnce() {
+        guard !userDefaults.bool(forKey: Self.lighterDefaultsAppliedDefaultsKey) else { return }
+        userDefaults.set(true, forKey: Self.lighterDefaultsAppliedDefaultsKey)
+        saveShowIndicator(false)
+        saveSentenceCheckEnabled(false)
     }
 
     func saveShowIndicator(_ show: Bool) {

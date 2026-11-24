@@ -23,7 +23,9 @@
 #   E2E_ONLY=steady         the strip in a slow app, after a hyphen or slash, left alone, and in a field that changes its frame
 #   E2E_ONLY=busy           Tab on the strip in an app that answers Accessibility slowly (E2E_ROUNDS, default 12;
 #                           E2E_SLOW_MS per query, default 30, about 100 ms per read of the field): counts Tabs
-#                           that reached the app and reports strip timing
+#                           that reached the app and reports strip timing; then the same in an app that now
+#                           and then does not answer a read in time at all (E2E_STALL_MS, default 90, once
+#                           every E2E_STALL_EVERY_MS, default 400)
 set -uo pipefail
 DOMAIN=com.jacobfu.tabby.dev
 # Synthesized keys go nowhere on a locked screen; every check would fail as empty text. Checked at
@@ -65,7 +67,7 @@ restore_file() { # live, snapshot
 }
 restore_history() {
   pkill -f "Cotabby Dev.app/Contents/MacOS"; sleep 1.5
-  for key in cotabbyPersonalCorrections cotabbyKeptWords cotabbyWordsLeftStanding cotabbyLowPowerModeAutoDisableEnabled cotabbyQualityMetricsCounters cotabbyGloballyEnabled cotabbyTrainingLogEnabled; do
+  for key in cotabbyPersonalCorrections cotabbyKeptWords cotabbyWordsLeftStanding cotabbyLowPowerModeAutoDisableEnabled cotabbyQualityMetricsCounters cotabbyGloballyEnabled cotabbyTrainingLogEnabled cotabbySentenceCheckEnabled cotabbyLighterDefaultsApplied; do
     defaults delete "$DOMAIN" "$key" 2>/dev/null
     /usr/libexec/PlistBuddy -x -c "Print :$key" "$SNAPSHOT" > "$SNAPSHOT.$key" 2>/dev/null \
       && defaults write "$DOMAIN" "$key" "$(sed -n '/<plist/,/<\/plist>/p' "$SNAPSHOT.$key")"
@@ -97,6 +99,13 @@ if [ "${E2E_ONLY:-}" = training ]; then
   [ -f "$TRAINING" ] && mv "$TRAINING" "$HOME/.Trash/training-log-e2e-$(date +%s).jsonl"
 fi
 if [ "${E2E_FORCE_GENERATION:-0}" = 1 ]; then defaults write "$DOMAIN" cotabbyLowPowerModeAutoDisableEnabled -bool false; fi
+# The second look at sentences is off unless the writer turns it on (0.4.7). The suite tests it,
+# so it is on for this run (E2E_SENTENCE_CHECK=0 runs with it off, as shipped); the writer's own
+# setting is put back afterwards. The one-time switch to the lighter defaults is marked as done
+# first, or the app would switch the check off again as it starts.
+defaults write "$DOMAIN" cotabbyLighterDefaultsApplied -bool true
+if [ "${E2E_SENTENCE_CHECK:-1}" = 1 ]; then defaults write "$DOMAIN" cotabbySentenceCheckEnabled -bool true
+else defaults write "$DOMAIN" cotabbySentenceCheckEnabled -bool false; fi
 LOG=$(mktemp -t cotabby-e2e)
 log stream --level debug --predicate 'process == "Cotabby Dev" && subsystem BEGINSWITH "com.cotabby"' --style compact > "$LOG" 2>&1 &
 STREAM=$!
@@ -377,7 +386,57 @@ busy_cases() {
   echo "TIME  busy app: keys the consuming tap saw first: $(since_mark | grep -c "reached the consuming tap first")"
   check "busy app: no Tab reached the app" "0" "$leaked"
   check "busy app: Tab picked the word every time" "$rounds" "$picked"
+  # The spelling check in the same app. A finished slip is fixed from the keys, without waiting
+  # for the app to show the word, so the fix must come however late the app is, must come once,
+  # and the words typed straight after it must stand. The slips are typed in one go with the
+  # words that follow, the way a writer who has not noticed the slip types on.
+  local fixed=0 slips=0 line expected fixes
+  mark
+  while IFS='|' read -r line expected; do
+    slips=$((slips + 1))
+    clear_doc; send "$(printf 'type\t%s' "$line")"
+    wait_doc "$expected" 40; sleep 0.5
+    if [ "$(doc)" = "$expected" ]; then fixed=$((fixed + 1)); else echo "INFO  busy app: [$line] became [$(doc)]"; fi
+  done <<'SLIPS'
+I think teh plan is fine |I think the plan is fine 
+it broke becuase of that |It broke because of that 
+we got it wich is good |We got it which is good 
+I will chekc it now |I will check it now 
+SLIPS
+  fixes=$(since_mark | grep -F "Automatically replaced the completed misspelled word" | sed -E 's/.*word ([0-9]+) ms after the key.*/\1/' | sort -n)
+  echo "TIME  busy app: slips fixed with the words after them intact: $fixed of $slips"
+  echo "TIME  busy app: key to automatic fix, median $(printf '%s\n' "$fixes" | awk '{ v[NR] = $1 } END { if (NR) print v[int((NR + 1) / 2)] }') ms, slowest $(printf '%s\n' "$fixes" | tail -n 1) ms ($(printf '%s\n' "$fixes" | grep -c .) fixes)"
+  check "busy app: every slip is fixed, once, and the words after it stand" "$slips" "$fixed"
   host_command "slow 0"; host_command "late 0"; sleep 0.3
+}
+
+# Tab on the strip in an app that now and then does not answer a read at all. Cotabby gives a
+# read 50 ms; a chat app that is busy for a moment misses that, and the read comes back empty,
+# exactly like the read of a field that is gone. Taken as that, the strip came down while the
+# writer looked at it and Tab went to the app (reported in a chat app: Tab moved the focus to the
+# next button). The strip must stay through such a read and Tab must pick the word.
+stall_cases() {
+  local rounds="${E2E_ROUNDS:-12}" round picked=0 leaked=0 dropped=0 text
+  host_command "stall ${E2E_STALL_MS:-90} ${E2E_STALL_EVERY_MS:-400}"; sleep 0.3
+  mark
+  for round in $(seq 1 "$rounds"); do
+    # The strip is left standing for a second, long enough for two reads to go unanswered.
+    clear_doc; type_text "Can you send me the "; sleep 0.8
+    send "$(printf 'type\t%s' "rep")"
+    sleep 1.0
+    press 48; sleep 1.6
+    text=$(doc)
+    case "$text" in
+      *$'\t'*) leaked=$((leaked + 1)) ;;
+      "Can you send me the rep") dropped=$((dropped + 1)) ;;
+      *) picked=$((picked + 1)) ;;
+    esac
+  done
+  echo "TIME  stalling app: Tab picked the word $picked of $rounds, reached the app $leaked, did nothing $dropped"
+  echo "TIME  stalling app: reads left unanswered that kept the field: $(since_mark | grep -c "Field kept: the app left a read unanswered"), strips taken down for a lost field: $(since_mark | grep -c "Word strip hidden: focus moved")"
+  check "stalling app: no Tab reached the app" "0" "$leaked"
+  check "stalling app: Tab picked the word every time" "$rounds" "$picked"
+  host_command "stall 0 0"; sleep 0.3
 }
 
 # Where the strip used to fall behind or go missing while typing. Most of it only shows in an app
@@ -811,6 +870,7 @@ fi
 
 if [ "${E2E_ONLY:-}" = busy ]; then
   busy_cases
+  stall_cases
   echo "$pass passed, $fail failed  (log: $LOG)"; [ $fail -eq 0 ]; exit
 fi
 
@@ -907,6 +967,7 @@ predict_cases
 steady_cases
 # Six rounds in the full run; E2E_ONLY=busy runs twelve.
 E2E_ROUNDS="${E2E_ROUNDS:-6}" E2E_SLOW_MS="${E2E_SLOW_MS:-30}" busy_cases
+E2E_ROUNDS="${E2E_ROUNDS:-6}" stall_cases
 tense_cases
 model_cases
 toggle_cases

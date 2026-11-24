@@ -42,7 +42,7 @@ nonisolated enum TrainingLogEvent: Equatable, Sendable {
     /// and what was done about each: the "why" behind a sentence fix that was or was not made.
     case sentencePass(sentence: String, words: [SentencePassWord])
     /// Which build and models produced the events that follow, written once per launch.
-    case session(version: String, stripModel: String?, hasSentenceModel: Bool)
+    case session(version: String, stripModel: String?, hasSentenceModel: Bool, memoryGB: Int? = nil)
 
     /// The event as the JSON object written to the file.
     var json: [String: Any] {
@@ -66,16 +66,22 @@ nonisolated enum TrainingLogEvent: Equatable, Sendable {
             ]
             if let slot = use.pickedSlot { object["picked"] = slot }
             if !use.draws.isEmpty { object["draws"] = use.draws.map { ["t": $0.typed, "w": $0.shown] as [String: Any] } }
-            if let timing = use.timing { object["lag"] = ["key": timing.key, "strip": timing.strip, "read": timing.read] }
+            if let timing = use.timing {
+                object["lag"] = [
+                    "key": timing.key, "strip": timing.strip, "read": timing.read, "model": timing.model,
+                    "missed": timing.missed
+                ]
+            }
             return object
         case let .sentencePass(sentence, words):
             return [
                 "event": "sentencePass", "text": sentence,
                 "words": words.map { ["typed": $0.typed, "written": $0.written, "p": $0.probability, "action": $0.action] as [String: Any] }
             ]
-        case let .session(version, stripModel, hasSentenceModel):
+        case let .session(version, stripModel, hasSentenceModel, memoryGB):
             var object: [String: Any] = ["event": "session", "version": version, "sentenceModel": hasSentenceModel]
             if let stripModel { object["stripModel"] = stripModel }
+            if let memoryGB { object["memoryGB"] = memoryGB }
             return object
         case let .word(how, typed, final, offered):
             var object = ["event": "word", "how": how, "typed": typed, "final": final]
@@ -108,7 +114,7 @@ nonisolated enum TrainingLogEvent: Equatable, Sendable {
             guard let version = json["version"] as? String else { return nil }
             return .session(
                 version: version, stripModel: json["stripModel"] as? String,
-                hasSentenceModel: json["sentenceModel"] as? Bool ?? false
+                hasSentenceModel: json["sentenceModel"] as? Bool ?? false, memoryGB: json["memoryGB"] as? Int
             )
         case "word", "sentenceFix":
             return outcome(from: json)
@@ -136,7 +142,10 @@ nonisolated enum TrainingLogEvent: Equatable, Sendable {
             return .init(typed: typed, shown: shown)
         }
         let timing = (json["lag"] as? [String: Int]).map {
-            StripUse.Timing(key: $0["key"] ?? 0, strip: $0["strip"] ?? 0, read: $0["read"] ?? 0)
+            StripUse.Timing(
+                key: $0["key"] ?? 0, strip: $0["strip"] ?? 0, read: $0["read"] ?? 0, model: $0["model"] ?? 0,
+                missed: $0["missed"] ?? 0
+            )
         }
         return StripUse(
             before: json["before"] as? String ?? "", word: word,
@@ -286,7 +295,8 @@ nonisolated struct TrainingExample: Codable, Equatable, Sendable {
         var listedAt: Int?
         var listedSlot: Int?
         /// `strip`: the slowest moments while the word was typed, in milliseconds: a key reaching
-        /// Cotabby, a strip appearing after its key, a read of the field (`StripUse.Timing`).
+        /// Cotabby, a strip appearing after its key, a read of the field, a pass of the strip's
+        /// language model (`StripUse.Timing`).
         var lag: StripUse.Timing?
         /// `sentencePass`: each word the model would change, its probability, and whether it was
         /// `fixed`, `asked` about, or `left`.
@@ -298,6 +308,9 @@ nonisolated struct TrainingExample: Codable, Equatable, Sendable {
         let version: String
         let stripModel: String?
         let hasSentenceModel: Bool
+        /// This Mac's memory in gigabytes, from 0.4.7. The strip's model is 0.6 to 3.8 GB, and
+        /// whether that is a lot depends on this number.
+        var memoryGB: Int?
     }
     struct Change: Codable, Equatable, Sendable {
         /// The word as the writer typed it.
@@ -363,8 +376,10 @@ nonisolated enum TrainingExampleBuilder {
                 assembly.pendingDetails.append(Detail(strip: use, place: place))
             case let .sentencePass(sentence, words):
                 assembly.pendingDetails.append(Detail(pass: SentencePass(sentence: sentence, words: words), place: place))
-            case let .session(version, stripModel, hasSentenceModel):
-                assembly.session = .init(version: version, stripModel: stripModel, hasSentenceModel: hasSentenceModel)
+            case let .session(version, stripModel, hasSentenceModel, memoryGB):
+                assembly.session = .init(
+                    version: version, stripModel: stripModel, hasSentenceModel: hasSentenceModel, memoryGB: memoryGB
+                )
             }
         }
         assembly.placeWaitingDetails()

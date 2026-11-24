@@ -66,11 +66,13 @@ final class CotabbyAppEnvironment {
     /// background, so the first finished sentence does not wait for it. The service is kept alive by
     /// the closure, which the sentence controller holds for the life of the app.
     private static func sentenceModelProofread(
-        suggestionCoordinator: SuggestionCoordinator
+        suggestionCoordinator: SuggestionCoordinator, warmsUp: Bool
     ) -> (@MainActor (FinishedSentence) async -> LocalProofreadResult?)? {
         let sentenceModel = SentenceModelService(modelURL: SentenceModelService.defaultModelURL())
         guard sentenceModel.isInstalled else { return nil }
-        sentenceModel.warmUp()
+        // Loaded ahead only when sentences are being checked. With the check off (the default)
+        // the model's 0.6 GB stay on disk; switched on later, the first sentence pays for the load.
+        if warmsUp { sentenceModel.warmUp() }
         return { [weak suggestionCoordinator] finished in
             guard let output = await sentenceModel.correct(finished.sentence) else { return nil }
             return suggestionCoordinator?.proofread(finished, modelOutput: output)
@@ -506,7 +508,9 @@ final class CotabbyAppEnvironment {
         }
         suggestionCoordinator.wordIntentRefiner = wordIntentRefiner
 
-        let modelProofread = Self.sentenceModelProofread(suggestionCoordinator: suggestionCoordinator)
+        let modelProofread = Self.sentenceModelProofread(
+            suggestionCoordinator: suggestionCoordinator, warmsUp: suggestionSettings.snapshot.isSentenceCheckEnabled
+        )
         let sentenceCheckController = SentenceCheckController(
             panel: CandidateListPanelController(),
             focusModel: focusModel,
@@ -534,9 +538,12 @@ final class CotabbyAppEnvironment {
                 suggestionCoordinator?.proofreadLocally(finished)
             },
             modelProofread: modelProofread,
+            // Settings → Writing → Check Finished Sentences. It used to gate only the endpoint's
+            // proofreading, so the local second look could not be switched off at all.
             isLocalEnabled: {
                 let snapshot = suggestionSettings.snapshot
-                return snapshot.isGloballyEnabled && (snapshot.offerTypoCorrections || snapshot.automaticallyFixTypos)
+                return snapshot.isGloballyEnabled && snapshot.isSentenceCheckEnabled
+                    && (snapshot.offerTypoCorrections || snapshot.automaticallyFixTypos)
             },
             appliesLocalFixes: { suggestionSettings.snapshot.automaticallyFixTypos }
         )
@@ -630,8 +637,12 @@ final class CotabbyAppEnvironment {
             .session(
                 version: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "",
                 stripModel: WordLanguageModelService.defaultModelURL()?.lastPathComponent,
-                hasSentenceModel: FileManager.default.fileExists(atPath: SentenceModelService.defaultModelURL().path)
+                hasSentenceModel: FileManager.default.fileExists(atPath: SentenceModelService.defaultModelURL().path),
+                memoryGB: Int((ProcessInfo.processInfo.physicalMemory + (1 << 29)) >> 30)
             )
+        }
+        wordLanguageModel.onPassTimed = { [weak wordPredictionController] in
+            wordPredictionController?.noteLanguageModelPass(milliseconds: $0)
         }
         wordLanguageModel.onReady = { [weak wordPredictionController] in
             wordPredictionController?.redrawWithLanguageModel()

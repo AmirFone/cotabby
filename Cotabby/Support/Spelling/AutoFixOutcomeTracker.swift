@@ -64,6 +64,23 @@ nonisolated struct AutoFixOutcomeTracker {
         if pending.count > Self.maximumPending { pending.removeFirst() }
     }
 
+    /// True when `precedingText` ends in a word that has a fix on its way: the fix was typed and
+    /// no read of the field has shown it yet, so this is the text from before the fix.
+    ///
+    /// A fix can be typed before the app has reported the word at all (an app that is slow to
+    /// report is fixed from the keys). The app's late report of the unfixed word then looks like
+    /// a fresh misspelling, and fixing it again would type backspaces over the word that is
+    /// already right: `wich` made into `which`, then five more backspaces, leaves `wwhich`.
+    func isAwaitingFix(in precedingText: String, field: UInt64 = 0) -> Bool {
+        pending.contains { item in
+            guard !item.wasSeen, item.field == field, precedingText.hasPrefix(item.textBefore) else { return false }
+            let rest = precedingText.dropFirst(item.textBefore.count)
+            let word = rest.prefix { $0.isLetter || $0 == "'" || $0 == "’" }
+            let after = rest.dropFirst(word.count)
+            return word.lowercased() == item.typo && !after.isEmpty && after.allSatisfy(\.isWhitespace)
+        }
+    }
+
     /// Reads the latest text before the caret and returns the fixes it settles. A fix whose earlier
     /// text was edited, or whose field changed, is dropped without a verdict.
     mutating func observe(_ precedingText: String, field: UInt64 = 0) -> [AutoFixOutcome] {

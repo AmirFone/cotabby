@@ -10,9 +10,11 @@ Everything here is in Settings; nothing needs a terminal. Measurements and how t
 |---|---|---|
 | Other typing assistants | Run only this Cotabby. Quit the released Cotabby and remove it from System Settings → General → Login Items | Its ghost text also takes Tab and types words of its own. This build warns you once if it is running |
 | Engine & Model → model for the word strip | **tabby-2-base** (3.8 GB) on a Mac with 16 GB of memory or more; **tabby-2-mini** (1.3 GB) from 12 GB; **tabby-2-nano** (0.6 GB) below that | The strip uses the best one installed by itself. First suggestion right while typing a word: 83% / 79% / 76%, against 69% with no download |
-| Writing → Show Next-Word Predictions | On (default) | The strip above the caret; Tab takes the first word, ⌥1 to ⌥5 pick directly |
+| Writing → Show Next-Word Predictions | On (default) | The strip above the caret; Tab takes the first word, ⌥1 to ⌥5 pick directly. While it is on, ghost text is off and its model is not loaded, which saves 3.8 to 5 GB of memory |
 | Writing → Automatically Fix Confident Typos | On (default) | Certain slips are fixed as you finish the word; Cmd+Z undoes one and it is not made again. A second model that fixes more finger slips unasked (0.4.5) is off from 0.4.7: on a working day it changed too many words nobody asked about. `defaults write com.jacobfu.tabby.dev cotabbySecondAutoFixJudgeEnabled -bool true` turns it on |
 | Writing → Offer Corrections on Typo, Hide Suggestions on Typo | On (defaults) | Unsure words get the three-slot bar instead of a guess |
+| Writing → Check Finished Sentences | Off (default from 0.4.7). Turn it on if you want a second look at each sentence | Rereads a sentence when you finish it or pause in it and fixes what the word-by-word check cannot see (a doubled word, their/there, a misspelled name). It runs a second model (0.6 GB), which is why it is off unless asked for |
+| Appearance → Show Field Indicator | Off (default from 0.4.7) | The small icon at the edge of the field; the strip and the bar already show Cotabby is there |
 | Writing → macOS Autocorrect Is Also On | Press the button to turn macOS's own autocorrect off | Two autocorrects fight over the same word |
 | Writing → Learn From My Sentences | On (default). Leave it on for a few days of normal work before judging the strip | The strip learns the words you use far more than general English does and what you write after which words, and the word model reads your last few sentences before a new message. Measured on real work sentences: first suggestion right after one letter 44% → 54%, after two 54% → 65%. Stored only on this Mac; "Clear Learned Words, Phrases and Fixes" resets it |
 | Writing → Training Data → Save Training Examples | On if you want to train on your own writing or see where Cotabby was wrong; off by default | Saves each sentence with what was shown, decided and done. It stays on your Mac until you press Export |
@@ -23,7 +25,9 @@ Everything here is in Settings; nothing needs a terminal. Measurements and how t
 
 It gets better as you use it: a fix you make twice for the same slip leads the bar from then on, and from the third time it is made for you. A word of your own that Cotabby flags stops being flagged once you have left it standing in three lines.
 
-Three things need no setting. The strip and the spelling bar go away five seconds after your last key and come back with the next one. A line is proofread when you finish the sentence, and also whenever you pause in it, so a chat message with no period is checked before you send it. And in a slow app (a chat or browser window) the strip keeps up with your keys instead of waiting for the app.
+From 0.4.7 the defaults do one thing well: spelling fixes and the word strip. Sentence proofreading, ghost text and the field icon are off unless you turn them on, and the app holds 3.7 GB of model files instead of 9.2 (measured on the running app: 311 MB of its own memory instead of 853 MB).
+
+Three things need no setting. The strip and the spelling bar go away five seconds after your last key and come back with the next one. With Check Finished Sentences on, a line is proofread when you finish the sentence, and also whenever you pause in it, so a chat message with no period is checked before you send it. And in a slow app (a chat or browser window) the strip keeps up with your keys instead of waiting for the app, and stays up when the app is too busy to answer for a moment, so Tab still picks the word.
 
 
 

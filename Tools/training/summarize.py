@@ -55,6 +55,9 @@ def main():
     # Cotabby, a strip appearing after its key, a read of the field. Slow reads are what make
     # the strip late and Tab unreliable in a busy chat app.
     timed = [step["lag"] for step in strips if step.get("lag")]
+    memory = sorted({example["session"]["memoryGB"] for example in examples if (example.get("session") or {}).get("memoryGB")})
+    if memory:
+        print("  this Mac's memory:", ", ".join(f"{size} GB" for size in memory))
     if timed:
         def spread(key):
             values = sorted(lag.get(key, 0) for lag in timed)
@@ -63,7 +66,11 @@ def main():
         print("    a key waited before Cotabby heard it: ", spread("key"))
         print("    strip appeared after its key:         ", spread("strip"))
         print("    one read of the field took:           ", spread("read"))
+        print("    one pass of the strip's model took:   ", spread("model"))
         print("    words with a read of 30 ms or more:   ", share(sum(lag.get("read", 0) >= 30 for lag in timed), len(timed)))
+        # `missed` is a count, not a duration: reads the app in front did not answer within
+        # 50 ms. Before 0.4.7 each one took the strip down, and Tab then went to the app.
+        print("    words with a read the app left unanswered:", share(sum(lag.get("missed", 0) > 0 for lag in timed), len(timed)))
     drawn = [step for step in strips if step.get("draws")]
     if drawn:
         listed = [step for step in drawn if "listedAt" in step]

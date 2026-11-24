@@ -43,6 +43,9 @@ protocol SuggestionFocusProviding: AnyObject {
     var isRestingAfterSlowRead: Bool { get }
     /// How long the last read of the field took, in milliseconds.
     var lastReadMilliseconds: Int { get }
+    /// How many times so far the field was kept although the app in front did not answer a read
+    /// of it in time (`UnansweredReadGrace`). Only ever grows.
+    var fieldKeptThroughUnansweredReadCount: Int { get }
 
     func refreshNow()
 
@@ -60,6 +63,7 @@ extension SuggestionFocusProviding {
     /// Default: a provider that reads at once and for free.
     var isRestingAfterSlowRead: Bool { false }
     var lastReadMilliseconds: Int { 0 }
+    var fieldKeptThroughUnansweredReadCount: Int { 0 }
 
     /// Default: nothing cached, nothing to invalidate.
     func invalidateTransientCaretCaches() {}
@@ -381,6 +385,16 @@ protocol WordPredictionPresenting: AnyObject {
     /// key. Nil when the presenter does not know what the keys before it left (after an arrow, a
     /// shortcut or a move to another field).
     func alreadyShows(typed: String, in precedingText: String) -> Bool?
+    /// The text before the caret once a key typing `typed` has landed, as the keys themselves
+    /// say it ("" asks for the text as it stands). Nil when the presenter cannot vouch for it:
+    /// a key whose effect is not known was pressed since the last read, or the field reads as
+    /// text the keys did not leave. The coordinator uses it to check and fix a word in an app
+    /// that is slow to report what was typed, instead of waiting for that report.
+    func textAfterKeys(typing typed: String) -> String?
+    /// Cotabby replaced the end of the text itself (an automatic fix) and the field will hold
+    /// `text`. Until the app shows that, a read of the text from before the fix is the app
+    /// being behind, not a new state to act on.
+    func noteFixTyped(leaving text: String)
 }
 
 /// The suggestion coordinator's handle on the per-sentence proofreading card.

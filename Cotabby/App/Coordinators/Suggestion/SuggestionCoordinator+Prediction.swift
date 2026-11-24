@@ -182,6 +182,22 @@ extension SuggestionCoordinator {
     /// Why ghost text should not be generated right now, even though the field is eligible: the word
     /// strip owns Tab while it is on (ghost text would give Tab two meanings), or Low Power Mode
     /// pauses the on-device model.
+    /// Starts reading the screen around a newly focused field, unless nothing would read the
+    /// result. Screen text only ever goes into a ghost-text prompt, and while ghost text is paused
+    /// (the word strip has taken its place, or Low Power Mode) a capture is a screenshot and a
+    /// text-recognition pass for nothing. A chat app changes its focused element many times a
+    /// minute, and each change used to pay for one.
+    func startVisualContextSessionIfUsed(for context: FocusedInputSnapshot) {
+        guard ghostTextPauseReason() == nil else { return }
+        visualContextCoordinator.startSessionIfNeeded(for: context)
+    }
+
+    /// True while ghost text cannot be generated, so warming its model up would be work for
+    /// nothing (and, with the model not loaded for the word strip's sake, would load it).
+    var isGhostTextPaused: Bool {
+        ghostTextPauseReason() != nil
+    }
+
     private func ghostTextPauseReason() -> String? {
         if wordPredictionPresenter?.replacesGhostText == true {
             return "Overlay hidden because word predictions replace ghost text."
@@ -538,14 +554,58 @@ extension SuggestionCoordinator {
     /// checker's guesses (up to 15 ms together) run in that gap. `handleTypoGate` picks the prepared
     /// work up if the field then reads exactly this text, and ignores it otherwise, so a wrong guess
     /// about what the key did costs nothing but the wasted lookup.
-    func prepareTypoGate(precedingText: String, textAfter: String) {
-        guard settingsSnapshot.suppressCompletionsOnTypo else { return }
+    @discardableResult
+    func prepareTypoGate(precedingText: String, textAfter: String) -> TypoGateDecision? {
+        guard settingsSnapshot.suppressCompletionsOnTypo else { return nil }
         let inputs = TypoGateInputs(dependencies: spellingEngineDependencies, precedingText: precedingText, textAfter: textAfter)
         // A bar that is held back takes nothing from the strip, so the strip draws for this key.
         let decision = inputs.decide(settings: typoGateSettings())
         isSpellingPendingForLastKey = decision != .proceed && !holdsBack(decision, precedingText: precedingText)
         preparedTypoGate = PreparedTypoGate(precedingText: precedingText, textAfter: textAfter, inputs: inputs)
         traceTyping("prepared")
+        return decision
+    }
+
+    /// Types the automatic fix for the word the last key finished from the keys alone, without
+    /// waiting for the app to show that key. Called one run-loop turn after the key, and only
+    /// for an app that has been slow to show keys (`HostLateness`).
+    ///
+    /// Why: the other route makes the fix when the field reads the finished word, and a chat app
+    /// that is busy takes 150 to 400 ms to show a key, or does not show it before the wait gives
+    /// up. The fix then came late, or on top of the writer's next word, or not at all, and to the
+    /// writer the spelling check had stopped working because another app was slow.
+    ///
+    /// Why it is safe to type without that read: the fix is a number of backspaces and the word,
+    /// posted as keys after the writer's own, so the app applies it to the text those keys made.
+    /// What has to be true is that the keys made the text Cotabby thinks they made, and that is
+    /// asked of the word strip's record of the keys, twice: when the work was prepared and again
+    /// here, after the key itself was applied. Everything the read-based route checks that does
+    /// not need the new text is checked here too.
+    func typeFixFromKeys(for text: String, field: UInt64) {
+        guard let prepared = preparedTypoGate, prepared.precedingText == text,
+              let context = focusModel.snapshot.context, context.focusChangeSequence == field,
+              prepared.textAfter == context.trailingText,
+              wordPredictionPresenter?.textAfterKeys(typing: "") == text,
+              dismissedTypo == nil, pendingCacheReset == nil, SyntheticEventPoster.secondsUntilSettled <= 0,
+              interactionState.activeSession == nil,
+              currentDisabledReason(focusSnapshot: focusModel.snapshot) == nil else { return }
+        // Same order as the other routes: a fix the writer just undid counts as kept before the
+        // gate decides about the word again.
+        settleAutoFixOutcomes(precedingText: text)
+        noticeSelfCorrections(precedingText: text)
+        let decision = prepared.inputs.decide(settings: typoGateSettings())
+        guard case let .applyCorrection(word, correctedWord) = decision else { return }
+        // This text has been looked at; the read that shows it later must not start over.
+        typedTextCheck = TypedTextCheck(field: field, pollGeneration: hostPublishPollGeneration, checkedPrecedingText: text)
+        lastGatedPrecedingText = text
+        preparedTypoGate = nil
+        heldSpellingBar?.cancel()
+        heldSpellingBar = nil
+        traceTyping("decided (from the keys)")
+        applyAutomaticCorrection(
+            typoWord: word, correctedWord: correctedWord, rawContext: context, workID: currentWorkID, textFromKeys: text
+        )
+        reportDecision(decision, inputs: prepared.inputs, precedingText: text)
     }
 
     /// The fast lane for spelling work that was already done at the keypress. Called the moment the
@@ -627,7 +687,12 @@ extension SuggestionCoordinator {
         heldSpellingBar?.cancel()
         heldSpellingBar = nil
         if case let .applyCorrection(word, correctedWord) = decision {
-            defer { reportDecision(decision, inputs: inputs, rawContext: rawContext) }
+            // The fix for this word in this place was already typed and the app has not shown
+            // it yet: this read is the text from before it (`AutoFixOutcomeTracker.isAwaitingFix`).
+            guard !autoFixOutcomes.isAwaitingFix(in: rawContext.precedingText, field: rawContext.focusChangeSequence) else {
+                return true
+            }
+            defer { reportDecision(decision, inputs: inputs, precedingText: rawContext.precedingText) }
             // Nothing may sit between the decision and the keys that type the fix: closing the word
             // strip or the spelling bar is panel work that has measured 50-140 ms on a busy main
             // thread, long enough for the writer's next key to land first. The fix goes out, then
@@ -708,7 +773,7 @@ extension SuggestionCoordinator {
     ) -> Bool {
         // The spelling bar or a suppressed typo owns this word; predictions wait.
         wordPredictionPresenter?.hidePredictions()
-        reportDecision(decision, inputs: inputs, rawContext: rawContext)
+        reportDecision(decision, inputs: inputs, precedingText: rawContext.precedingText)
 
         switch decision {
         case .proceed:
@@ -755,7 +820,7 @@ extension SuggestionCoordinator {
     /// Tells the training record what was decided about the word and on what evidence. Does nothing
     /// (not even the lookups) when nobody listens. For a fix typed without asking it runs after the
     /// fix's keys have gone out (see `carryOut`), so the record never delays a fix.
-    private func reportDecision(_ decision: TypoGateDecision, inputs: TypoGateInputs, rawContext: FocusedInputSnapshot) {
+    private func reportDecision(_ decision: TypoGateDecision, inputs: TypoGateInputs, precedingText: String) {
         guard let onSpellingDecision else { return }
         let typed: String
         let action: String
@@ -764,7 +829,7 @@ extension SuggestionCoordinator {
         case .proceed:
             return
         case .suppress:
-            guard let word = CurrentWordExtractor.extractTrailingWord(from: rawContext.precedingText)?.result.word else { return }
+            guard let word = CurrentWordExtractor.extractTrailingWord(from: precedingText)?.result.word else { return }
             (typed, action) = (word, "held")
         case let .applyCorrection(word, correctedWord):
             (typed, action) = (word, "fixed")
@@ -783,7 +848,7 @@ extension SuggestionCoordinator {
         // their scores. It is there for a finished word; mid-word only the offer itself is.
         let ranked = inputs.rankedCandidates(forFinishedWord: typed).map(\.candidate)
         let candidates = (ranked.isEmpty ? offered : ranked).prefix(SpellingDecisionRecord.maximumCandidates)
-        let before = CurrentWordExtractor.textBeforeTrailingWord(in: rawContext.precedingText) ?? ""
+        let before = CurrentWordExtractor.textBeforeTrailingWord(in: precedingText) ?? ""
         onSpellingDecision(SpellingDecisionRecord(
             typed: typed, action: action,
             candidates: candidates.map { .init(term: $0.term, score: ($0.score * 1000).rounded() / 1000) },
@@ -1072,7 +1137,8 @@ extension SuggestionCoordinator {
         typoWord: String,
         correctedWord: String,
         rawContext: FocusedInputSnapshot,
-        workID: UInt64
+        workID: UInt64,
+        textFromKeys: String? = nil
     ) {
         let liveContext = interactionState.materializeContext(from: rawContext)
         latestGenerationNumber = liveContext.generation
@@ -1080,11 +1146,18 @@ extension SuggestionCoordinator {
         // may have changed the word since a debounced snapshot, and backspacing over a different word
         // would garble the text. A capture taken milliseconds ago for this same cycle is reused; a
         // second walk would only delay the fix past the writer's next key.
+        // A fix made from the keys (`typeFixFromKeys`) has no read to wait for: the field is
+        // behind, and the text is the one the keys left.
         traceTyping("fix chosen")
-        focusModel.refreshIfStale(maxAgeMilliseconds: Self.freshSnapshotReuseWindowMilliseconds)
-        let livePrecedingText = focusModel.snapshot.context.map { current in
-            current.focusChangeSequence == rawContext.focusChangeSequence ? current.precedingText : ""
-        } ?? rawContext.precedingText
+        let livePrecedingText: String
+        if let textFromKeys {
+            livePrecedingText = textFromKeys
+        } else {
+            focusModel.refreshIfStale(maxAgeMilliseconds: Self.freshSnapshotReuseWindowMilliseconds)
+            livePrecedingText = focusModel.snapshot.context.map { current in
+                current.focusChangeSequence == rawContext.focusChangeSequence ? current.precedingText : ""
+            } ?? rawContext.precedingText
+        }
         guard let replacement = TypoCorrectionReplacementPlanner.plan(
             precedingText: livePrecedingText,
             expectedTypo: typoWord,
@@ -1126,6 +1199,10 @@ extension SuggestionCoordinator {
 
         let fixedAfterMilliseconds = Self.elapsedMilliseconds(since: lastTypingKeystrokeUptimeNanoseconds)
         traceTyping("fix typed")
+        // The strip's record of the keys moves on to the fixed text, so the word from before
+        // the fix, when a slow app reports it afterwards, is known for what it is.
+        let kept = String(decoding: Array(livePrecedingText.utf16.dropLast(replacement.backspaceCount)), as: UTF16.self)
+        wordPredictionPresenter?.noteFixTyped(leaving: kept + replacement.replacementText)
         // After the keys, and before the flash below: the flash is skipped while the bar is up.
         closePanelsForAutomaticCorrection()
         focusModel.invalidateTransientCaretCaches()

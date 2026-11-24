@@ -9,7 +9,7 @@ import AppKit
 /// Accessibility grant of its own: `doc.txt` and `field.txt` mirror the two texts (rewritten within
 /// 30 ms of any change, whoever made it), and each line appended to `host-commands.txt` is one of
 /// `focus-text`, `focus-field`, `clear-field`, `light`, `dark`, `busy`, `tear-read`, `late <ms>`,
-/// `slow <ms>`, `nudge-frame`.
+/// `slow <ms>`, `stall <ms> <every ms>`, `nudge-frame`.
 final class HostDelegate: NSObject, NSApplicationDelegate {
     var window: NSWindow!
     private var textView: NSTextView!
@@ -61,6 +61,13 @@ final class HostDelegate: NSObject, NSApplicationDelegate {
             // app whose main thread is busy; `slow 0` ends it.
             case let line where line.hasPrefix("slow "):
                 TearingTextView.readDelay = (Double(line.dropFirst(5)) ?? 0) / 1000
+            // `stall 90 400`: once every 400 ms one Accessibility read takes 90 ms to answer,
+            // longer than Cotabby waits for it (50 ms), like an app that is busy for a moment
+            // now and then; `stall 0 0` ends it.
+            case let line where line.hasPrefix("stall "):
+                let parts = line.dropFirst(6).split(separator: " ").compactMap { Double($0) }
+                TearingTextView.stallDelay = (parts.first ?? 0) / 1000
+                TearingTextView.stallPeriod = (parts.dropFirst().first ?? 0) / 1000
             default: break
             }
         }
@@ -225,7 +232,19 @@ final class TearingTextView: NSTextView {
 
     /// How long each Accessibility read takes to answer, in seconds; 0 answers at once.
     static var readDelay: TimeInterval = 0
+    /// One read in every `stallPeriod` seconds takes `stallDelay` seconds to answer. A client
+    /// that gives a read less time than that gets no answer at all for it, which is not the
+    /// same as a slow answer: it cannot tell a busy app from a field that is gone.
+    static var stallDelay: TimeInterval = 0
+    static var stallPeriod: TimeInterval = 0
+    private static var nextStall: TimeInterval = 0
     private static func dawdle() {
+        let now = ProcessInfo.processInfo.systemUptime
+        if stallDelay > 0, now >= nextStall {
+            nextStall = now + stallPeriod
+            Thread.sleep(forTimeInterval: stallDelay)
+            return
+        }
         if readDelay > 0 { Thread.sleep(forTimeInterval: readDelay) }
     }
 
