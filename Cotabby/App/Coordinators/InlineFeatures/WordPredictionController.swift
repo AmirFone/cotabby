@@ -124,6 +124,9 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
     /// as soon as the strip shows different words.
     private(set) var arrowedSlot: Int?
     private var pendingDecision: PendingDecision?
+    /// What the last pick was meant to leave in the field, until the field has been read once
+    /// after it or a key is pressed (`PickLeftover`).
+    private var pickToCheck: PickLeftover.Pick?
     /// The focus provider's count of reads the app left unanswered, as last carried into the
     /// record of a word (`StripUse.Timing.missed`).
     private var unansweredReadsNoted = 0
@@ -267,6 +270,7 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
     func noteTypedText(_ precedingText: String, caretRect: CGRect, focusChangeSequence: UInt64) {
         let read = focusModel.snapshot.context
         enterField(sequence: focusChangeSequence, element: read?.focusChangeSequence == focusChangeSequence ? read?.elementIdentifier : nil)
+        if repairsPick(in: precedingText) { return }
         // A slow host publishes a burst of keys one state at a time, and any of those states can
         // arrive here as "the text after the key". Taken as that, it put the strip back to a word
         // the writer had already finished (the completions of `r` standing over `read/`), and
@@ -316,6 +320,26 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
         return true
     }
 
+    /// The first settled read after a pick. When it shows the picked word with some of the
+    /// writer's letters still in front of it, the app dropped Backspaces of the pick: the
+    /// leftover letters and the word are deleted and the word is typed again. True when a repair
+    /// was typed, and the read is then not taken as the text the writer left.
+    ///
+    /// Tried once per pick. While the pick's own keys are still landing the field is passing
+    /// through its in-between states and the question waits for the next read.
+    private func repairsPick(in precedingText: String) -> Bool {
+        guard let pick = pickToCheck else { return false }
+        guard SyntheticEventPoster.secondsUntilSettled == 0, !keys.isEarlierState(precedingText) else { return false }
+        pickToCheck = nil
+        guard let kept = PickLeftover.lettersLeft(in: precedingText, after: pick),
+              let backspaces = PickLeftover.backspaces(removing: kept, of: pick),
+              inserter.replace(deletingUTF16Count: backspaces, with: pick.typed) else { return false }
+        CotabbyLogger.suggestion.debug("Pick repaired: \(kept) typed letter(s) were left in front of the word")
+        keys.jump(to: pick.expected)
+        focusModel.invalidateTransientCaretCaches()
+        return true
+    }
+
     /// What this controller remembers about a text belongs to the field it was read in. When
     /// another field has focus, or none, all of it goes: carried over, an Escape would silence the
     /// first word typed in the next field, a strip held back for the language model would be drawn
@@ -347,6 +371,7 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
         field = sequence.map { Field(sequence: $0, element: element) }
         isSuppressed = false
         pickedText = nil
+        pickToCheck = nil
         lastNotedText = ""
         keys.settle(on: nil)
         lastCaretRect = nil
@@ -474,6 +499,9 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
     /// The strip's own handling of a key: true when it takes the key from the app.
     private func claims(_ event: CapturedInputEvent) -> Bool {
         pendingDecision = nil
+        // A key after the pick: the field moves on, and a repair typed now would land among the
+        // writer's own keys.
+        pickToCheck = nil
         keysSeen &+= 1
         lastKeyUptimeNanoseconds = DispatchTime.now().uptimeNanoseconds
         lastKeyUptimeForLag = lastKeyUptimeNanoseconds
@@ -770,6 +798,7 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
         let going = (1...max(prefix.count, 1)).map { String(precedingText.dropLast(min($0, prefix.count))) }
         let coming = typed.indices.dropFirst().map { stem + typed[..<$0] }
         keys.jump(to: expected, through: going + coming)
+        pickToCheck = PickLeftover.Pick(stem: stem, prefix: String(precedingText.suffix(prefix.count)), typed: typed)
         // Only a pick that typed a space leaves one for the next key to fight with, and only then
         // does a next word start at the caret.
         pickedText = addsSpace ? expected : nil
@@ -821,7 +850,9 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
         return (next == "'" || next == "’") && trailing.dropFirst().first?.isLetter == true
     }
 
-    static let closingPunctuation: Set<Character> = [".", ",", "!", "?", ";", ":"]
+    /// The marks that belong against the word before them. A closing bracket is one: a word
+    /// picked inside parentheses used to be closed as `(the word )`.
+    static let closingPunctuation: Set<Character> = [".", ",", "!", "?", ";", ":", ")", "]", "}"]
 
     /// Another panel (the spelling bar) typed a word and its space; treat the next key like one after
     /// a strip pick.

@@ -116,6 +116,75 @@ final class WordPredictionControllerTests: XCTestCase {
         XCTAssertEqual(harness.inserter.replacements.last?.text, ". ")
     }
 
+    func test_closingBracketRightAfterAPick_goesBeforeThePickedSpace() {
+        // #given "to " was just picked inside parentheses
+        let harness = makeHarness(precedingText: "(I want ")
+        harness.note("(I want ")
+        _ = harness.controller.observe(Self.key(48))
+        flushMainQueue()
+        harness.focus.setPrecedingText("(I want to ")
+
+        // #when the parenthesis is closed
+        let claimed = harness.controller.observe(
+            CapturedInputEvent(kind: .textMutation, keyCode: 29, characters: ")", flags: .maskShift)
+        )
+        let fence = expectation(description: "space moved")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { fence.fulfill() }
+        wait(for: [fence], timeout: 1)
+
+        // #then the bracket stands against the word and the space follows it
+        XCTAssertTrue(claimed)
+        XCTAssertEqual(harness.inserter.replacements.last?.text, ") ")
+    }
+
+    func test_pickThatLeftATypedLetterInFront_isTypedAgain() {
+        // #given `g` picked as `go`, in an app that did not act on the pick's Backspace
+        let harness = makeHarness(precedingText: "I want to g")
+        harness.note("I want to g")
+        _ = harness.controller.observe(Self.key(48))
+        flushMainQueue()
+        harness.focus.setPrecedingText("I want to ggo ")
+
+        // #when the field is read after the pick
+        harness.note("I want to ggo ")
+
+        // #then the leftover letter and the word are deleted and the word is typed once more
+        XCTAssertEqual(harness.inserter.replacements.count, 2)
+        XCTAssertEqual(harness.inserter.replacements.last?.deleteCount, 4)
+        XCTAssertEqual(harness.inserter.replacements.last?.text, "go ")
+    }
+
+    func test_pickThatLanded_isNotTypedAgain() {
+        // #given `g` picked as `go` and the field showing it
+        let harness = makeHarness(precedingText: "I want to g")
+        harness.note("I want to g")
+        _ = harness.controller.observe(Self.key(48))
+        flushMainQueue()
+        harness.focus.setPrecedingText("I want to go ")
+
+        // #when the field is read after the pick
+        harness.note("I want to go ")
+
+        // #then nothing more is typed
+        XCTAssertEqual(harness.inserter.replacements.count, 1)
+    }
+
+    func test_keyAfterAPick_endsTheCheckForLeftoverLetters() {
+        // #given a pick the app botched, and the writer already typing on
+        let harness = makeHarness(precedingText: "I want to g")
+        harness.note("I want to g")
+        _ = harness.controller.observe(Self.key(48))
+        flushMainQueue()
+        _ = harness.controller.observe(CapturedInputEvent(kind: .textMutation, keyCode: 0, characters: "a", flags: []))
+        harness.focus.setPrecedingText("I want to ggo ")
+
+        // #when the field is read
+        harness.note("I want to ggo ")
+
+        // #then no repair is typed among the writer's own keys
+        XCTAssertEqual(harness.inserter.replacements.count, 1)
+    }
+
     func test_spaceRightAfterAPick_isSwallowed() {
         let harness = makeHarness(precedingText: "I want ")
         harness.note("I want ")
