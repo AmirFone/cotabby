@@ -43,7 +43,9 @@ struct PredictionHarness {
                 + (noTechnical ? [] : ["\(TechnicalVocabulary.stripListName).txt"])
             guard let core = WordLanguageModelCore(
                 modelURL: URL(fileURLWithPath: languageModelPath),
-                wordListURLs: lists.map(resourceRoot.appendingPathComponent)
+                wordListURLs: lists.map(resourceRoot.appendingPathComponent),
+                // NO_BRANCH=1 reads the exact pass one piece at a time, to measure what one pass saves.
+                readsPiecesInOnePass: ProcessInfo.processInfo.environment["NO_BRANCH"] == nil
             ) else {
                 print("could not load the language model at \(languageModelPath)")
                 return nil

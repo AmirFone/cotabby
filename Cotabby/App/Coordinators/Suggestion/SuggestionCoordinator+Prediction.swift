@@ -756,10 +756,26 @@ extension SuggestionCoordinator {
                   context.precedingText == rawContext.precedingText, context.trailingText == rawContext.trailingText,
                   self.dismissedTypo == nil, SyntheticEventPoster.secondsUntilSettled <= 0,
                   self.currentDisabledReason(focusSnapshot: self.focusModel.snapshot) == nil else { return }
+            // The strip already lists this fix, one Tab or Option+digit away. Swapping it for a
+            // bar that says the same, and back again at the next letter, is the flicker a
+            // writer who pauses inside a word used to get on every pause.
+            if let fix = Self.firstFix(in: decision), self.wordPredictionPresenter?.isOffering(fix) == true { return }
             _ = self.present(decision, inputs: inputs, rawContext: context, workID: self.currentWorkID)
         }
         heldSpellingBar = held
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.midWordBarHoldSeconds, execute: held)
+    }
+
+    /// The word a decision would put first in the spelling bar, when it offers one.
+    private static func firstFix(in decision: TypoGateDecision) -> String? {
+        switch decision {
+        case let .offerCorrection(_, correctedWord):
+            return correctedWord
+        case let .offerRankedCorrection(_, candidates), let .offerChoices(_, candidates), let .offerRealWordFix(_, candidates):
+            return candidates.first?.term
+        case .proceed, .suppress, .applyCorrection:
+            return nil
+        }
     }
 
     /// Hands the word to the spelling bar (or holds a flagged word with nothing to offer): the

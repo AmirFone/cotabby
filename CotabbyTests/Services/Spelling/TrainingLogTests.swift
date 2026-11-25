@@ -20,6 +20,42 @@ final class TrainingLogTests: XCTestCase {
         TrainingLog(fileURL: fileURL, isEnabled: isEnabled, today: { Date(timeIntervalSince1970: 1_794_700_800) })
     }
 
+    func test_writtenOnAQueue_linesAreInTheFileInOrderOnceWaitedFor() throws {
+        // #given a log that writes its file on a queue, as the running app does
+        let log = TrainingLog(
+            fileURL: fileURL, isEnabled: { true }, today: { Date(timeIntervalSince1970: 1_794_700_800) },
+            disk: DispatchQueue(label: "training-log-test")
+        )
+
+        // #when lines are recorded and whatever reads the file waits for them
+        log.noteSentence("I saw the cat today.")
+        log.noteSentence("We went home after that.")
+        log.waitForDisk()
+
+        // #then both are there, first one first
+        let lines = try String(contentsOf: fileURL, encoding: .utf8).split(separator: "\n")
+        XCTAssertEqual(lines.count, 2)
+        XCTAssertTrue(lines[0].contains("cat"))
+    }
+
+    func test_writtenOnAQueue_theCountAndDeleteSeeEveryLineRecorded() {
+        let log = TrainingLog(
+            fileURL: fileURL, isEnabled: { true }, today: { Date(timeIntervalSince1970: 1_794_700_800) },
+            disk: DispatchQueue(label: "training-log-test")
+        )
+
+        // #when a line is recorded and counted at once, then everything is deleted at once
+        log.noteSentence("I saw the cat today.")
+        let counted = log.sentenceCount()
+        log.noteSentence("We went home after that.")
+        log.clear()
+
+        // #then the count saw the line, and no line written late brings the file back
+        XCTAssertEqual(counted, 1)
+        log.waitForDisk()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fileURL.path))
+    }
+
     func test_switchedOff_nothingIsWritten() {
         // #given a log the writer has not switched on
         let log = makeLog(isEnabled: { false })

@@ -233,6 +233,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// generation is genuinely stuck, we accept the small risk of the original ggml crash over
     /// the larger UX bug of a broken permission flow.
     func applicationWillTerminate(_ notification: Notification) {
+        // Lines of the training record still on their way to the file are written before the app goes.
+        TrainingLog.backgroundDisk.sync {}
         guard didStartServices else {
             return
         }

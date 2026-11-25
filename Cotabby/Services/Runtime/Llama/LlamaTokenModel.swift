@@ -27,6 +27,8 @@ nonisolated final class LlamaTokenModel: SentenceTokenModel {
     /// splits badly), so both stay below this.
     static let contextSize: Int32 = 2_048
     private static let batchCapacity: Int32 = 512
+    /// How many different next pieces one pass can try after the text in memory (`scoresAfterEach`).
+    static let branchCapacity = 8
     /// llama.cpp asks for one process-wide setup call; a `static let` runs exactly once. The log
     /// callback is silenced the same way the ghost-text engine does it, or every load would print
     /// hundreds of lines to stderr.
@@ -56,6 +58,12 @@ nonisolated final class LlamaTokenModel: SentenceTokenModel {
         contextParameters.n_batch = UInt32(Self.batchCapacity)
         contextParameters.n_ubatch = UInt32(Self.batchCapacity)
         contextParameters.no_perf = true
+        // Sequence 0 is the text. The others are branches: each shares the text and adds one piece
+        // of its own, so one pass answers "what follows the text plus this piece" for several
+        // pieces at once. One shared buffer (`kv_unified`) means a branch points at the text's
+        // entries instead of copying them, and the text keeps the whole context size.
+        contextParameters.n_seq_max = UInt32(1 + Self.branchCapacity)
+        contextParameters.kv_unified = true
         guard let context = llama_init_from_model(model, contextParameters) else {
             llama_model_free(model)
             return nil
@@ -170,6 +178,49 @@ nonisolated final class LlamaTokenModel: SentenceTokenModel {
             start = end
         }
         guard let scores = llama_get_logits_ith(context, Int32(lastBatchCount - 1)) else { return nil }
+        return body(UnsafeBufferPointer(start: scores, count: vocabularySize), normalizer(of: scores))
+    }
+
+    /// For each of `pieces`: the model's scores for what comes after the text in memory with that
+    /// one piece added, handed to `body` in order with the piece's place in `pieces`. The memory
+    /// is left exactly as it was. False when the model could not run; the memory is then still the
+    /// text, with no branch left behind.
+    ///
+    /// Why one pass instead of one per piece: a pass over a single piece costs the same ten
+    /// milliseconds on the GPU whether it carries one piece or eight, because nearly all of that
+    /// is the fixed cost of running the layers at all. Each piece goes in at the same position on
+    /// a sequence of its own that shares the text (`llama_memory_seq_cp` marks the text's entries
+    /// as belonging to that sequence too; nothing is copied), and the sequences are dropped again
+    /// afterwards. Nothing is appended to the text itself, so there is nothing to roll back.
+    func scoresAfterEach(
+        of pieces: [Int32],
+        _ body: (_ index: Int, _ scores: UnsafeBufferPointer<Float>, _ normalizer: Float) -> Void
+    ) -> Bool {
+        guard !pieces.isEmpty, pieces.count <= Self.branchCapacity, (1..<Self.contextSize).contains(count) else { return false }
+        let memory = llama_get_memory(context)
+        for branch in 1...pieces.count { llama_memory_seq_cp(memory, 0, Int32(branch), -1, -1) }
+        // Negative bounds mean the whole sequence, which llama.cpp can always remove.
+        defer { for branch in 1...pieces.count { _ = llama_memory_seq_rm(memory, Int32(branch), -1, -1) } }
+        batch.n_tokens = Int32(pieces.count)
+        for (index, piece) in pieces.enumerated() {
+            batch.token[index] = piece
+            batch.pos[index] = count
+            batch.n_seq_id[index] = 1
+            batch.seq_id[index]?[0] = Int32(index + 1)
+            batch.logits[index] = 1
+        }
+        guard llama_decode(context, batch) == 0 else { return false }
+        for index in pieces.indices {
+            guard let scores = llama_get_logits_ith(context, Int32(index)) else { return false }
+            body(index, UnsafeBufferPointer(start: scores, count: vocabularySize), normalizer(of: scores))
+        }
+        return true
+    }
+
+    /// The number that turns a raw score into a log-probability: log Σ exp(score), worked out
+    /// relative to the best score so the exponentials stay in range. Accelerate does the sweeps
+    /// with vector instructions; a Swift loop over 150,000 scores would cost more than the pass.
+    private func normalizer(of scores: UnsafePointer<Float>) -> Float {
         var best: Float = 0
         var bestIndex: vDSP_Length = 0
         vDSP_maxvi(scores, 1, &best, &bestIndex, vDSP_Length(vocabularySize))
@@ -182,7 +233,7 @@ nonisolated final class LlamaTokenModel: SentenceTokenModel {
             vvexpf(base, base, &size)
             vDSP_sve(base, 1, &sum, vDSP_Length(vocabularySize))
         }
-        return body(UnsafeBufferPointer(start: scores, count: vocabularySize), best + log(max(sum, 1)))
+        return best + log(max(sum, 1))
     }
 
     func forget(last removed: Int) {

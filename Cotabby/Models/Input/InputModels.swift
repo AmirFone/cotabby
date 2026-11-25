@@ -68,6 +68,10 @@ struct CapturedInputEvent: Equatable {
     /// How long after the key was pressed Cotabby was handed it, in milliseconds. Near zero on a
     /// quiet Mac; tens or hundreds when Cotabby's main thread was waiting on the app in front.
     var heardAfterMilliseconds = 0
+    /// True for a key-down macOS made up because the key is being held: some thirty a second
+    /// for as long as it stays down. The inline panels do not treat those as typing (a strip
+    /// redrawn for each would strobe through word lists while a line is deleted).
+    var isRepeat = false
 
     var shouldSchedulePrediction: Bool {
         switch kind {

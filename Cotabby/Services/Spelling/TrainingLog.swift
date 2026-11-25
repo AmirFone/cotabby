@@ -42,7 +42,7 @@ final class TrainingLog {
     /// Months of heavy typing (a word typed with the strip on is a line of about 200 bytes). Past
     /// this the older half is dropped, so the file cannot grow without bound on a Mac where it was
     /// switched on and forgotten.
-    static let maximumBytes = 100_000_000
+    nonisolated static let maximumBytes = 100_000_000
     /// How much of the text before a sentence is kept with it.
     static let maximumContextCharacters = 300
     /// A "sentence" longer than this is pasted text or a run-on with no stops, not something to
@@ -69,6 +69,18 @@ final class TrainingLog {
     private var order = 0
     private var firstUptime: UInt64?
     private var lastDecision: SpellingDecisionRecord?
+    /// Where the file is written. The app hands in `backgroundDisk`; with nil (the tests) a line
+    /// is on disk before the call that recorded it returns.
+    ///
+    /// Why a queue: a line is recorded for every word typed, on the main thread, between the key
+    /// and the strip. Writing it there meant opening, extending and closing a file per word, a
+    /// fraction of a millisecond on a quiet Mac and many times that on one where security
+    /// software inspects every file opened. The line is built on the main thread (it is a small
+    /// dictionary) and the file work happens here, in the order the lines were recorded.
+    private let disk: DispatchQueue?
+
+    /// The queue the running app writes on. Serial, so lines keep their order.
+    static let backgroundDisk = DispatchQueue(label: "com.cotabby.training-log", qos: .utility)
 
     init(
         fileURL: URL? = TrainingLog.defaultFileURL(),
@@ -76,8 +88,10 @@ final class TrainingLog {
         today: @escaping () -> Date = Date.init,
         savesContext: @escaping () -> Bool = { TrainingLog.isOn(TrainingLog.contextDefaultsKey) },
         savesApp: @escaping () -> Bool = { TrainingLog.isOn(TrainingLog.appDefaultsKey) },
-        uptimeNanoseconds: @escaping () -> UInt64 = { DispatchTime.now().uptimeNanoseconds }
+        uptimeNanoseconds: @escaping () -> UInt64 = { DispatchTime.now().uptimeNanoseconds },
+        disk: DispatchQueue? = nil
     ) {
+        self.disk = disk
         self.fileURL = fileURL
         self.isEnabled = isEnabled
         self.today = today
@@ -196,6 +210,7 @@ final class TrainingLog {
     /// A pane that went by the count said "Nothing saved" and greyed out Delete All over a file
     /// that had the writer's words in it.
     func hasSavedData() -> Bool {
+        waitForDisk()
         guard let fileURL,
               let size = try? FileManager.default.attributesOfItem(atPath: fileURL.path)[.size] as? NSNumber
         else { return false }
@@ -219,6 +234,7 @@ final class TrainingLog {
     /// skipped as a repeat of a line that no longer existed.
     func clear() {
         guard let fileURL else { return }
+        waitForDisk()
         try? FileManager.default.removeItem(at: fileURL)
         order = 0
         firstUptime = nil
@@ -227,7 +243,14 @@ final class TrainingLog {
 
     // MARK: - File
 
+    /// Returns once every line recorded so far is in the file. Whatever reads or removes the
+    /// file asks first; that is the writer in Settings, never the typing path.
+    func waitForDisk() {
+        disk?.sync {}
+    }
+
     private func lines() -> [TrainingLogLine] {
+        waitForDisk()
         guard let fileURL, let data = try? Data(contentsOf: fileURL) else { return [] }
         return data.split(separator: UInt8(ascii: "\n")).compactMap { line in
             (try? JSONSerialization.jsonObject(with: Data(line)) as? [String: Any]).flatMap(TrainingLogLine.init(json:))
@@ -267,6 +290,14 @@ final class TrainingLog {
     private func write(_ line: TrainingLogLine) {
         guard let fileURL,
               let data = try? JSONSerialization.data(withJSONObject: line.json, options: [.sortedKeys]) else { return }
+        guard let disk else {
+            Self.append(data, to: fileURL)
+            return
+        }
+        disk.async { Self.append(data, to: fileURL) }
+    }
+
+    private nonisolated static func append(_ data: Data, to fileURL: URL) {
         do {
             try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
             if !FileManager.default.fileExists(atPath: fileURL.path) {
@@ -277,14 +308,14 @@ final class TrainingLog {
             defer { try? handle.close() }
             try handle.seekToEnd()
             try handle.write(contentsOf: data + Data("\n".utf8))
-            if try handle.offset() > UInt64(Self.maximumBytes) { trimToNewerHalf() }
+            if try handle.offset() > UInt64(maximumBytes) { trimToNewerHalf(fileURL) }
         } catch {
             CotabbyLogger.app.error("Could not write the training log: \(error.localizedDescription)")
         }
     }
 
-    private func trimToNewerHalf() {
-        guard let fileURL, let data = try? Data(contentsOf: fileURL) else { return }
+    private nonisolated static func trimToNewerHalf(_ fileURL: URL) {
+        guard let data = try? Data(contentsOf: fileURL) else { return }
         // The newer half starts at the first line break past the middle: one search and one copy,
         // where joining the kept lines one at a time copied everything again for each line.
         let middle = data.startIndex + data.count / 2

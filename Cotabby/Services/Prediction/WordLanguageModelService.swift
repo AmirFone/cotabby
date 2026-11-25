@@ -40,6 +40,18 @@ final class WordLanguageModelService {
     /// The text whose answer the strip is waiting for; an answer worked out ahead for it is used
     /// the moment it lands.
     private var awaited: LanguageModelContext.Key?
+    /// The exact pass that has been asked for and not answered yet: the text and the letters typed
+    /// it is for. While it is out, the order in hand for those letters is about to change
+    /// (`isAnswerPending`).
+    private var refinementAsked: RefinementRequest?
+    /// The last exact pass the model could not give (it had moved on, or cannot take a piece
+    /// back out of its memory). Not asked for again: every draw of the strip would wait for it.
+    private var refinementDeclined: RefinementRequest?
+
+    private struct RefinementRequest: Equatable {
+        let key: LanguageModelContext.Key
+        let prefix: String
+    }
 
     /// What the writer finished lately, read by the model before the field's own text; nil reads
     /// the field alone.
@@ -131,8 +143,12 @@ final class WordLanguageModelService {
             return ahead
         }
         let prefix = context.prefix.lowercased()
-        if !latest.piecesWorthRefining(prefix: prefix).isEmpty {
-            worker.request(.refinement(latest, prefix: prefix)) { [weak self] in self?.accept($0, wasRefinement: true) }
+        let refinement = RefinementRequest(key: context.key, prefix: prefix)
+        if refinement != refinementAsked, refinement != refinementDeclined, !latest.piecesWorthRefining(prefix: prefix).isEmpty {
+            refinementAsked = refinement
+            worker.request(.refinement(latest, prefix: prefix)) { [weak self] in
+                self?.acceptRefinement($0, for: refinement)
+            }
         }
         if let next = Self.lookAheadKey(textBefore: text, context: context, scores: latest), next != aheadAsked {
             aheadAsked = next
@@ -169,12 +185,23 @@ final class WordLanguageModelService {
 
     /// True when an answer for this text has been asked for and is on its way: the strip holds its
     /// redraw for a moment instead of showing an order it is about to replace.
+    ///
+    /// That is the first answer for a new word, and also the exact pass for the letters typed so
+    /// far. The exact pass used to be left out: the strip was drawn from the first estimate and
+    /// drawn again some ten milliseconds later with two words swapped, which is the kind of
+    /// change a writer sees without being able to say what moved. It is one pass of the model now
+    /// (`WordLanguageModelCore.refine`), so waiting for it costs less than a frame of the display.
     func isAnswerPending(forTextBefore text: String) -> Bool {
         guard isAnswering, let context = LanguageModelContext.make(textBefore: textRead(forTextBefore: text)) else { return false }
-        return latest?.key != context.key
+        guard latest?.key == context.key else { return true }
+        return refinementAsked == RefinementRequest(key: context.key, prefix: context.prefix.lowercased())
     }
 
     private func request(_ key: LanguageModelContext.Key) {
+        // The worker drops an exact pass that is still waiting when a new text is asked about, so
+        // that pass will never report back.
+        refinementAsked = nil
+        refinementDeclined = nil
         worker.request(.answer(key)) { [weak self] in self?.accept($0) }
     }
 
@@ -185,6 +212,19 @@ final class WordLanguageModelService {
         guard awaited == scores.key, latest?.key != scores.key else { return }
         latest = scores
         onReady?()
+    }
+
+    /// An exact pass came back. `onReady` fires even when it had nothing to give (the model had
+    /// moved on to another text): a strip may be held back for exactly this, and it should be
+    /// drawn now and not when its wait runs out.
+    private func acceptRefinement(_ scores: LanguageModelScores?, for request: RefinementRequest) {
+        if refinementAsked == request { refinementAsked = nil }
+        guard scores != nil else {
+            refinementDeclined = request
+            onReady?()
+            return
+        }
+        accept(scores, wasRefinement: true)
     }
 
     private func accept(_ scores: LanguageModelScores?, wasRefinement: Bool = false) {

@@ -28,6 +28,20 @@ final class WordLanguageModelLiveTests: XCTestCase {
         return nil
     }
 
+    /// Keeps asking for `text`, as the strip does on every draw, until the service has nothing
+    /// more on its way for it: the answer, and the exact pass for the letters typed, which the
+    /// strip also waits for. False when that takes longer than a writer would notice many times
+    /// over.
+    private func settles(_ service: WordLanguageModelService, for text: String, timeout: TimeInterval = 2) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            _ = service.scores(forTextBefore: text)
+            if !service.isAnswerPending(forTextBefore: text) { return true }
+            RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+        }
+        return false
+    }
+
     /// Keeps asking for `text` (a word in progress), as the strip does on every key, until the
     /// service has worked out the answer for the text with that word finished: `finished` when
     /// given, otherwise whichever word the service chose to look ahead to.
@@ -79,7 +93,7 @@ final class WordLanguageModelLiveTests: XCTestCase {
         // #then the callback fired, the answer is there, and the strip has nothing left to wait for
         XCTAssertNotNil(scores)
         XCTAssertGreaterThan(callbacks, 0)
-        XCTAssertFalse(service.isAnswerPending(forTextBefore: "She is still walk"))
+        XCTAssertTrue(settles(service, for: "She is still walk"))
     }
 
     func test_requestsFasterThanAnswers_endOnTheNewestText() throws {
@@ -96,7 +110,50 @@ final class WordLanguageModelLiveTests: XCTestCase {
         // #then the answer for the newest text arrives; a refinement never took its place
         let newest = answer(service, for: "I would like to go h", timeout: 10)
         XCTAssertEqual(newest?.key.text, "I would like to go")
-        XCTAssertFalse(service.isAnswerPending(forTextBefore: "I would like to go h"))
+        XCTAssertTrue(settles(service, for: "I would like to go h"))
+    }
+
+    func test_exactPassInOnePass_ordersTheWordsAsOnePieceAtATimeDoes() throws {
+        // #given the same model twice: one reads the pieces of an exact pass together, one in turn
+        guard let path = ProcessInfo.processInfo.environment["WORD_LM_FILE"] else {
+            throw XCTSkip("Set TEST_RUNNER_WORD_LM_FILE to run against a real model")
+        }
+        let lists = WordLanguageModelService.bundledWordListURLs()
+        let together = try XCTUnwrap(WordLanguageModelCore(modelURL: URL(fileURLWithPath: path), wordListURLs: lists))
+        let inTurn = try XCTUnwrap(WordLanguageModelCore(
+            modelURL: URL(fileURLWithPath: path), wordListURLs: lists, readsPiecesInOnePass: false
+        ))
+        try XCTSkipUnless(together.canBranch && inTurn.canRollBack, "this model cannot do both")
+        XCTAssertFalse(inTurn.canBranch)
+
+        for (text, prefix) in [("After the long run my ", "sh"), ("We should ", "re"), ("I would like to ", "th"), ("She said that ", "c")] {
+            // #when both refine the same answer for the same letters
+            let key = try XCTUnwrap(LanguageModelContext.make(textBefore: text)).key
+            let first = try XCTUnwrap(together.scores(for: key))
+            let second = try XCTUnwrap(inTurn.scores(for: key))
+            // Each keeps going until nothing is left worth a pass, as the strip does: in turn
+            // takes three pieces a round, together takes all of them.
+            func settled(_ core: WordLanguageModelCore, from start: LanguageModelScores) -> LanguageModelScores {
+                var scores = start
+                for _ in 0..<8 {
+                    guard let next = core.refine(scores, forPrefix: prefix) else { break }
+                    scores = next
+                }
+                return scores
+            }
+            let one = settled(together, from: first)
+            let other = settled(inTurn, from: second)
+
+            // #then the words come out in the same order with the same numbers
+            let fromOne = one.best(prefix: prefix, limit: 5)
+            let fromOther = other.best(prefix: prefix, limit: 5)
+            XCTAssertEqual(fromOne.map(\.word), fromOther.map(\.word), "after '\(text)\(prefix)'")
+            for (left, right) in zip(fromOne, fromOther) {
+                XCTAssertEqual(left.logProbability, right.logProbability, accuracy: 0.05, "\(left.word) after '\(text)\(prefix)'")
+            }
+            // #then the text is still in the model's memory: the next exact pass has it to branch from
+            XCTAssertNotNil(together.scores(for: key))
+        }
     }
 
     func test_refinement_leavesTheServiceAnsweringWhateverTheModelCanDo() throws {

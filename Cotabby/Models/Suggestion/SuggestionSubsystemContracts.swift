@@ -395,6 +395,14 @@ protocol WordPredictionPresenting: AnyObject {
     /// `text`. Until the app shows that, a read of the text from before the fix is the app
     /// being behind, not a new state to act on.
     func noteFixTyped(leaving text: String)
+    /// True when the strip on screen lists `word`. The coordinator asks before it puts the
+    /// spelling bar up for an unfinished word: a bar that only repeats what the strip already
+    /// offers would take the strip down for nothing.
+    func isOffering(_ word: String) -> Bool
+}
+
+extension WordPredictionPresenting {
+    func isOffering(_ word: String) -> Bool { false }
 }
 
 /// The suggestion coordinator's handle on the per-sentence proofreading card.

@@ -165,11 +165,21 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
     /// Counts the keys seen. A pick that is waiting for the host (`commit(word:waited:)`) belongs
     /// to the key that asked for it and is dropped when another key follows.
     private var keysSeen: UInt64 = 0
+    /// Uptime until which a key counts as held down: set by each key-down macOS repeats, a
+    /// little longer than the gap to the next one (`noteKeyHeldDown`).
+    private var keyHeldUntilUptimeNanoseconds: UInt64 = 0
+    private var keyReleasedCheck: DispatchWorkItem?
+    /// How long after the last repeated key-down the key is taken to be let go. The default
+    /// repeat gap is 90 ms and the fastest 30.
+    private let heldKeyQuiet: TimeInterval
     private var cancellables = Set<AnyCancellable>()
 
     var onCaptureStateChanged: (() -> Void)?
     /// Invoked after a picked word has been typed, so the suggestion pipeline re-reads the field.
     var onCommitted: (() -> Void)?
+    /// Invoked when a held key has been let go, so the field is read once and the strip drawn
+    /// for what the key left.
+    var onHeldKeyReleased: (() -> Void)?
     /// A sentence the writer finished and left standing (it was still in the field, unchanged, after
     /// `learnDelay`, so any fix made to it had already landed), or a chat line sent with Return.
     /// The opt-in training record listens here.
@@ -197,8 +207,10 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
         isLanguageModelPending: @escaping (String) -> Bool = { _ in false },
         languageModelWait: TimeInterval = 0.05,
         isAnotherPanelUp: @escaping () -> Bool = { false },
-        idle: InlinePanelIdleTimer? = nil
+        idle: InlinePanelIdleTimer? = nil,
+        heldKeyQuiet: TimeInterval = 0.15
     ) {
+        self.heldKeyQuiet = heldKeyQuiet
         self.isAnotherPanelUp = isAnotherPanelUp
         // Built here and not as a default argument: a default is evaluated outside the main actor.
         self.idle = idle ?? InlinePanelIdleTimer()
@@ -277,6 +289,9 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
         // made the record of this word start over. The strip already shows what the keys left;
         // the read that catches up with them is the one that counts.
         guard !isBehindTheKeys(precedingText) else { return }
+        // A key is being held: the field is passing through one state per repeat, and the read
+        // asked for when the key is let go is the one to draw from (`noteKeyHeldDown`).
+        guard !isKeyHeldDown else { return }
         lastNotedText = precedingText
         keys.settle(on: precedingText)
         lastCaretRect = caretRect
@@ -430,7 +445,11 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
     }
 
     func redrawWithLanguageModel() {
-        if awaited != nil {
+        if let held = awaited {
+            // Predicting asks the model for whatever the new answer makes worth one more pass. If
+            // it did, the order is still about to change and the strip goes on waiting; the
+            // timeout set when the wait began is the longest that can last.
+            if awaitTimeout != nil, predict(held.text) != nil, isLanguageModelPending(held.text) { return }
             showAwaited()
             return
         }
@@ -443,6 +462,39 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
     }
 
     var replacesGhostText: Bool { isEnabled() }
+
+    func isOffering(_ word: String) -> Bool {
+        let wanted = word.lowercased()
+        return showing?.prediction.words.contains { $0.lowercased() == wanted } ?? false
+    }
+
+    private var isKeyHeldDown: Bool {
+        DispatchTime.now().uptimeNanoseconds < keyHeldUntilUptimeNanoseconds
+    }
+
+    /// A key-down that macOS repeated because the key is held (Delete through a line, a letter
+    /// leaned on). The strip comes down and stays down until the key is let go, then the field
+    /// is read once.
+    ///
+    /// Why not follow each repeat like a typed key: there are thirty a second. Each one drew a
+    /// strip for a text that lasted 30 ms, with other words and another width, and started the
+    /// reads of the field that follow a key, so the strip strobed and the main thread had no
+    /// time left for the writer's next real key. The text itself is still followed
+    /// (`observe` applies every repeat to `keys`), so nothing is lost by not drawing.
+    private func noteKeyHeldDown() {
+        let quiet = UInt64(heldKeyQuiet * 1_000_000_000)
+        keyHeldUntilUptimeNanoseconds = DispatchTime.now().uptimeNanoseconds + quiet
+        hide(because: "a key is being held down")
+        keyReleasedCheck?.cancel()
+        let check = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.keyReleasedCheck = nil
+            self.keyHeldUntilUptimeNanoseconds = 0
+            self.onHeldKeyReleased?()
+        }
+        keyReleasedCheck = check
+        DispatchQueue.main.asyncAfter(deadline: .now() + heldKeyQuiet, execute: check)
+    }
 
     func hidePredictions() {
         hide(because: "another part of Cotabby asked")
@@ -498,30 +550,15 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
 
     /// The strip's own handling of a key: true when it takes the key from the app.
     private func claims(_ event: CapturedInputEvent) -> Bool {
-        pendingDecision = nil
-        // A key after the pick: the field moves on, and a repair typed now would land among the
-        // writer's own keys.
-        pickToCheck = nil
-        keysSeen &+= 1
-        lastKeyUptimeNanoseconds = DispatchTime.now().uptimeNanoseconds
-        lastKeyUptimeForLag = lastKeyUptimeNanoseconds
-        if [KeyCode.space, KeyCode.returnKey, KeyCode.keypadEnter].contains(event.keyCode) {
-            isSuppressed = false
-        }
-        // Return on a word the writer arrowed to types that word; it does not send the line.
-        // Shift+Return counts too: in a chat box it starts the next line of the same message, and
-        // the line it ends is as finished as one that was sent. Only plain Return used to count,
-        // which recorded the last line of a message and dropped every line before it.
-        if event.keyCode == KeyCode.returnKey, arrowedSlot == nil,
-           event.flags.isDisjoint(with: [.maskCommand, .maskAlternate, .maskControl]) {
-            learnSentLine()
-        }
+        noteKeyHeard(event)
         let modifiers = ShortcutModifierMask(eventFlags: event.flags)
+        if event.isRepeat, event.kind == .textMutation {
+            noteKeyHeldDown()
+            return false
+        }
         if claimPunctuationAfterPick(event, modifiers: modifiers) { return true }
         guard showing != nil else {
-            // No strip up (nothing to complete a moment ago, or the writer had stopped): the key
-            // may start a word, and the strip for it is drawn now.
-            predictAhead(of: event)
+            followKeyWithNoStripUp(event, modifiers: modifiers)
             return false
         }
         if modifiers == .option, let slot = KeyCode.digits.firstIndex(of: event.keyCode) {
@@ -545,6 +582,44 @@ final class WordPredictionController: WordPredictionPresenting, InlineCapturePar
             predictAhead(of: event)
             return false
         }
+    }
+
+    /// What every key changes before anyone decides whose key it is.
+    private func noteKeyHeard(_ event: CapturedInputEvent) {
+        pendingDecision = nil
+        // A key after the pick: the field moves on, and a repair typed now would land among the
+        // writer's own keys.
+        pickToCheck = nil
+        keysSeen &+= 1
+        lastKeyUptimeNanoseconds = DispatchTime.now().uptimeNanoseconds
+        lastKeyUptimeForLag = lastKeyUptimeNanoseconds
+        if [KeyCode.space, KeyCode.returnKey, KeyCode.keypadEnter].contains(event.keyCode) {
+            isSuppressed = false
+        }
+        // Return on a word the writer arrowed to types that word; it does not send the line.
+        // Shift+Return counts too: in a chat box it starts the next line of the same message, and
+        // the line it ends is as finished as one that was sent. Only plain Return used to count,
+        // which recorded the last line of a message and dropped every line before it.
+        if event.keyCode == KeyCode.returnKey, arrowedSlot == nil,
+           event.flags.isDisjoint(with: [.maskCommand, .maskAlternate, .maskControl]) {
+            learnSentLine()
+        }
+    }
+
+    /// A key while no strip is on screen (nothing to complete a moment ago, or the writer had
+    /// stopped). It may start a word, and the strip for that is drawn now.
+    ///
+    /// One case comes first. A strip can be held back for the language model while nothing is
+    /// on screen, and a key that is not typing (Return, Escape, an arrow, a shortcut) ends it:
+    /// that strip was for the text before the key. Left alone it came up a moment later over a
+    /// message that had just been sent, and Escape did not silence the word.
+    private func followKeyWithNoStripUp(_ event: CapturedInputEvent, modifiers: ShortcutModifierMask) {
+        if awaited != nil, event.kind != .textMutation || !(modifiers.isEmpty || modifiers == .shift) {
+            if event.keyCode == KeyCode.escape { isSuppressed = true }
+            hide(because: "a key that is not typing, while the strip waited for the language model")
+            return
+        }
+        predictAhead(of: event)
     }
 
     /// Draws the strip for the text this key leaves in the field, from the key itself, without

@@ -923,6 +923,28 @@ final class SuggestionCoordinatorSpellingModelTests: XCTestCase {
         XCTAssertEqual(strip.timesHidden, 1)
     }
 
+    func test_midWordTypo_whenTheStripAlreadyListsTheFix_keepsTheStripThroughAPause() async throws {
+        // #given a bar held back for an unfinished word, and a strip that already lists the fix
+        let text = "that was unfortunatl"
+        let rig = try makeRig(text: text)
+        let bar = SpellingOfferRecorder()
+        let strip = StripRecorder()
+        strip.listsWhateverIsAsked = true
+        rig.coordinator.candidateOfferPresenter = bar
+        rig.coordinator.wordPredictionPresenter = strip
+        rig.coordinator.prepareTypoGate(precedingText: text, textAfter: "")
+        scheduleCycleForTypedText(in: rig)
+        await waitUntil("The strip was never told the text") { strip.noted.last == text }
+
+        // #when the writer stops for longer than a bar is held back
+        try await Task.sleep(nanoseconds: UInt64((SuggestionCoordinator.midWordBarHoldSeconds + 0.2) * 1_000_000_000))
+
+        // #then the strip was asked about the fix, and no bar replaces it to say the same
+        XCTAssertFalse(strip.askedAbout.isEmpty)
+        XCTAssertTrue(bar.presented.isEmpty)
+        XCTAssertEqual(strip.timesHidden, 0)
+    }
+
     func test_midWordTypo_withTheStripOn_aKeyBeforeThePauseEnds_showsNoBar() async throws {
         // #given a bar held back for an unfinished word
         let text = "that was unfortunatl"
@@ -1241,6 +1263,13 @@ private final class StripRecorder: WordPredictionPresenting {
 
     func noteTypedText(_ precedingText: String, caretRect: CGRect, focusChangeSequence: UInt64) { noted.append(precedingText) }
     func hidePredictions() { timesHidden += 1 }
+    /// True stands for a strip that has the spelling bar's first fix on screen.
+    var listsWhateverIsAsked = false
+    private(set) var askedAbout: [String] = []
+    func isOffering(_ word: String) -> Bool {
+        askedAbout.append(word)
+        return listsWhateverIsAsked
+    }
     func isBehindTheKeys(_ precedingText: String) -> Bool { false }
     /// What the strip says about a field that may already show the key; nil is "cannot say".
     var showsTheKeyAlready: Bool?

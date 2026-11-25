@@ -364,7 +364,7 @@ final class CotabbyAppEnvironment {
         let correctionJournal = CorrectionJournal()
         // The opt-in training record hears of every word event through the journal, so the call
         // sites that already report to the journal need no second line.
-        let trainingLog = TrainingLog()
+        let trainingLog = TrainingLog(disk: TrainingLog.backgroundDisk)
         correctionJournal.onRecord = { kind, typed, final, offered in
             trainingLog.noteWord(kind, typed: typed, final: final, offered: offered)
         }
@@ -649,6 +649,9 @@ final class CotabbyAppEnvironment {
         }
         wordPredictionController.onCommitted = { [weak suggestionCoordinator] in
             qualityMetricsStore.recordWordPredictionPicked()
+            suggestionCoordinator?.schedulePredictionAfterHostPublishDelay()
+        }
+        wordPredictionController.onHeldKeyReleased = { [weak suggestionCoordinator] in
             suggestionCoordinator?.schedulePredictionAfterHostPublishDelay()
         }
         suggestionCoordinator.wordPredictionPresenter = wordPredictionController

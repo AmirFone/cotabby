@@ -45,6 +45,12 @@ final class SuggestionInserter {
     /// some hosts only the accent of a decomposed letter (see `BackspaceKeyCount`). For plain ASCII,
     /// like the picker's literal `:query` run, a press, a character and a UTF-16 unit are the same.
     private static let backspaceKeyCode: CGKeyCode = 0x33
+    /// The modifiers that turn a posted Backspace or character into something else. Shift is
+    /// left out: Shift+Backspace deletes one character like Backspace, and the typed text is
+    /// set on the event itself.
+    private static let modifiersThatChangeAKey: CGEventFlags = [.maskCommand, .maskControl, .maskAlternate]
+    /// The modifiers down on the keyboard right now. A property so tests can hold one down.
+    var heldModifiers: @MainActor () -> CGEventFlags = { CGEventSource.flagsState(.combinedSessionState) }
 
     /// Virtual key code for the `V` key, used to synthesize Cmd-V in the paste insertion path.
     private static let vKeyCode: CGKeyCode = 0x09
@@ -157,6 +163,18 @@ final class SuggestionInserter {
         guard SyntheticEventPoster.secondsUntilSettled == 0 else {
             lastErrorMessage = "Another edit is still being applied."
             CotabbyLogger.suggestion.debug("Replace refused: a previous synthetic edit is still settling")
+            return false
+        }
+
+        // macOS merges the modifiers held on the real keyboard into posted key events. With
+        // Command, Control or Option down, the Backspaces of this edit would reach the app as
+        // "delete the line" or "delete the word" and the text as a shortcut. Picks wait for the
+        // release before they get here (`ModifierRelease`); an automatic fix has no time to wait
+        // (the writer's next key is milliseconds away), so it is not made at all. A word left
+        // unfixed is a smaller loss than a deleted line.
+        guard heldModifiers().isDisjoint(with: Self.modifiersThatChangeAKey) else {
+            lastErrorMessage = "A modifier key is held down."
+            CotabbyLogger.suggestion.debug("Replace refused: Command, Control or Option is held down")
             return false
         }
 

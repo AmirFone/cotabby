@@ -643,6 +643,101 @@ final class WordPredictionControllerTests: XCTestCase {
         XCTAssertEqual(Array(harness.panel.words.prefix(2)), ["go", "be"])
     }
 
+    func test_languageModelStillWorkingAfterAnAnswer_keepsTheStripWaiting() {
+        // #given a model whose first answer leaves an exact pass still to come
+        let answer = LanguageModelFixture.scores(textBefore: "I want to ", ["be": 0.6, "go": 0.2, "get": 0.05])
+        var isSettled = false
+        let harness = makeHarness(
+            precedingText: "I want to ",
+            languageModel: { _ in answer },
+            isLanguageModelPending: { _ in !isSettled }
+        )
+        harness.note("I want to ")
+
+        // #when the first answer arrives
+        harness.controller.redrawWithLanguageModel()
+
+        // #then the strip is not drawn in an order that is about to change
+        XCTAssertTrue(harness.panel.isHidden)
+
+        // #when the exact pass arrives
+        isSettled = true
+        harness.controller.redrawWithLanguageModel()
+
+        // #then it is drawn once
+        XCTAssertEqual(harness.panel.words.first, "be")
+    }
+
+    func test_returnWhileTheStripWaitsForTheLanguageModel_dropsThatStrip() {
+        // #given a strip held back for the model, with nothing on screen
+        let harness = makeHarness(precedingText: "I want to ", isLanguageModelPending: { _ in true })
+        harness.note("I want to ")
+
+        // #when Return sends the line and the wait runs out
+        let claimed = harness.controller.observe(CapturedInputEvent(kind: .dismissal, keyCode: 36, characters: "", flags: []))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.12))
+
+        // #then Return went to the app and no strip came up over the sent message
+        XCTAssertFalse(claimed)
+        XCTAssertTrue(harness.panel.isHidden)
+    }
+
+    func test_escapeWhileTheStripWaitsForTheLanguageModel_silencesTheWord() {
+        // #given a strip held back for the model
+        var isPending = true
+        let harness = makeHarness(precedingText: "I want to ", isLanguageModelPending: { _ in isPending })
+        harness.note("I want to ")
+
+        // #when Escape is pressed, and the field is read again with the model ready
+        _ = harness.controller.observe(CapturedInputEvent(kind: .dismissal, keyCode: 53, characters: "", flags: []))
+        isPending = false
+        harness.note("I want to ")
+
+        // #then the strip stays away, as after Escape on a strip that was up
+        XCTAssertTrue(harness.panel.isHidden)
+    }
+
+    func test_heldKey_takesTheStripDownUntilItIsLetGo_andThenAsksForOneRead() {
+        // #given a strip, and a count of the reads asked for
+        let harness = makeHarness(precedingText: "I want to ")
+        var readsAsked = 0
+        harness.controller.onHeldKeyReleased = { readsAsked += 1 }
+        harness.note("I want to ")
+        XCTAssertFalse(harness.panel.isHidden)
+
+        // #when Delete is held: macOS repeats the key-down, and the field is read in between
+        var repeated = CapturedInputEvent(kind: .textMutation, keyCode: 51, characters: "", flags: [])
+        repeated.isRepeat = true
+        _ = harness.controller.observe(repeated)
+        harness.focus.setPrecedingText("I want to")
+        harness.note("I want to")
+        _ = harness.controller.observe(repeated)
+        harness.focus.setPrecedingText("I want t")
+        harness.note("I want t")
+
+        // #then no strip is drawn for the texts passed through
+        XCTAssertTrue(harness.panel.isHidden)
+        XCTAssertEqual(readsAsked, 0)
+
+        // #when the key is let go
+        RunLoop.main.run(until: Date().addingTimeInterval(0.15))
+
+        // #then one read is asked for, and it draws the strip again
+        XCTAssertEqual(readsAsked, 1)
+        harness.note("I want t")
+        XCTAssertEqual(harness.panel.words.first, "to")
+    }
+
+    func test_isOffering_saysWhetherTheStripOnScreenListsAWord() {
+        let harness = makeHarness(precedingText: "I want to ")
+        XCTAssertFalse(harness.controller.isOffering("go"))
+
+        harness.note("I want to ")
+
+        XCTAssertTrue(harness.controller.isOffering("Go"))
+        XCTAssertFalse(harness.controller.isOffering("zorvex"))
+    }
+
     func test_languageModelAnswer_afterTheStripIsGone_showsNothing() {
         let answer = LanguageModelFixture.scores(textBefore: "I want to ", ["be": 0.6])
         let harness = makeHarness(precedingText: "I want to ", languageModel: { _ in answer })
@@ -1208,7 +1303,8 @@ final class WordPredictionControllerTests: XCTestCase {
             isLanguageModelPending: isLanguageModelPending,
             languageModelWait: 0.03,
             isAnotherPanelUp: isAnotherPanelUp,
-            idle: idle
+            idle: idle,
+            heldKeyQuiet: 0.04
         )
         controller.onCommitted = { counter.value += 1 }
         controller.start()

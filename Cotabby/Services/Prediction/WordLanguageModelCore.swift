@@ -28,6 +28,9 @@ nonisolated final class WordLanguageModelCore {
     /// two throwaway pieces, so the answer does not cost a real text its place in the memory; set
     /// false later too if the model ever refuses.
     private(set) var canRollBack: Bool
+    /// Whether the model reads several next pieces in one pass, each on a branch of the text
+    /// (`LlamaTokenModel.scoresAfterEach`). Asked once at load, like `canRollBack`.
+    let canBranch: Bool
 
     /// Nil when the model file cannot be loaded or no word list can be read.
     ///
@@ -37,7 +40,9 @@ nonisolated final class WordLanguageModelCore {
     ///   model can only put a word first that is in its list. A word listed twice takes the larger
     ///   count: the dictionary carries every contraction at one placeholder count (`that's` and
     ///   `don't` at 300,000), and the second file lists them again with their real ones.
-    init?(modelURL: URL, wordListURLs: [URL]) {
+    /// - Parameter readsPiecesInOnePass: false makes the exact pass read its pieces one at a time,
+    ///   as a model that cannot branch does; the harness and the tests use it to compare the two.
+    init?(modelURL: URL, wordListURLs: [URL], readsPiecesInOnePass: Bool = true) {
         guard let model = LlamaTokenModel(url: modelURL) else { return nil }
         let entries = Self.entries(in: wordListURLs)
         guard !entries.isEmpty else { return nil }
@@ -45,6 +50,7 @@ nonisolated final class WordLanguageModelCore {
         let start = model.startToken
         let couldRead = model.appendForNextPieceScores([start, start]) { _, _ in true } ?? false
         canRollBack = couldRead && model.rollBack(last: 1)
+        canBranch = couldRead && readsPiecesInOnePass && model.scoresAfterEach(of: [start, start]) { _, _, _ in }
         model.reset()
         lexicon = LanguageModelLexicon(entries: entries) { model.tokens(for: $0, parsingSpecial: false) }
         endsWord = (0..<model.vocabularyCount).map { piece in
@@ -188,47 +194,56 @@ nonisolated final class WordLanguageModelCore {
 
     /// `scores` with the model's exact numbers for the words that matter now that `prefix` has
     /// been typed (see `LanguageModelLexicon`), or nil when there is nothing to gain or the model
-    /// has moved on to another text. Each piece refined costs one pass over a single piece: the
-    /// piece is added to the text, read, and taken out of the memory again.
+    /// has moved on to another text.
+    ///
+    /// All the pieces are read in one pass (`LlamaTokenModel.scoresAfterEach`), which costs about
+    /// what one of them used to. A model that cannot branch reads them one at a time instead: each
+    /// is added to the text, read, and taken out of the memory again.
     func refine(_ scores: LanguageModelScores, forPrefix prefix: String) -> LanguageModelScores? {
-        guard canRollBack, memoryKey == scores.key else { return nil }
-        let pieces = scores.piecesWorthRefining(prefix: prefix)
+        guard canBranch || canRollBack, memoryKey == scores.key else { return nil }
+        let pieces = scores.piecesWorthRefining(prefix: prefix, limit: canBranch ? LlamaTokenModel.branchCapacity : 3)
         guard !pieces.isEmpty else { return nil }
         var probabilities = scores.probabilities
         var refined = scores.refinedPieces
         var textWords = scores.textWords
-        for piece in pieces {
-            let next = model.appendForNextPieceScores([piece]) { continuation, normalizer in
-                let logEnd = logEndProbability(continuation, normalizer: normalizer)
-                // The writer's own words starting with this piece get the model's number too.
-                for index in textWords.indices where textWords[index].pieces.first == piece && textWords[index].logProbability != nil {
-                    let word = textWords[index]
-                    if word.pieces.count == 1 {
-                        textWords[index].logProbability = word.firstPieceLogProbability + logEnd
-                    } else if Int(word.pieces[1]) < continuation.count {
-                        textWords[index].logProbability = word.firstPieceLogProbability
-                            + continuation[Int(word.pieces[1])] - normalizer
-                            + (word.pieces.count > 2 ? Self.unreadPiecesLogProbability : 0)
-                    }
+        func take(_ piece: Int32, _ continuation: UnsafeBufferPointer<Float>, _ normalizer: Float) {
+            let logEnd = logEndProbability(continuation, normalizer: normalizer)
+            // The writer's own words starting with this piece get the model's number too.
+            for index in textWords.indices where textWords[index].pieces.first == piece && textWords[index].logProbability != nil {
+                let word = textWords[index]
+                if word.pieces.count == 1 {
+                    textWords[index].logProbability = word.firstPieceLogProbability + logEnd
+                } else if Int(word.pieces[1]) < continuation.count {
+                    textWords[index].logProbability = word.firstPieceLogProbability
+                        + continuation[Int(word.pieces[1])] - normalizer
+                        + (word.pieces.count > 2 ? Self.unreadPiecesLogProbability : 0)
                 }
-                return lexicon.refined(
-                    probabilities, piece: piece, isSpaced: scores.key.isSpaced,
-                    after: .init(scores: continuation, normalizer: normalizer, logEnd: logEnd)
-                )
             }
-            guard let next else {
+            probabilities = lexicon.refined(
+                probabilities, piece: piece, isSpaced: scores.key.isSpaced,
+                after: .init(scores: continuation, normalizer: normalizer, logEnd: logEnd)
+            )
+            refined.insert(piece)
+        }
+        if canBranch {
+            guard model.scoresAfterEach(of: pieces, { take(pieces[$0], $1, $2) }) else {
                 forgetEverything()
                 return nil
             }
-            probabilities = next
-            refined.insert(piece)
-            // The exact pass needs the added piece taken out again. A model that cannot do that has
-            // lost its memory of the text (the next answer re-reads it) and is not asked again.
-            guard model.rollBack(last: 1) else {
-                canRollBack = false
-                memory = []
-                memoryKey = nil
-                break
+        } else {
+            for piece in pieces {
+                guard model.appendForNextPieceScores([piece], { take(piece, $0, $1) }) != nil else {
+                    forgetEverything()
+                    return nil
+                }
+                // The piece has to come out again. A model that cannot do that has lost its memory
+                // of the text (the next answer re-reads it) and is not asked again.
+                guard model.rollBack(last: 1) else {
+                    canRollBack = false
+                    memory = []
+                    memoryKey = nil
+                    break
+                }
             }
         }
         return LanguageModelScores(

@@ -22,6 +22,8 @@ struct InputMonitorKeyEvent {
     /// How long the key had been waiting when Cotabby was handed it (see
     /// `CapturedInputEvent.heardAfterMilliseconds`).
     var heardAfterMilliseconds = 0
+    /// True for the key-downs macOS makes up while a key is held (see `CapturedInputEvent.isRepeat`).
+    var isRepeat = false
 
     init(keyCode: CGKeyCode, characters: String = "", flags: CGEventFlags = []) {
         self.keyCode = keyCode
@@ -685,6 +687,7 @@ final class InputMonitor {
             flags: event.flags
         )
         keyEvent.heardAfterMilliseconds = Self.millisecondsWaited(since: event.timestamp)
+        keyEvent.isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
         guard routeObserverKeyDown(keyEvent) != nil, let emojiCaptureKeyDecider else { return }
         // The panels have just heard the key, so whether one of them takes it from the app is
         // asked now, in the same turn, and kept for the consuming tap. Asked later, at that
@@ -856,6 +859,7 @@ final class InputMonitor {
         let recognizesAcceptance = isAcceptTapOwningAcceptKeys && !captureInterceptionActive
         var capturedEvent = classify(keyEvent: keyEvent, recognizesAcceptance: recognizesAcceptance)
         capturedEvent.heardAfterMilliseconds = keyEvent.heardAfterMilliseconds
+        capturedEvent.isRepeat = keyEvent.isRepeat
         guard !capturedEvent.kind.isAcceptance else {
             // Acceptance is handled by the active default tap, because only that callback can
             // make insertion and "consume the original key" one atomic decision. If the active
